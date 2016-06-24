@@ -34,13 +34,6 @@
 
 #define FACTORS_MAX_PARENTS		5
 
-#define SETMASK(len, pos)		(((1U << (len)) - 1) << (pos))
-#define CLRMASK(len, pos)		(~(SETMASK(len, pos)))
-#define FACTOR_GET(bit, len, reg)	(((reg) & SETMASK(len, bit)) >> (bit))
-
-#define FACTOR_SET(bit, len, reg, val) \
-	(((reg) & CLRMASK(len, bit)) | (val << (bit)))
-
 static unsigned long clk_factors_recalc_rate(struct clk_hw *hw,
 					     unsigned long parent_rate)
 {
@@ -150,20 +143,24 @@ static int clk_factors_set_rate(struct clk_hw *hw, unsigned long rate,
 	if (factors->lock)
 		spin_lock_irqsave(factors->lock, flags);
 
-	/* Fetch the register value */
-	reg = readl(factors->reg);
+	if (factors->apply) {
+		factors->apply(factors, &req);
+	} else {
+		/* Fetch the register value */
+		reg = readl(factors->reg);
 
-	/* Set up the new factors - macros do not do anything if width is 0 */
-	reg = FACTOR_SET(config->nshift, config->nwidth, reg, req.n);
-	reg = FACTOR_SET(config->kshift, config->kwidth, reg, req.k);
-	reg = FACTOR_SET(config->mshift, config->mwidth, reg, req.m);
-	reg = FACTOR_SET(config->pshift, config->pwidth, reg, req.p);
+		/* Set up the new factors - macros do not do anything if width is 0 */
+		reg = FACTOR_SET(config->nshift, config->nwidth, reg, req.n);
+		reg = FACTOR_SET(config->kshift, config->kwidth, reg, req.k);
+		reg = FACTOR_SET(config->mshift, config->mwidth, reg, req.m);
+		reg = FACTOR_SET(config->pshift, config->pwidth, reg, req.p);
 
-	/* Apply them now */
-	writel(reg, factors->reg);
+		/* Apply them now */
+		writel(reg, factors->reg);
 
-	/* delay 500us so pll stabilizes */
-	__delay((rate >> 20) * 500 / 2);
+		/* delay 500us so pll stabilizes */
+		__delay((rate >> 20) * 500 / 2);
+	}
 
 	if (factors->lock)
 		spin_unlock_irqrestore(factors->lock, flags);
@@ -213,6 +210,7 @@ struct clk *sunxi_factors_register(struct device_node *node,
 	factors->config = data->table;
 	factors->get_factors = data->getter;
 	factors->recalc = data->recalc;
+	factors->apply = data->apply;
 	factors->lock = lock;
 
 	/* Add a gate if this factor clock can be gated */

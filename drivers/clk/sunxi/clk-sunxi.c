@@ -23,6 +23,7 @@
 #include <linux/slab.h>
 #include <linux/spinlock.h>
 #include <linux/log2.h>
+#include <linux/delay.h>
 
 #include "clk-factors.h"
 
@@ -197,6 +198,56 @@ static void sun8i_a23_get_pll1_factors(struct factors_request *req)
 	div <<= req->p;
 	div /= (req->k + 1);
 	req->n = div / 4 - 1;
+}
+
+/**
+ * sun8i_h3_apply_pll1_factors() - applies n, k, m, p factors to the
+ * register using an algorithm that tries to reserve the PLL lock
+ */
+
+static void sun8i_h3_apply_pll1_factors(struct clk_factors *factors, struct factors_request *req)
+{
+	const struct clk_factors_config *config = factors->config;
+	u32 reg;
+
+	/* Fetch the register value */
+	reg = readl(factors->reg);
+
+	if (FACTOR_GET(config->pshift, config->pwidth, reg) < req->p) {
+		reg = FACTOR_SET(config->pshift, config->pwidth, reg, req->p);
+
+		writel(reg, factors->reg);
+		__delay(2000);
+	}
+
+	if (FACTOR_GET(config->mshift, config->mwidth, reg) < req->m) {
+		reg = FACTOR_SET(config->mshift, config->mwidth, reg, req->m);
+
+		writel(reg, factors->reg);
+		__delay(2000);
+	}
+
+	reg = FACTOR_SET(config->nshift, config->nwidth, reg, req->n);
+	reg = FACTOR_SET(config->kshift, config->kwidth, reg, req->k);
+
+	writel(reg, factors->reg);
+	__delay(20);
+
+	while (!(readl(factors->reg) & (1 << config->lock)));
+
+	if (FACTOR_GET(config->mshift, config->mwidth, reg) > req->m) {
+		reg = FACTOR_SET(config->mshift, config->mwidth, reg, req->m);
+
+		writel(reg, factors->reg);
+		__delay(2000);
+	}
+
+	if (FACTOR_GET(config->pshift, config->pwidth, reg) > req->p) {
+		reg = FACTOR_SET(config->pshift, config->pwidth, reg, req->p);
+
+		writel(reg, factors->reg);
+		__delay(2000);
+	}
 }
 
 /**
@@ -451,6 +502,7 @@ static const struct clk_factors_config sun8i_a23_pll1_config = {
 	.pshift = 16,
 	.pwidth = 2,
 	.n_start = 1,
+	.lock = 28
 };
 
 static const struct clk_factors_config sun4i_pll5_config = {
@@ -511,6 +563,13 @@ static const struct factors_data sun8i_a23_pll1_data __initconst = {
 	.enable = 31,
 	.table = &sun8i_a23_pll1_config,
 	.getter = sun8i_a23_get_pll1_factors,
+};
+
+static const struct factors_data sun8i_h3_pll1_data __initconst = {
+	.enable = 31,
+	.table = &sun8i_a23_pll1_config,
+	.getter = sun8i_a23_get_pll1_factors,
+	.apply = sun8i_h3_apply_pll1_factors,
 };
 
 static const struct factors_data sun7i_a20_pll4_data __initconst = {
@@ -590,12 +649,19 @@ static void __init sun6i_pll1_clk_setup(struct device_node *node)
 CLK_OF_DECLARE(sun6i_pll1, "allwinner,sun6i-a31-pll1-clk",
 	       sun6i_pll1_clk_setup);
 
-static void __init sun8i_pll1_clk_setup(struct device_node *node)
+static void __init sun8i_a23_pll1_clk_setup(struct device_node *node)
 {
 	sunxi_factors_clk_setup(node, &sun8i_a23_pll1_data);
 }
-CLK_OF_DECLARE(sun8i_pll1, "allwinner,sun8i-a23-pll1-clk",
-	       sun8i_pll1_clk_setup);
+CLK_OF_DECLARE(sun8i_a23_pll1, "allwinner,sun8i-a23-pll1-clk",
+	       sun8i_a23_pll1_clk_setup);
+
+static void __init sun8i_h3_pll1_clk_setup(struct device_node *node)
+{
+	sunxi_factors_clk_setup(node, &sun8i_h3_pll1_data);
+}
+CLK_OF_DECLARE(sun8i_h3_pll1, "allwinner,sun8i-h3-pll1-clk",
+	       sun8i_h3_pll1_clk_setup);
 
 static void __init sun7i_pll4_clk_setup(struct device_node *node)
 {
