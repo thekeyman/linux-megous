@@ -106,7 +106,7 @@
 
 		pll1: clk@01c20000 {
 			#clock-cells = <0>;
-			compatible = "allwinner,sun8i-a23-pll1-clk";
+			compatible = "allwinner,sun8i-h3-pll1-clk";
 			reg = <0x01c20000 0x4>;
 			clocks = <&osc24M>;
 			clock-output-names = "pll1";
