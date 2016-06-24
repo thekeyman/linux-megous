@@ -6,6 +6,13 @@
 
 #define SUNXI_FACTORS_NOT_APPLICABLE	(0)
 
+#define SETMASK(len, pos)		(((1U << (len)) - 1) << (pos))
+#define CLRMASK(len, pos)		(~(SETMASK(len, pos)))
+#define FACTOR_GET(bit, len, reg)	(((reg) & SETMASK(len, bit)) >> (bit))
+
+#define FACTOR_SET(bit, len, reg, val) \
+	(((reg) & CLRMASK(len, bit)) | (val << (bit)))
+
 struct clk_factors_config {
 	u8 nshift;
 	u8 nwidth;
@@ -16,6 +23,7 @@ struct clk_factors_config {
 	u8 pshift;
 	u8 pwidth;
 	u8 n_start;
+	u8 lock;
 };
 
 struct factors_request {
@@ -28,6 +36,8 @@ struct factors_request {
 	u8 p;
 };
 
+struct clk_factors;
+
 struct factors_data {
 	int enable;
 	int mux;
@@ -35,6 +45,7 @@ struct factors_data {
 	const struct clk_factors_config *table;
 	void (*getter)(struct factors_request *req);
 	void (*recalc)(struct factors_request *req);
+	void (*apply)(struct clk_factors *factors, struct factors_request *req);
 	const char *name;
 };
 
@@ -44,6 +55,7 @@ struct clk_factors {
 	const struct clk_factors_config *config;
 	void (*get_factors)(struct factors_request *req);
 	void (*recalc)(struct factors_request *req);
+	void (*apply)(struct clk_factors *factors, struct factors_request *req);
 	spinlock_t *lock;
 	/* for cleanup */
 	struct clk_mux *mux;
