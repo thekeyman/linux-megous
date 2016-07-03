@@ -21,8 +21,10 @@
 #include <linux/regmap.h>
 #include <linux/mfd/acx00-mfd.h>
 #include <linux/arisc/arisc.h>
+#include <linux/pwm.h>
+#include <mach/sys_config.h>
 
-//#define AUDIO_RSB_BUS
+//#define AC200_RSB_BUS
 #define SUNXI_CHIP_NAME	"ACX00-CHIP"
 static unsigned int twi_id = 3;
 
@@ -31,7 +33,7 @@ struct regmap_config acx00_base_regmap_config = {
 	.val_bits = 16,
 };
 
-#ifdef AUDIO_RSB_BUS
+#ifdef AC200_RSB_BUS
 /**
  * acx00_rsb_reg_read: Read a single ACX00X00 register.
  *
@@ -104,7 +106,7 @@ EXPORT_SYMBOL_GPL(acx00_rsb_reg_write);
  */
 int acx00_reg_read(struct acx00 *acx00, unsigned short reg)
 {
-#ifdef AUDIO_RSB_BUS
+#ifdef AC200_RSB_BUS
  	return acx00_rsb_reg_read(reg);
 #else
 	unsigned int val;
@@ -132,10 +134,9 @@ int acx00_reg_write(struct acx00 *acx00, unsigned short reg,
 		     unsigned short val)
 {
 	int ret;
-	#ifdef AUDIO_RSB_BUS
+	#ifdef AC200_RSB_BUS
 	return acx00_rsb_reg_write(reg, val);
 	#else
-//pr_err("%s,l:%d,reg:%x, reg>>8:%x, reg&0xff:%x\n", __func__, __LINE__, reg, reg>>8, reg&0xff);
 	mutex_lock(&acx00->lock);
 	regmap_write(acx00->regmap, 0xfe, reg>>8);
 	ret = regmap_write(acx00->regmap, reg&0xff, val);
@@ -151,13 +152,13 @@ static struct mfd_cell acx00_devs[] = {
 		.name = "acx00-codec",
 	},
 	{
-		.name = "rtc0",
+		.name = "rtc0_ac200",
 	},
 	{
 		.name = "tv",
 	},
 	{
-		.name = "ephy",
+		.name = "acx-ephy",
 	},
 };
 
@@ -177,7 +178,6 @@ static __devinit int acx00_device_init(struct acx00 *acx00, int irq)
 		dev_err(acx00->dev, "Failed to add children: %d\n", ret);
 		goto err;
 	}
-	pr_err("%s,line:%d\n", __func__, __LINE__);
 	return 0;
 
 err:
@@ -194,11 +194,10 @@ static __devinit int acx00_i2c_probe(struct i2c_client *i2c,
 				      const struct i2c_device_id *id)
 {
 	struct acx00 *acx00;
-#ifndef AUDIO_RSB_BUS
+#ifndef AC200_RSB_BUS
 	int ret = 0;
 #endif
 
-	pr_err("%s, line:%d, i2c->irq:%d\n", __func__, __LINE__, i2c->irq);
 	acx00 = devm_kzalloc(&i2c->dev, sizeof(struct acx00), GFP_KERNEL);
 	if (acx00 == NULL)
 		return -ENOMEM;
@@ -207,7 +206,7 @@ static __devinit int acx00_i2c_probe(struct i2c_client *i2c,
 	acx00->dev = &i2c->dev;
 	acx00->irq = i2c->irq;
 	mutex_init(&acx00->lock);
-#ifdef AUDIO_RSB_BUS
+#ifdef AC200_RSB_BUS
 	if (arisc_rsb_set_rtsaddr(RSB_DEVICE_SADDR7, RSB_RTSADDR_ACX00)) {
 		pr_err("AUDIO config codec failed\n");
 	}
@@ -219,12 +218,12 @@ static __devinit int acx00_i2c_probe(struct i2c_client *i2c,
 			ret);
 		return ret;
 	}
-	acx00_reg_write(acx00, 0x0010,0x3);
-	acx00_reg_write(acx00, 0x0002,0x1);
 
-	acx00_reg_write(acx00, 0x0014,0x3);
-	acx00_reg_write(acx00, 0x0016,0xf);
-	acx00_reg_write(acx00, 0x6000,0x4);
+	acx00->pwm_ac200 = pwm_request(0, NULL);
+	pwm_config(acx00->pwm_ac200, 20, 41);
+	pwm_enable(acx00->pwm_ac200);
+
+	acx00_reg_write(acx00, 0x0002,0x1);
 #endif
 
 	return acx00_device_init(acx00, i2c->irq);
@@ -236,6 +235,8 @@ static __devexit int acx00_i2c_remove(struct i2c_client *i2c)
 
 	acx00_device_exit(acx00);
 
+	pwm_disable(acx00->pwm_ac200);
+	pwm_free(acx00->pwm_ac200);
 	return 0;
 }
 
@@ -243,7 +244,7 @@ static int acx00_detect(struct i2c_client *client, struct i2c_board_info *info)
 {
 	struct i2c_adapter *adapter = client->adapter;
 
-	pr_err("%s, l:%d, twi_id:%d, adapter->nr:%d\n", __func__, __LINE__, twi_id, adapter->nr);
+	pr_info("%s, l:%d, twi_id:%d, adapter->nr:%d\n", __func__, __LINE__, twi_id, adapter->nr);
 	if (twi_id == adapter->nr) {
 		strlcpy(info->type, SUNXI_CHIP_NAME, I2C_NAME_SIZE);
 		return 0;
@@ -271,14 +272,26 @@ static struct i2c_driver acx00_i2c_driver = {
 	.address_list = normal_i2c,
 };
 
+static int ac200_used = 0;
 static int __init acx00_i2c_init(void)
 {
-	int ret;
-pr_err("%s,l:%d\n", __func__, __LINE__);
-	acx00_i2c_driver.detect = acx00_detect;
-	ret = i2c_add_driver(&acx00_i2c_driver);
-	if (ret != 0)
-		pr_err("Failed to register acx00 I2C driver: %d\n", ret);
+	int ret = 0;
+	script_item_value_type_e  type;
+	script_item_u val;
+
+	type = script_get_item("acx0", "ac200_used", &val);
+	if (SCIRPT_ITEM_VALUE_TYPE_INT != type) {
+		pr_err("[acx0] ac200_used type err!\n");
+	}
+	ac200_used = val.val;
+
+	if (ac200_used) {
+		pr_err("%s,l:%d\n", __func__, __LINE__);
+		acx00_i2c_driver.detect = acx00_detect;
+		ret = i2c_add_driver(&acx00_i2c_driver);
+		if (ret != 0)
+			pr_err("Failed to register acx00 I2C driver: %d\n", ret);
+	}
 
 	return ret;
 }

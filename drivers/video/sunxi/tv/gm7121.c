@@ -46,7 +46,7 @@ static struct i2c_client *tv_i2c_client;
 s32 tv_i2c_write(u8 sub_addr, u8 data);
 s32 tv_i2c_read(u8 sub_addr, u8 *data);
 
-extern disp_get_disp_rsl(void);
+extern u32 disp_get_disp_rsl(void);
 
 #ifdef CONFIG_AW_AXP22
 int tv_power_enable(char *name)

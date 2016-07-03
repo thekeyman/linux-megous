@@ -58,9 +58,11 @@ static void di_timer_handle(unsigned long arg)
 {
 	u32 flag_size = 0;
 
-	di_complete_check_set(DI_TIMEOUT);
+	di_complete_check_set(DI_MODULE_TIMEOUT);
 	wake_up_interruptible(&di_data.wait);
 	flag_size = (FLAG_WIDTH*FLAG_HIGH)/4;
+	di_irq_enable(0);
+	di_irq_clear();
 	di_reset();
 	memset(di_data.in_flag, 0, flag_size);
 	memset(di_data.out_flag, 0, flag_size);
@@ -86,6 +88,7 @@ static irqreturn_t di_irq_service(int irqno, void *dev_id)
 		queue_work(di_wq, &di_work);
 	} else {
 		di_complete_check_set(-ret);
+		wake_up_interruptible(&di_data.wait);
 	}
 	di_irq_clear();
 	di_reset();

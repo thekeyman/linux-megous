@@ -308,17 +308,19 @@ static struct attribute_group disp_attribute_group = {
   .attrs = disp_attributes
 };
 
-static int disp_get_parameter_for_cmdlind(char *cmdline, char *name, char *value)
+int disp_get_parameter_for_cmdlind(char *cmdline, char *name, char *value)
 {
 	char *p = cmdline;
 	char *value_p = value;
+	int ret = 0;
 
 	if (!cmdline || !name) {
-		return -1;
+		ret = -1;
+		goto exit;
 	}
 	for (;;) {
 		if (*p == ' ') {
-			if (!strncmp(++p, name, sizeof(name))) {
+			if (!strncmp(++p, name, strlen(name))) {
 				while (*p != '=' && *p)
 					p++;
 				p++;
@@ -330,10 +332,14 @@ static int disp_get_parameter_for_cmdlind(char *cmdline, char *name, char *value
 			}
 		}
 		p++;
-		if (!*p)
+		if (!*p) {
+			ret = -1;
 			break;
+		}
 	}
-	return 0;
+
+exit:
+	return ret;
 }
 
 extern char *saved_command_line;

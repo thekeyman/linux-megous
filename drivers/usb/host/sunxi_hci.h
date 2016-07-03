@@ -237,6 +237,8 @@ static inline void fpga_config_use_hci(__u32 sram_vbase)
 	USBC_Writel(reg_value, (sram_vbase + 0x04));
 }
 #endif
+int usb_phyx_tp_write(int index, int addr, int data, int len);
+int usb_phyx_tp_read(int index, int addr, int len);
 
 void sunxi_set_host_hisc_rdy(struct sunxi_hci_hcd *sunxi_hci, int is_on);
 

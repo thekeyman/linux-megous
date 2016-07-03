@@ -249,13 +249,13 @@ typedef struct nmi_isr
 extern nmi_isr_t nmi_isr_node[2];
 
 /*
- * @flags: 0x01-clean pendings, 0x10-enter cupidle.
- * @resume_addr: resume address for cpu0 out of idle.
+ * @flags: bit1:dram enter self-refresh, bit16:C1/C2 state.
+ * @mpidr: cpu info.
  */
-typedef struct sunxi_enter_idle_para{
+typedef struct sunxi_cpuidle_para{
 	unsigned long flags;
-	void *resume_addr;
-}sunxi_enter_idle_para_t;
+	unsigned long mpidr;
+}sunxi_cpuidle_para_t;
 
 /* ====================================dvfs interface==================================== */
 /*
@@ -279,7 +279,10 @@ int arisc_dvfs_set_cpufreq(unsigned int freq, unsigned int pll, unsigned long mo
  *
  * return: result, 0 - enter cpuidle successed, !0 - failed;
  */
-extern int arisc_enter_cpuidle(arisc_cb_t cb, void *cb_arg, struct sunxi_enter_idle_para *para);
+extern int arisc_enter_cpuidle(arisc_cb_t cb, void *cb_arg, \
+                               struct sunxi_cpuidle_para *para);
+extern int arisc_config_cpuidle(arisc_cb_t cb, void *cb_arg, \
+                                struct sunxi_cpuidle_para *para);
 
 /* ====================================standby interface==================================== */
 /**

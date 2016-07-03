@@ -12,32 +12,17 @@ static int    bt_used;
 static int    bt_rst_n;
 
 extern int sunxi_gpio_req(struct gpio_config *gpio);
-extern int get_rf_mod_type(void);
-extern char * get_rf_mod_name(void);
 #define RF_MSG(...)     do {printk("[rfkill]: "__VA_ARGS__);} while(0)
 
 static int rfkill_set_power(void *data, bool blocked)
 {
-	unsigned int mod_sel = get_rf_mod_type();
-
 	RF_MSG("rfkill set power %d\n", blocked);
-
-	switch (mod_sel){
-		case 2:  /* rtl8723bs */
-		case 4:  /* ap6210 */
-		case 5:  /* ap6330 */
-		case 6:  /* ap6335 */
-			if (!blocked) {
-				if(bt_rst_n != -1)
-					gpio_set_value(bt_rst_n, 1);
-			} else {
-				if(bt_rst_n != -1)
-					gpio_set_value(bt_rst_n, 0);
-			}
-			break;
-
-		default:
-			RF_MSG("no bt module matched !!\n");
+	if (!blocked) {
+		if(bt_rst_n != -1)
+			gpio_set_value(bt_rst_n, 1);
+	} else {
+		if(bt_rst_n != -1)
+			gpio_set_value(bt_rst_n, 0);
 	}
 
 	msleep(10);

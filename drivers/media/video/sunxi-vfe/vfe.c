@@ -78,6 +78,7 @@ static char act_name[I2C_NAME_SIZE] = "";
 static uint act_slave = 0xff;
 static uint define_sensor_list = 0xff;
 static uint vfe_i2c_dbg = 0;
+static uint isp_log = 0;
 static uint vips = 0xffff;
 
 static int touch_flash_flag = 0;
@@ -94,6 +95,9 @@ static unsigned int frame_cnt = 0;
 static unsigned int vfe_dump = 0;
 struct mutex probe_hdl_lock;
 
+struct file* fp_dbg = NULL;
+static char LogFileName[128] = "/system/etc/hawkview/log.bin";
+
 module_param_string(ccm, ccm, sizeof(ccm), S_IRUGO|S_IWUSR);
 module_param(i2c_addr,uint, S_IRUGO|S_IWUSR);
 
@@ -101,6 +105,8 @@ module_param_string(act_name, act_name, sizeof(act_name), S_IRUGO|S_IWUSR);
 module_param(act_slave,uint, S_IRUGO|S_IWUSR);
 module_param(define_sensor_list,uint, S_IRUGO|S_IWUSR);
 module_param(vfe_i2c_dbg,uint, S_IRUGO|S_IWUSR);
+module_param(isp_log,uint, S_IRUGO|S_IWUSR);
+
 module_param(vips,uint, S_IRUGO|S_IWUSR);
 static ssize_t vfe_dbg_en_show(struct device *dev,
 		    struct device_attribute *attr, char *buf)
@@ -949,24 +955,24 @@ static inline void vfe_set_addr(struct vfe_dev *dev,struct vfe_buffer *buffer)
 
 static unsigned int common_af_status_to_v4l2(enum auto_focus_status af_status)
 {
-  switch(af_status) {
-    case AUTO_FOCUS_STATUS_IDLE:
-      return V4L2_AUTO_FOCUS_STATUS_IDLE;
-    case AUTO_FOCUS_STATUS_BUSY:
-      return V4L2_AUTO_FOCUS_STATUS_BUSY;
+	switch(af_status) {
+		case AUTO_FOCUS_STATUS_IDLE:
+			return V4L2_AUTO_FOCUS_STATUS_IDLE;
+		case AUTO_FOCUS_STATUS_BUSY:
+			return V4L2_AUTO_FOCUS_STATUS_BUSY;
 		case AUTO_FOCUS_STATUS_REACHED:
 			return V4L2_AUTO_FOCUS_STATUS_REACHED;
-    case AUTO_FOCUS_STATUS_APPROCH:
-      return V4L2_AUTO_FOCUS_STATUS_BUSY;
+		case AUTO_FOCUS_STATUS_APPROCH:
+			return V4L2_AUTO_FOCUS_STATUS_BUSY;
 		case AUTO_FOCUS_STATUS_REFOCUS:
 			return V4L2_AUTO_FOCUS_STATUS_BUSY;
-    case AUTO_FOCUS_STATUS_FINDED:
+		case AUTO_FOCUS_STATUS_FINDED:
 			return V4L2_AUTO_FOCUS_STATUS_BUSY;
-    case AUTO_FOCUS_STATUS_FAILED:
-      return V4L2_AUTO_FOCUS_STATUS_FAILED;
-    default:
-      return V4L2_AUTO_FOCUS_STATUS_IDLE;
-  }
+		case AUTO_FOCUS_STATUS_FAILED:
+			return V4L2_AUTO_FOCUS_STATUS_FAILED;
+		default:
+		      return V4L2_AUTO_FOCUS_STATUS_IDLE;
+	}
 }
 static void vfe_dump_csi_regs(struct vfe_dev *dev)
 {
@@ -1015,6 +1021,66 @@ static void vfe_dump_isp_regs(struct vfe_dev *dev)
 	}
 }
 
+static void vfe_init_isp_log(struct vfe_dev *dev)
+{
+	if(isp_log == 1)
+	{
+		fp_dbg = cfg_open_file(LogFileName);
+		dev->isp_gen_set[0].enable_log = 1;
+		dev->isp_gen_set[1].enable_log = 1;
+		if(IS_ERR(fp_dbg)){
+			vfe_err("open log.txt error.");
+		}else{
+			//if(cfg_write_file(fp_dbg, "0123456789abcdef\n", 16) < 0)
+			//{
+			//	vfe_err("/system/etc/hawkview/log.txt write test failed.");
+			//}
+			;
+		}
+	}else{
+		dev->isp_gen_set[0].enable_log = 0;
+		dev->isp_gen_set[1].enable_log = 0;
+	}
+
+}
+static void vfe_exit_isp_log(struct vfe_dev *dev)
+{
+	if(isp_log == 1)
+	{
+		cfg_close_file(fp_dbg);
+	}
+}
+static void vfe_dump_isp_log(struct vfe_dev *dev)
+{
+
+	//dump isp log.
+	if(isp_log == 1 && (frame_cnt % 4 == 0))
+	{
+		if(cfg_write_file(fp_dbg, dev->isp_gen_set_pt->stat.hist_buf, ISP_STAT_HIST_MEM_SIZE) < 0)
+		{
+			vfe_err("dump isp hist faild.");
+			return;
+		}
+		if(cfg_write_file(fp_dbg, dev->isp_gen_set_pt->stat.ae_buf, ISP_STAT_AE_MEM_SIZE) < 0)
+		{
+			vfe_err("dump isp ae faild.");
+		}
+		if(cfg_write_file(fp_dbg, (char *)dev->isp_gen_set_pt->awb_buf, 3*ISP_STAT_AWB_WIN_MEM_SIZE) < 0)
+		{
+			vfe_err("dump awb log faild.");
+		}
+		
+		//if(cfg_write_file(fp_dbg, dev->isp_gen_set_pt->stat.af_buf, ISP_STAT_AF_MEM_SIZE) < 0)
+		//{
+		//	vfe_err("dump isp log faild.");
+		//}
+		///if(cfg_write_file(fp_dbg, "0123456789abcdef\n", 16) < 0)
+		///{
+		//	vfe_err("/system/etc/hawkview/log.txt write test failed.");
+		//}
+	}
+}
+
 static void isp_isr_bh_handle(struct work_struct *work)
 {
 	struct actuator_ctrl_word_t  vcm_ctrl;
@@ -1027,7 +1093,7 @@ static void isp_isr_bh_handle(struct work_struct *work)
 		if(1 == isp_reparse_flag)
 		{
 			vfe_print("ISP reparse ini file!\n");
-			if(read_ini_info(dev,dev->input))
+			if(read_ini_info(dev,dev->input,"/system/etc/hawkview/"))
 			{
 				vfe_warn("ISP reparse ini fail, please check isp config!\n");
 				goto ISP_REPARSE_END;
@@ -1053,6 +1119,7 @@ ISP_REPARSE_END:
 			vfe_reg_clr(IO_ADDRESS(ISP_REGS_BASE+0x10), (1 << 20));
 			vfe_reg_clr(IO_ADDRESS(ISP_REGS_BASE+0x10), (0xF << 16));
 		}
+		vfe_dump_isp_log(dev);
 		isp_isr(dev->isp_gen_set_pt,dev->isp_3a_result_pt);
 		if((dev->ctrl_para.prev_focus_pos != dev->isp_3a_result_pt->real_vcm_pos  ||
 				dev->isp_gen_set_pt->isp_ini_cfg.isp_test_settings.isp_test_mode != 0 ||
@@ -1314,8 +1381,6 @@ static irqreturn_t vfe_isr(int irq, void *priv)
 	struct vfe_isp_stat_buf_queue *isp_stat_bq = &dev->isp_stat_bq;
 	struct vfe_isp_stat_buf *stat_buf_pt;
 	FUNCTION_LOG;
-	vfe_dump_csi_regs(dev);
-	frame_cnt++;
 	vfe_dbg(0,"vfe interrupt!!!\n");
 	if(vfe_is_generating(dev) == 0)
 	{
@@ -1347,6 +1412,8 @@ static irqreturn_t vfe_isr(int irq, void *priv)
 			return IRQ_HANDLED;
 		}
 	}
+	vfe_dump_csi_regs(dev);
+	frame_cnt++;
 
 	FUNCTION_LOG;
 	//spin_lock(&dev->slock);
@@ -1424,7 +1491,9 @@ isp_exp_handle:
 		list_del(&buf->vb.queue);
 		do_gettimeofday(&buf->vb.ts);
 		buf->vb.field_count++;
-
+		//if(frame_cnt%150 == 0){
+		//	printk("video buffer fps = %ld\n",100000000/(buf->vb.ts.tv_sec*1000000+buf->vb.ts.tv_usec - (dev->sec*1000000+dev->usec)));
+		//}
 		vfe_dbg(2,"video buffer frame interval = %ld\n",buf->vb.ts.tv_sec*1000000+buf->vb.ts.tv_usec - (dev->sec*1000000+dev->usec));
 		dev->sec = buf->vb.ts.tv_sec;
 		dev->usec = buf->vb.ts.tv_usec;
@@ -3050,7 +3119,7 @@ static int vidioc_queryctrl(struct file *file, void *priv,
     {
       if(qc->id != V4L2_CID_GAIN)
       {
-        vfe_warn("v4l2 sub device queryctrl unsuccess,id = %x!\n",qc->id);
+        vfe_warn("v4l2 sub device queryctrl %s unsuccess!\n", v4l2_ctrl_get_name(qc->id));
       }
     }
   }
@@ -3930,7 +3999,7 @@ static int vfe_open(struct file *file)
 	dev->input = -1;//default input null
 	dev->first_flag = 0;
 	vfe_start_opened(dev);
-
+	vfe_init_isp_log(dev);
 	open_end:
 	if (ret != 0){
 		//up(&dev->standby_seq_sema);
@@ -4008,6 +4077,7 @@ static int vfe_close(struct file *file)
 	dev->ctrl_para.prev_ana_gain = 1;
 	vfe_print("vfe_close end\n");
 	up(&dev->standby_seq_sema);
+	vfe_exit_isp_log(dev);
 	return 0;
 }
 
@@ -4961,7 +5031,7 @@ static void probe_work_handle(struct work_struct *work)
 		}
 		if(dev->ccm_cfg[input_num]->is_isp_used && dev->ccm_cfg[input_num]->is_bayer_raw)
 		{
-			if(read_ini_info(dev,input_num))
+			if(read_ini_info(dev,input_num, "/system/etc/hawkview/"))
 			{
 				vfe_warn("read ini info fail\n");
 			}

@@ -1124,7 +1124,7 @@ static int __ddrfreq_set(unsigned int jump, struct devfreq *df,
 	if (mdfs_in_cfs == 1) {
 #ifdef CONFIG_DEVFREQ_DRAM_FREQ_CFS_SW
 		if (!ddrfreq_odt_disable) {
-			if (dram_para.dram_clk > 500) {
+			if (dram_para.dram_clk > 200) {
 				mdfs_main(jump, &dram_para, 0, 0);
 			}
 		}
@@ -1134,7 +1134,7 @@ static int __ddrfreq_set(unsigned int jump, struct devfreq *df,
 
 #ifdef CONFIG_DEVFREQ_DRAM_FREQ_CFS_SW
 		if (!ddrfreq_odt_disable) {
-			if (dram_para.dram_clk < 500) {
+			if (dram_para.dram_clk < 200) {
 				mdfs_main(jump, &dram_para, 0, 0);
 			}
 		}

@@ -776,6 +776,7 @@ static int aw_early_suspend(void)
 #ifdef CONFIG_SUNXI_TRUSTZONE
         /* note: switch to secureos and save monitor vector to mem_para_info. */
 	mem_para_info.monitor_vector= call_firmware_op(suspend_prepare);
+	call_firmware_op(get_cp15_status, virt_to_phys((void *)&(mem_para_info.saved_secure_mmu_state)));
 #endif
 	printk("hsr: monitor_vector %x\n", mem_para_info.monitor_vector);
 	memcpy((void *)phys_to_virt(DRAM_MEM_PARA_INFO_PA), (void *)&mem_para_info, sizeof(mem_para_info));

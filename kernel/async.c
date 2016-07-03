@@ -127,6 +127,11 @@ static void async_run_entry_fn(struct work_struct *work)
 	unsigned long flags;
 	ktime_t uninitialized_var(calltime), delta, rettime;
 
+        if( ((unsigned int )work >> 16) == 0x0) {
+                printk("\n---------------fatal error ! work addr[%p]--------------------\n", work);
+                return;
+        }
+
 	/* 1) move self to the running queue */
 	spin_lock_irqsave(&async_lock, flags);
 	list_move_tail(&entry->list, entry->running);
@@ -155,6 +160,7 @@ static void async_run_entry_fn(struct work_struct *work)
 
 	/* 4) free the entry */
 	kfree(entry);
+	entry = NULL;
 	atomic_dec(&entry_count);
 
 	spin_unlock_irqrestore(&async_lock, flags);
@@ -178,6 +184,7 @@ static async_cookie_t __async_schedule(async_func_ptr *ptr, void *data, struct l
 	 */
 	if (!entry || atomic_read(&entry_count) > MAX_WORK) {
 		kfree(entry);
+		entry = NULL;
 		spin_lock_irqsave(&async_lock, flags);
 		newcookie = next_cookie++;
 		spin_unlock_irqrestore(&async_lock, flags);
@@ -186,13 +193,13 @@ static async_cookie_t __async_schedule(async_func_ptr *ptr, void *data, struct l
 		ptr(data, newcookie);
 		return newcookie;
 	}
+	spin_lock_irqsave(&async_lock, flags);
 	INIT_LIST_HEAD(&entry->list);
 	INIT_WORK(&entry->work, async_run_entry_fn);
 	entry->func = ptr;
 	entry->data = data;
 	entry->running = running;
 
-	spin_lock_irqsave(&async_lock, flags);
 	newcookie = entry->cookie = next_cookie++;
 	list_add_tail(&entry->list, &async_pending);
 	atomic_inc(&entry_count);

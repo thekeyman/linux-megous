@@ -23,7 +23,7 @@
 #endif
 
 #define DRIVER_NAME "sunxi-mmc"
-#define DRIVER_RIVISION "v1.109 2014-12-4 20:51"
+#define DRIVER_RIVISION "v1.111 2015-4-13 15:24"
 #define DRIVER_VERSION "SD/MMC/SDIO Host Controller Driver(" DRIVER_RIVISION ")" \
 			" Compiled in " __DATE__ " at " __TIME__""
 
@@ -138,6 +138,11 @@
 #define MMC_SRCCLK_PLL   "pll_periph1" //"pll_periph0"
 #define MMC_1MOD_CLK     "sdmmc1mod"
 #define MMC_2MOD_CLK     "sdmmc2mod"
+
+//secure storage relate
+#define MAX_SECURE_STORAGE_MAX_ITEM			32
+#define SDMMC_SECURE_STORAGE_START_ADD	(6*1024*1024/512)//6M
+#define SDMMC_ITEM_SIZE									(4*1024/512)//4K
 
 #define	SUNXI_CCM_BASE	 	0x01c20000
 #define SUNXI_PIO_BASE		0x01c20800

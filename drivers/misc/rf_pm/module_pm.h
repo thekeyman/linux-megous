@@ -2,8 +2,10 @@
 #define RF__PM__H
 
 struct rf_mod_power {
-	char *name;
+	char *power_axp;
+	int power_gpio;
 	unsigned int vol;
+	unsigned int used;
 };
 
 //rf module common info

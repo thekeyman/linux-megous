@@ -606,8 +606,11 @@ static void sunxi_pmx_set(struct pinctrl_dev *pctldev,unsigned pin,
 	shift  = sunxi_mux_offset(pin_bias);
 	value  = pinctrl_readl_reg(bank->membase + offset);
 	value &= ~(MUX_PINS_MASK << shift);
-	if(enable)
+	if(enable){
 		value |= (config << shift);
+	}else{
+		value |= (MUX_PINS_MASK << shift);
+	}
 	reg=bank->membase + offset;
 	pinctrl_write_reg(value,reg);
 	pr_debug("sunxi pmx set pin [%s] to %d\n", 

@@ -6,21 +6,30 @@
 #include <mach/sys_config.h>
 #include <linux/gpio.h>
 #include <linux/proc_fs.h>
+#include <linux/crypto.h>
+#include <linux/scatterlist.h>
 #include "module_pm.h"
 
 static char *wifi_para = "wifi_para";
 struct wl_func_info  wl_info;
 
 extern int sunxi_gpio_req(struct gpio_config *gpio);
-extern int get_rf_mod_type(void);
-extern char * get_rf_mod_name(void);
 extern int rf_module_power(int onoff);
 extern int rf_pm_gpio_ctrl(char *name, int level);
 #define wifi_pm_msg(...)    do {printk("[wifi_pm]: "__VA_ARGS__);} while(0)
 
+#if defined(CONFIG_ARCH_SUN6I) || defined(CONFIG_ARCH_SUN7I)
+extern void sw_mci_rescan_card(unsigned id, unsigned insert);
+extern int sw_usb_disable_hcd(__u32 usbc_no);
+extern int sw_usb_enable_hcd(__u32 usbc_no);
+#elif defined(CONFIG_ARCH_SUN8I) || defined(CONFIG_ARCH_SUN9I)
+extern void sunxi_mci_rescan_card(unsigned id, unsigned insert);
+extern int sunxi_usb_disable_hcd(__u32 usbc_no);
+extern int sunxi_usb_enable_hcd(__u32 usbc_no);
+#endif
+
 void wifi_pm_power(int on)
 {
-	int mod_num = get_rf_mod_type();
 	int on_off = 0;
 
 	if (on > 0){
@@ -28,35 +37,14 @@ void wifi_pm_power(int on)
 	} else {
 		on_off = 0;
 	}
-
-	switch(mod_num){
-		case 1:   /* rtl8188eu */
-			rf_module_power(on_off);
-		case 2:   /* rtl8723bs */
-		case 3:   /* ap6181 */
-		case 4:   /* ap6210 */
-		case 5:   /* ap6330 */
-		case 6:   /* ap6335 */
-		case 7:   /* rtl8189etv */
-			if (wl_info.wl_reg_on != -1) {
-				wifi_pm_msg("set wl_reg_on %d !\n", on_off);
-				gpio_set_value(wl_info.wl_reg_on, on_off);
-			}
-			break;
-
-		default:
-			wifi_pm_msg("wrong module select %d !\n", mod_num);
+	if (wl_info.wl_reg_on != -1) {
+		wifi_pm_msg("set wl_reg_on %d !\n", on_off);
+		gpio_set_value(wl_info.wl_reg_on, on_off);
 	}
 
 	wl_info.wl_power_state = on_off;
 }
 EXPORT_SYMBOL(wifi_pm_power);
-
-int wifi_pm_get_mod_type(void)
-{
-	return get_rf_mod_type();
-}
-EXPORT_SYMBOL(wifi_pm_get_mod_type);
 
 int wifi_pm_gpio_ctrl(char *name, int level)
 {
@@ -90,16 +78,62 @@ static int wifi_pm_power_stat(char *page, char **start, off_t off, int count, in
 {
 	char *p = page;
 
-	p += sprintf(p, "%s : wl power state %s\n", wl_info.module_name, wl_info.wl_power_state ? "on" : "off");
+#if defined(CONFIG_ARCH_SUN8IW7P1)
+	p += sprintf(p, "%s", wl_info.wl_power_state ? "0" : "1");
+#else
+	p += sprintf(p, "%s", wl_info.wl_power_state ? "1" : "0");
+#endif
 	return p - page;
+}
+static void scan_device(int onoff)
+{
+	int sdc_id = -1;
+	int usb_id = -1;
+	script_item_u val;
+	script_item_value_type_e type;
+	type = script_get_item("wifi_para", "wifi_sdc_id", &val);
+	if (SCIRPT_ITEM_VALUE_TYPE_INT != type) {
+		wifi_pm_msg("get wifi_sdc_id failed\n");
+	} else {
+		sdc_id = val.val;
+#if defined(CONFIG_ARCH_SUN6I) || defined(CONFIG_ARCH_SUN7I)
+		sw_mci_rescan_card(sdc_id, onoff);
+#elif defined(CONFIG_ARCH_SUN8I) || defined(CONFIG_ARCH_SUN9I)
+		sunxi_mci_rescan_card(sdc_id, onoff);
+#endif
+	}
+	type = script_get_item("wifi_para", "wifi_usbc_id", &val);
+	if (SCIRPT_ITEM_VALUE_TYPE_INT != type) {
+		wifi_pm_msg("get wifi_sdc_id failed\n");
+	} else {
+		usb_id = val.val;
+#if defined(CONFIG_ARCH_SUN6I) || defined(CONFIG_ARCH_SUN7I)
+		if(onoff) {
+			sw_usb_disable_hcd(usb_id);
+		} else {
+			sunxi_usb_disable_hcd(usb_id);
+		}
+#elif defined(CONFIG_ARCH_SUN8I) || defined(CONFIG_ARCH_SUN9I)
+		if(onoff) {
+			sunxi_usb_enable_hcd(usb_id);
+		} else {
+			sunxi_usb_disable_hcd(usb_id);
+		}
+#endif
+	}
 }
 
 static int wifi_pm_power_ctrl(struct file *file, const char __user *buffer, unsigned long count, void *data)
 {
 	int power = simple_strtoul(buffer, NULL, 10);
-
 	power = power ? 1 : 0;
+
 	wifi_pm_power(power);
+	mdelay(100);
+
+	scan_device(power);
+	mdelay(100);
+
 	return sizeof(power);
 }
 
@@ -168,6 +202,65 @@ static int wifi_pm_get_res(void)
 	return 0;
 }
 
+extern int sunxi_get_soc_chipid(uint8_t *chip_id);
+void wifi_hwaddr_from_chipid(u8 *addr)
+{
+#define MD5_SIZE	16
+#define CHIP_SIZE	16
+
+	struct crypto_hash *tfm;
+	struct hash_desc desc;
+	struct scatterlist sg;
+	u8 result[MD5_SIZE];
+	u8 chipid[CHIP_SIZE];
+	int i = 0;
+	int ret = -1;
+
+	memset(chipid, 0, sizeof(chipid));
+	memset(result, 0, sizeof(result));
+
+	sunxi_get_soc_chipid((u8 *)chipid);
+
+	tfm = crypto_alloc_hash("md5", 0, CRYPTO_ALG_ASYNC);
+	if (IS_ERR(tfm)) {
+		pr_err("Failed to alloc md5\n");
+		return;
+	}
+	desc.tfm = tfm;
+	desc.flags = 0;
+
+	ret = crypto_hash_init(&desc);
+	if (ret < 0) {
+		pr_err("crypto_hash_init() failed\n");
+		goto out;
+	}
+
+	sg_init_one(&sg, chipid, sizeof(chipid) - 1);
+	ret = crypto_hash_update(&desc, &sg, sizeof(chipid) - 1);
+	if (ret < 0) {
+		pr_err("crypto_hash_update() failed for id\n");
+		goto out;
+	}
+
+	crypto_hash_final(&desc, result);
+	if (ret < 0) {
+		pr_err("crypto_hash_final() failed for result\n");
+		goto out;
+	}
+
+	/* Choose md5 result's [0][2][4][6][8][10] byte as mac address */
+	for (i = 0; i < 6; i++) {
+		addr[i] = result[2*i];
+	}
+	addr[0] &= 0xfe;     /* clear multicast bit */
+	addr[0] |= 0x02;     /* set local assignment bit (IEEE802) */
+	addr[5] ^= 0x01;     /* be different with ethernet mac address */
+
+out:
+	crypto_free_hash(tfm);
+}
+EXPORT_SYMBOL(wifi_hwaddr_from_chipid);
+
 static int __devinit wifi_pm_probe(struct platform_device *pdev)
 {
 	awwifi_procfs_attach();
@@ -220,7 +313,6 @@ static int __init wifi_pm_init(void)
 	if (!wl_info.wifi_used)
 		return 0;
 
-	wl_info.module_name = get_rf_mod_name();
 	wl_info.wl_power_state = 0;
 
 	platform_device_register(&wifi_pm_dev);

@@ -1384,7 +1384,6 @@ composite_unbind(struct usb_gadget *gadget)
 		struct usb_configuration	*c;
 		c = list_first_entry(&cdev->configs,
 				struct usb_configuration, list);
-		list_del(&c->list);
 		unbind_config(cdev, c);
 	}
 	if (composite->unbind)

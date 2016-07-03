@@ -308,6 +308,7 @@ static s32 disp_mgr_set_back_color(struct disp_manager *mgr, disp_color_info *ba
 		spin_unlock_irqrestore(&mgr_data_lock, flags);
 	}
 #endif
+	mgr->apply(mgr);
 
 	return DIS_SUCCESS;
 }
@@ -353,6 +354,7 @@ static s32 disp_mgr_set_color_key(struct disp_manager *mgr, disp_colorkey *ck)
 		spin_unlock_irqrestore(&mgr_data_lock, flags);
 	}
 #endif
+	mgr->apply(mgr);
 
 	return DIS_SUCCESS;
 }

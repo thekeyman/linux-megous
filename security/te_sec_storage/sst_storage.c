@@ -22,6 +22,7 @@
 #include <linux/fs.h>
 #include <linux/uaccess.h>
 #include <linux/crc32.h>
+#include <asm/firmware.h>
 
 #include "sst.h"
 #include "sst_debug.h"
@@ -381,31 +382,6 @@ static int __fill_name_in_map(unsigned char *buffer, const char *item_name, int 
 	return index;
 }
 
-int sunxi_secure_storage_init(void)
-{
-	int ret;
-
-	if(!secure_storage_inited)
-	{
-		get_flash_type();
-		ret = sunxi_secstorage_read(0, secure_storage_map, SEC_BLK_SIZE);
-		if(ret < 0)
-		{
-			dprintk("get secure storage map err\n");
-
-			return -1;
-		}
-		else if(ret > 0)
-		{
-			dprintk("the secure storage map is empty\n");
-			sst_memset(secure_storage_map, 0, SEC_BLK_SIZE);
-		}
-	}
-
-	secure_storage_inited = 1;
-
-	return 0;
-}
 
 int sunxi_secure_storage_init_oem_class(void *oem_class)
 {
@@ -568,6 +544,52 @@ int sunxi_secure_storage_write(const char *item_name, char *buffer, int length)
 	return 0;
 }
 
+static int _cache_secure_hdcp(void)
+{
+	int ret ;
+	extern struct sunxi_sst_hdcp *sunxi_hdcp;
+
+	sunxi_hdcp =(struct sunxi_sst_hdcp*)kzalloc(sizeof(*sunxi_hdcp), GFP_KERNEL);
+	if(!sunxi_hdcp){
+		pr_err("%s: out of memroy\n",__func__);
+		return -1 ;
+	}
+	ret =sunxi_secure_storage_read("hdcpkey", sunxi_hdcp->key, SZ_4K, &(sunxi_hdcp->act_len));
+	if(ret){
+		pr_err("%s: can't read hdcpkey in keystore\n",__func__);
+		kfree(sunxi_hdcp);
+		return -1 ;
+	}
+
+	return 0 ;
+}
+
+int sunxi_secure_storage_init(void)
+{
+	int ret;
+
+	if(!secure_storage_inited)
+	{
+		get_flash_type();
+		ret = sunxi_secstorage_read(0, secure_storage_map, SEC_BLK_SIZE);
+		if(ret < 0)
+		{
+			dprintk("get secure storage map err\n");
+
+			return -1;
+		}
+		else if(ret > 0)
+		{
+			dprintk("the secure storage map is empty\n");
+			sst_memset(secure_storage_map, 0, SEC_BLK_SIZE);
+		}
+	}
+	
+	secure_storage_inited = 1;
+	_cache_secure_hdcp();
+
+	return 0;
+}
 #ifdef OEM_STORE_IN_FS 
 /*Store source data to secure_object struct
  *

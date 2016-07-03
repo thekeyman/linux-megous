@@ -40,7 +40,7 @@ static unsigned long dram_crc_error_count = 0;
  * return: result, 0 - super standby successed,
  *                !0 - super standby failed;
  */
-int arisc_enter_cpuidle(arisc_cb_t cb, void *cb_arg, struct sunxi_enter_idle_para *para)
+int arisc_enter_cpuidle(arisc_cb_t cb, void *cb_arg, struct sunxi_cpuidle_para *para)
 {
 	struct arisc_message *pmessage;	/* allocate a message frame */
 	pmessage = arisc_message_allocate(0);
@@ -48,16 +48,52 @@ int arisc_enter_cpuidle(arisc_cb_t cb, void *cb_arg, struct sunxi_enter_idle_par
 		ARISC_ERR("allocate message for super-standby request failed\n");
 		return -ENOMEM;
 	}
-	pmessage->type  		= ARISC_CPUIDLE_ENTER_REQ;
-	pmessage->cb.handler	= cb;
-	pmessage->cb.arg		= cb_arg;
-	pmessage->state			= ARISC_MESSAGE_INITIALIZED;
-	pmessage->paras[0]  	= para->flags;
-	pmessage->paras[1]  	= (unsigned long)para->resume_addr;
+
+	/* initialize message */
+	pmessage->type          = ARISC_CPUIDLE_ENTER_REQ;
+	pmessage->cb.handler    = cb;
+	pmessage->cb.arg        = cb_arg;
+	pmessage->state         = ARISC_MESSAGE_INITIALIZED;
+	pmessage->paras[0]      = para->flags;
+	pmessage->paras[1]      = para->mpidr;
 	arisc_hwmsgbox_send_message(pmessage, ARISC_SEND_MSG_TIMEOUT);
 	return 0;
 }
 EXPORT_SYMBOL(arisc_enter_cpuidle);
+
+int arisc_config_cpuidle(arisc_cb_t cb, void *cb_arg, struct sunxi_cpuidle_para *para)
+{
+	int result = 0;
+	struct arisc_message *pmessage;
+
+	/* allocate a message frame */
+	pmessage = arisc_message_allocate(ARISC_MESSAGE_ATTR_HARDSYN);
+	if (pmessage == NULL) {
+		ARISC_WRN("allocate message failed\n");
+		return -ENOMEM;
+	}
+
+	/* initialize message */
+	pmessage->type          = ARISC_CPUIDLE_CFG_REQ;
+	pmessage->cb.handler    = cb;
+	pmessage->cb.arg        = cb_arg;
+	pmessage->state         = ARISC_MESSAGE_INITIALIZED;
+	pmessage->paras[0]      = para->flags;
+	pmessage->paras[1]      = para->mpidr;
+
+	/* send request message */
+	arisc_hwmsgbox_send_message(pmessage, ARISC_SEND_MSG_TIMEOUT);
+	if (pmessage->result) {
+		ARISC_WRN("config cpuidle fail!\n");
+		result = -EINVAL;
+	}
+
+	/* free allocated message */
+	arisc_message_free(pmessage);
+
+	return result;
+}
+EXPORT_SYMBOL(arisc_config_cpuidle);
 
 /**
  * enter super standby.

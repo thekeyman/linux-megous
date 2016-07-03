@@ -1870,7 +1870,7 @@ static s32 disp_lcd_init(struct disp_device* lcd)
 			duty_ns = (backlight_bright * period_ns) / 256;
 			//DE_DBG("[PWM]backlight_bright=%d,period_ns=%d,duty_ns=%d\n",(u32)backlight_bright,(u32)period_ns, (u32)duty_ns);
 			disp_sys_pwm_set_polarity(lcdp->pwm_info.dev, lcdp->pwm_info.polarity);
-			disp_sys_pwm_config(lcdp->pwm_info.dev, duty_ns, period_ns);
+			//disp_sys_pwm_config(lcdp->pwm_info.dev, duty_ns, period_ns);
 			lcdp->pwm_info.duty_ns = duty_ns;
 			lcdp->pwm_info.period_ns = period_ns;
 		}

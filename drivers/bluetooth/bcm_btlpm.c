@@ -85,6 +85,8 @@ struct bluesleep_info {
 /* work function */
 static void bluesleep_sleep_work(struct work_struct *work);
 
+static int no_usb = 0;
+
 /* work queue */
 DECLARE_DELAYED_WORK(sleep_workqueue, bluesleep_sleep_work);
 
@@ -153,9 +155,23 @@ struct notifier_block hci_event_nblock = {
 
 struct proc_dir_entry *bluetooth_dir, *sleep_dir;
 
+static int uart_id = 2, baud_rate = 1500000;
+
+static int vendor_id = 0;
 /*
  * Local functions
  */
+
+/*
+ * return 0: not handle read or write proc info operation.
+ * return 1: handle read or write proc info operation.
+*/
+static inline int read_write_proc_info(void)
+{
+	if ((no_usb == 1) || (vendor_id == 2))
+		return 0;
+	return 1;
+}
 
 /*
  * bt go to sleep will call this function tell uart stop data interactive
@@ -239,7 +255,7 @@ static void bluesleep_sleep_work(struct work_struct *work)
  */
 static void bluesleep_hostwake_task(unsigned long data)
 {
-	BT_LPM_DBG("hostwake line change");
+	//BT_LPM_DBG("hostwake line change");
 	spin_lock(&rw_lock);
 
     if (!host_wake_invert) {
@@ -296,6 +312,9 @@ static struct uart_port *bluesleep_get_uart_port(void)
 static int bluesleep_read_proc_lpm(char *page, char **start, off_t offset,
 					int count, int *eof, void *data)
 {
+	if (!read_write_proc_info())
+		return 0;
+
 	*eof = 1;
 	return sprintf(page, "unsupported to read\n");
 }
@@ -304,6 +323,9 @@ static int bluesleep_write_proc_lpm(struct file *file, const char *buffer,
 					unsigned long count, void *data)
 {
 	char b;
+
+	if (!read_write_proc_info())
+		return 0;
 
 	if (count < 1)
 		return -EINVAL;
@@ -334,6 +356,9 @@ static int bluesleep_write_proc_lpm(struct file *file, const char *buffer,
 static int bluesleep_read_proc_btwrite(char *page, char **start, off_t offset,
 					int count, int *eof, void *data)
 {
+	if (!read_write_proc_info())
+		return 0;
+
 	*eof = 1;
 	return sprintf(page, "unsupported to read\n");
 }
@@ -342,6 +367,9 @@ static int bluesleep_write_proc_btwrite(struct file *file, const char *buffer,
 					unsigned long count, void *data)
 {
 	char b;
+
+	if (!read_write_proc_info())
+		return 0;
 
 	if (count < 1)
 		return -EINVAL;
@@ -406,15 +434,15 @@ static void bluesleep_tx_timer_expire(unsigned long data)
 
 	spin_lock_irqsave(&rw_lock, irq_flags);
 
-	BT_LPM_DBG("Tx timer expired");
+	//BT_LPM_DBG("Tx timer expired");
 
 	/* were we silent during the last timeout */
 	if (!test_bit(BT_TXDATA, &flags)) {
-		BT_LPM_DBG("Tx has been idle");
+		//BT_LPM_DBG("Tx has been idle");
 		gpio_set_value(bsi->ext_wake, 0);
 		bluesleep_tx_idle();
 	} else {
-		BT_LPM_DBG("Tx data during last period");
+		//BT_LPM_DBG("Tx data during last period");
 		mod_timer(&tx_timer, jiffies + (TX_TIMER_INTERVAL*HZ));
 	}
 
@@ -450,6 +478,9 @@ static int bluesleep_start(void)
 	script_item_value_type_e type;
 	script_item_u val;
 
+	if (!read_write_proc_info())
+		return 0;
+
 	spin_lock_irqsave(&rw_lock, irq_flags);
 
 	if (test_bit(BT_PROTO, &flags)) {
@@ -476,12 +507,16 @@ static int bluesleep_start(void)
 	} else {
 		host_wake_invert = val.val;
 	}
-	if(!host_wake_invert)
+
+	if (vendor_id == 1)
+		host_wake_invert = !host_wake_invert;
+	if(!host_wake_invert) {
 		retval = request_irq(bsi->host_wake_irq, bluesleep_hostwake_isr, IRQF_DISABLED | IRQF_TRIGGER_RISING,
-				"bluetooth hostwake", NULL);
-	else
+			"bluetooth hostwake", NULL);
+	} else {
 		retval = request_irq(bsi->host_wake_irq, bluesleep_hostwake_isr, IRQF_DISABLED | IRQF_TRIGGER_FALLING,
-				 "bluetooth hostwake", NULL);
+			"bluetooth hostwake", NULL);
+	}
 	if (retval < 0) {
 		BT_ERR("Couldn't acquire bt_host_wake IRQ or enable it");
 		goto fail;
@@ -504,6 +539,9 @@ fail:
 static void bluesleep_stop(void)
 {
 	unsigned long irq_flags;
+
+	if (!read_write_proc_info())
+		return;
 
 	spin_lock_irqsave(&rw_lock, irq_flags);
 
@@ -543,6 +581,9 @@ static void bluesleep_stop(void)
 static int bluepower_read_proc_btwake(char *page, char **start, off_t offset,
 					int count, int *eof, void *data)
 {
+	if (!read_write_proc_info())
+		return 0;
+
 	*eof = 1;
 	return sprintf(page, "btwake:%u\n", gpio_get_value(bsi->ext_wake));
 }
@@ -560,6 +601,9 @@ static int bluepower_write_proc_btwake(struct file *file, const char *buffer,
 					unsigned long count, void *data)
 {
 	char *buf;
+
+	if (!read_write_proc_info())
+		return 0;
 
 	if (count < 1)
 		return -EINVAL;
@@ -601,10 +645,52 @@ static int bluepower_write_proc_btwake(struct file *file, const char *buffer,
 static int bluepower_read_proc_hostwake(char *page, char **start, off_t offset,
 					int count, int *eof, void *data)
 {
+	if (!read_write_proc_info())
+		return 0;
+
 	*eof = 1;
 	return sprintf(page, "hostwake: %u \n", gpio_get_value(bsi->host_wake));
 }
 
+static int bluepower_read_proc_uart_id(char *page, char **start, off_t offset,
+					int count, int *eof, void *data)
+{
+	if (!read_write_proc_info())
+		return 0;
+
+	return sprintf(page, "%d\n", uart_id);
+}
+
+static int bluepower_read_proc_baud_rate(char *page, char **start, off_t offset,
+					int count, int *eof, void *data)
+{
+	if (!read_write_proc_info())
+		return 0;
+
+	return sprintf(page, "%d\n", baud_rate);
+}
+
+static int bluepower_read_proc_vendor_id(char *page, char **start, off_t offset,
+					int count, int *eof, void *data)
+{
+	return sprintf(page, "%d\n", vendor_id);
+}
+
+static int bluepower_write_proc_vendor_id(struct file *file, const char *buffer,
+					unsigned long count, void *data)
+{
+	char b;
+
+	if (count < 1)
+		return -EINVAL;
+
+	if (copy_from_user(&b, buffer, 1))
+		return -EFAULT;
+
+	vendor_id = b;
+
+	return count;
+}
 
 /**
  * Read the low-power status of the Host via the proc interface.
@@ -622,6 +708,9 @@ static int bluesleep_read_proc_asleep(char *page, char **start, off_t offset,
 					int count, int *eof, void *data)
 {
 	unsigned int asleep;
+
+	if (!read_write_proc_info())
+		return 0;
 
 	asleep = test_bit(BT_ASLEEP, &flags) ? 1 : 0;
 	*eof = 1;
@@ -645,6 +734,9 @@ static int bluesleep_read_proc_proto(char *page, char **start, off_t offset,
 {
 	unsigned int proto;
 
+	if (!read_write_proc_info())
+		return 0;
+
 	proto = test_bit(BT_PROTO, &flags) ? 1 : 0;
 	*eof = 1;
 	return sprintf(page, "proto: %u\n", proto);
@@ -663,6 +755,9 @@ static int bluesleep_write_proc_proto(struct file *file, const char *buffer,
 					unsigned long count, void *data)
 {
 	char proto;
+
+	if (!read_write_proc_info())
+		return 0;
 
 	if (count < 1)
 		return -EINVAL;
@@ -685,6 +780,17 @@ static int __init bluesleep_probe(struct platform_device *pdev)
 	int ret;
 	script_item_u val;
 	script_item_value_type_e type;
+
+    type = script_get_item("bt_para", "bt_used", &val);
+	if (SCIRPT_ITEM_VALUE_TYPE_INT != type) {
+		BT_ERR("failed to fetch bt configuration!\n");
+		return -1;
+	}
+	if (!val.val) {
+		BT_ERR("init no bt used in configuration\n");
+        no_usb = 1;
+		return 0;
+	}
 
 	bsi = kzalloc(sizeof(struct bluesleep_info), GFP_KERNEL);
 	if (!bsi)
@@ -710,8 +816,19 @@ static int __init bluesleep_probe(struct platform_device *pdev)
         return -1;
     }
     if(val.val != 0)
-        bluesleep_uart_dev = sw_uart_get_pdev(val.val);
+	{
+		bluesleep_uart_dev = sw_uart_get_pdev(val.val);
+		uart_id = val.val;
+	}
 #endif
+
+	type = script_get_item("bt_para", "bt_uart_baud", &val);
+	if (SCIRPT_ITEM_VALUE_TYPE_INT != type) {
+		BT_ERR("failed to fetch bt uart configuration.");
+		return -1;
+	}
+	if(val.val != 0)
+		baud_rate = val.val;
 
 	wake_lock_init(&bsi->wake_lock, WAKE_LOCK_SUSPEND, "bluesleep");
 
@@ -741,6 +858,9 @@ free_bsi:
 
 static int bluesleep_remove(struct platform_device *pdev)
 {
+	if (no_usb == 1)
+		return 0;
+
 	/* assert bt wake */
 	gpio_set_value(bsi->ext_wake, 1);
 	if (test_bit(BT_PROTO, &flags)) {
@@ -805,6 +925,29 @@ static int __init bluesleep_init(void)
 		BT_ERR("Unable to create /proc/bluetooth directory");
 		return -ENOMEM;
 	}
+
+	if (create_proc_read_entry("uart_id", 0, bluetooth_dir,
+				bluepower_read_proc_uart_id, NULL) == NULL) {
+		BT_ERR("Unable to create /proc/%s/uart_id entry", PROC_DIR);
+		retval = -ENOMEM;
+		goto fail;
+	}
+
+	if (create_proc_read_entry("baud_rate", 0, bluetooth_dir,
+				bluepower_read_proc_baud_rate, NULL) == NULL) {
+		BT_ERR("Unable to create /proc/%s/baud_rate entry", PROC_DIR);
+		retval = -ENOMEM;
+		goto fail;
+	}
+
+	ent = create_proc_entry("vendor_id", 0666, bluetooth_dir);
+	if (ent == NULL) {
+		BT_ERR("Unable to create /proc/%s/vendor_id entry", PROC_DIR);
+		retval = -ENOMEM;
+		goto fail;
+	}
+	ent->read_proc = bluepower_read_proc_vendor_id;
+	ent->write_proc = bluepower_write_proc_vendor_id;
 
 	sleep_dir = proc_mkdir("sleep", bluetooth_dir);
 	if (sleep_dir == NULL) {

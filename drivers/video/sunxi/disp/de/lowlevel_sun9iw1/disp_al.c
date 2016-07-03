@@ -2186,7 +2186,7 @@ static s32 scaler_set_para(u32 scaler_id, disp_scaler_info *scaler_info)
 			if(((s32)inmode == DIS_FAIL) || ((s32)outmode == DIS_FAIL))	{
 				DE_WRN("input 3d para invalid in Scaler_Set_Para,trd_mode:%d,out_trd_mode:%d\n", scaler_info->in_fb.trd_mode, scaler_info->out_fb.trd_mode);
 			}
-
+			in_size.src_height = scaler_info->in_fb.src_win.height;
 			DE_SCAL_Get_3D_In_Single_Size(inmode, &in_size, &in_size);
 			if(scaler_info->out_fb.b_trd_src)	{
 				DE_SCAL_Get_3D_Out_Single_Size(outmode, &out_size, &out_size);

@@ -375,6 +375,8 @@ typedef struct
 {
 	int (*tcon_enable)(struct disp_device *dispdev);
 	int (*tcon_disable)(struct disp_device *dispdev);
+	int (*tcon_simple_enable)(struct disp_device *dispdev);
+	int (*tcon_simple_disable)(struct disp_device *dispdev);
 }disp_vdevice_source_ops;
 
 typedef struct

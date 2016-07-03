@@ -534,6 +534,7 @@ typedef struct
 	unsigned int            lcd_vspw;
 	unsigned int            lcd_hspw;
 
+	unsigned int 		    lcd_interlace;
 	unsigned int            lcd_hv_clk_phase;
 	unsigned int            lcd_hv_sync_polarity;
 

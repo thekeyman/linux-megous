@@ -82,7 +82,7 @@ int sunxi_ion_probe(struct platform_device *pdev)
 			struct smc_param param;
 			param.a0 = TEE_SMC_PLAFORM_OPERATION;
 			param.a1 = TE_SMC_GET_DRM_MEM_INFO;
-			sunxi_smc_call(&param);
+			__sunxi_fast_smc_call(&param);
 			heaps_desc->base = param.a2;
 			heaps_desc->size = param.a3;
 			pr_debug("%s: secure-heap base=%x size= %x\n", 

@@ -63,7 +63,7 @@ static struct sunxi_mmc_host* sunxi_host[] = {NULL, NULL, NULL, NULL};
 #if defined(CONFIG_ARCH_SUN8IW5P1)
 	#define KEEP_CARD0_POWER_SUPPLY  /*used for sd card hold power when suspend*/
 #endif
-
+//#define USE_SECURE_WRITE_PROTECT 
 
 #ifdef CONFIG_CACULATE_TRANS_TIME
 static unsigned long long begin_time, over_time, end_time;
@@ -160,7 +160,6 @@ static void dumphex32(struct sunxi_mmc_host* smc_host, char* name, char* base, i
 #endif
 
 #ifdef  USE_SECURE_WRITE_PROTECT
-#if defined(CONFIG_ARCH_SUN9IW1) || defined(CONFIG_ARCH_SUN8IW6P1)
 static int sunxi_check_secure_area(u32 start, u32 blkcnt)
 {
 	u32 sta_add = start;
@@ -181,7 +180,6 @@ static int sunxi_check_secure_area(u32 start, u32 blkcnt)
 
 	return 0;
 }
-#endif
 #endif
 
 static s32 sunxi_mci_init_host(struct sunxi_mmc_host* smc_host)
@@ -883,7 +881,7 @@ s32 sunxi_mci_request_done(struct sunxi_mmc_host* smc_host)
 
 		sunxi_mci_dump_errinfo(smc_host);
 		if (req->data)
-			SMC_ERR(smc_host, "In data %s operation\n",
+			SMC_DBG(smc_host, "In data %s operation\n",
 				req->data->flags & MMC_DATA_WRITE ? "write" : "read");
 		ret = -1;
 		goto out;
@@ -955,10 +953,10 @@ out:
 	SMC_DBG(smc_host, "smc %d done, resp %08x %08x %08x %08x\n", smc_host->pdev->id,
 		req->cmd->resp[0], req->cmd->resp[1], req->cmd->resp[2], req->cmd->resp[3]);
 
-	if (req->data  && (smc_host->int_sum & SDXC_IntErrBit)) {
-		SMC_MSG(smc_host, "found data error, need to send stop command !!\n");
-		sunxi_mci_send_manual_stop(smc_host, req);
-	}
+	//if (req->data  && (smc_host->int_sum & SDXC_IntErrBit)) {
+	//	SMC_MSG(smc_host, "found data error, need to send stop command !!\n");
+	//	sunxi_mci_send_manual_stop(smc_host, req);
+	//}
 
 	return ret;
 }
@@ -2349,8 +2347,6 @@ static void sunxi_mci_request(struct mmc_host *mmc, struct mmc_request *mrq)
 	smc_host->mrq = mrq;
 	if (data) {
 #ifdef  USE_SECURE_WRITE_PROTECT
-#if defined(CONFIG_ARCH_SUN9IW1) || defined(CONFIG_ARCH_SUN8IW6P1)
-        if(sunxi_soc_is_secure()){
 			if((data->flags & MMC_DATA_WRITE)
 				&&sunxi_check_secure_area(cmd->arg,data->blocks)){
 				mrq->cmd->error = -EINVAL;
@@ -2359,8 +2355,6 @@ static void sunxi_mci_request(struct mmc_host *mmc, struct mmc_request *mrq)
 				mmc_request_done(mmc, mrq);
 				return;
 			}
-		}
-#endif
 #endif
 		byte_cnt = data->blksz * data->blocks;
 		mci_writel(smc_host, REG_BLKSZ, data->blksz);
@@ -3538,13 +3532,26 @@ static struct sunxi_mmc_platform_data sunxi_mci_pdata[] = {
 #endif
 		.regulator=NULL,
 		.mmc_clk_dly[MMC_CLK_400K] 				= {MMC_CLK_400K,				0,0},
+
+#if defined CONFIG_ARCH_SUN8IW6P1
+		.mmc_clk_dly[MMC_CLK_25M]  				= {MMC_CLK_25M,					0,7},
+#else
 		.mmc_clk_dly[MMC_CLK_25M]  				= {MMC_CLK_25M,					0,5},
+#endif
+		
 #if defined CONFIG_ARCH_SUN9IW1
 		.mmc_clk_dly[MMC_CLK_50M]  				= {MMC_CLK_50M,					5,4},
 		.mmc_clk_dly[MMC_CLK_50MDDR]			= {MMC_CLK_50MDDR,			3,4},
 		.mmc_clk_dly[MMC_CLK_50MDDR_8BIT]	= {MMC_CLK_50MDDR_8BIT,	3,4},
 		.mmc_clk_dly[MMC_CLK_100M]  			= {MMC_CLK_100M,				2,4},
 		.mmc_clk_dly[MMC_CLK_200M]  			= {MMC_CLK_200M,				2,4},
+#elif defined CONFIG_ARCH_SUN8IW6P1
+		//in 1.2GHz pll_periph only [MMC_CLK-50M] is correct
+		.mmc_clk_dly[MMC_CLK_50M]  				= {MMC_CLK_50M,					6,7},
+		.mmc_clk_dly[MMC_CLK_50MDDR]			= {MMC_CLK_50MDDR,			2,4},
+		.mmc_clk_dly[MMC_CLK_50MDDR_8BIT]	= {MMC_CLK_50MDDR_8BIT,	2,4},
+		.mmc_clk_dly[MMC_CLK_100M]  			= {MMC_CLK_100M,				1,4},
+		.mmc_clk_dly[MMC_CLK_200M]  			= {MMC_CLK_200M,				1,4},	
 #else
 		.mmc_clk_dly[MMC_CLK_50M]  				= {MMC_CLK_50M,					3,4},
 		.mmc_clk_dly[MMC_CLK_50MDDR]			= {MMC_CLK_50MDDR,			2,4},
@@ -3583,13 +3590,26 @@ static struct sunxi_mmc_platform_data sunxi_mci_pdata[] = {
 #endif
 		.regulator=NULL,
 		.mmc_clk_dly[MMC_CLK_400K] 				= {MMC_CLK_400K,				0,0},
+
+#if defined CONFIG_ARCH_SUN8IW6P1
+		.mmc_clk_dly[MMC_CLK_25M]  				= {MMC_CLK_25M,					0,7},
+#else
 		.mmc_clk_dly[MMC_CLK_25M]  				= {MMC_CLK_25M,					0,5},
+#endif
+
 #if defined CONFIG_ARCH_SUN9IW1
 		.mmc_clk_dly[MMC_CLK_50M]  				= {MMC_CLK_50M,					5,0},
 		.mmc_clk_dly[MMC_CLK_50MDDR]			= {MMC_CLK_50MDDR,				3,4},
 		.mmc_clk_dly[MMC_CLK_50MDDR_8BIT]		= {MMC_CLK_50MDDR_8BIT,			3,4},
 		.mmc_clk_dly[MMC_CLK_100M]  			= {MMC_CLK_100M,				2,3}, //80MHz
 		.mmc_clk_dly[MMC_CLK_200M]  			= {MMC_CLK_200M,				2,4},
+#elif defined CONFIG_ARCH_SUN8IW6P1	
+		//in 1.2GHz pll_periph only [MMC_CLK-50M] is correct
+		.mmc_clk_dly[MMC_CLK_50M]  				= {MMC_CLK_50M,					6,7},
+		.mmc_clk_dly[MMC_CLK_50MDDR]			= {MMC_CLK_50MDDR,				2,4},
+		.mmc_clk_dly[MMC_CLK_50MDDR_8BIT]		= {MMC_CLK_50MDDR_8BIT,			2,4},
+		.mmc_clk_dly[MMC_CLK_100M]  			= {MMC_CLK_100M,				1,4},
+		.mmc_clk_dly[MMC_CLK_200M]  			= {MMC_CLK_200M,				1,4},
 #else
 		.mmc_clk_dly[MMC_CLK_50M]  				= {MMC_CLK_50M,					3,4},
 		.mmc_clk_dly[MMC_CLK_50MDDR]			= {MMC_CLK_50MDDR,				2,4},
@@ -3656,13 +3676,27 @@ static struct sunxi_mmc_platform_data sunxi_mci_pdata[] = {
 #endif
 		.regulator=NULL,
 		.mmc_clk_dly[MMC_CLK_400K]				= {MMC_CLK_400K,				0,0},
-		.mmc_clk_dly[MMC_CLK_25M]				= {MMC_CLK_25M,					0,5},
+
+#if defined CONFIG_ARCH_SUN8IW6P1
+		.mmc_clk_dly[MMC_CLK_25M]  				= {MMC_CLK_25M,					0,7},
+#else
+		.mmc_clk_dly[MMC_CLK_25M]  				= {MMC_CLK_25M,					0,5},
+#endif
+
 #if defined CONFIG_ARCH_SUN9IW1
 		.mmc_clk_dly[MMC_CLK_50M]				= {MMC_CLK_50M,					5,4},
 		.mmc_clk_dly[MMC_CLK_50MDDR]			= {MMC_CLK_50MDDR,				3,2},
 		.mmc_clk_dly[MMC_CLK_50MDDR_8BIT]		= {MMC_CLK_50MDDR_8BIT,			2,2},
 		.mmc_clk_dly[MMC_CLK_100M]				= {MMC_CLK_100M,				2,2}, //80M
 		.mmc_clk_dly[MMC_CLK_200M]				= {MMC_CLK_200M,				2,4},
+#elif defined CONFIG_ARCH_SUN8IW6P1
+		//in 1.2GHz pll_periph only [MMC_CLK-50M] is correct
+		.mmc_clk_dly[MMC_CLK_50M]				= {MMC_CLK_50M,					6,7},
+		.mmc_clk_dly[MMC_CLK_50MDDR]			= {MMC_CLK_50MDDR,				2,4},
+		.mmc_clk_dly[MMC_CLK_50MDDR_8BIT]	= {MMC_CLK_50MDDR_8BIT,				2,4},
+
+		.mmc_clk_dly[MMC_CLK_100M]				= {MMC_CLK_100M,				1,4},
+		.mmc_clk_dly[MMC_CLK_200M]				= {MMC_CLK_200M,				1,4},
 #else
 		.mmc_clk_dly[MMC_CLK_50M]				= {MMC_CLK_50M,					3,4},
 		.mmc_clk_dly[MMC_CLK_50MDDR]			= {MMC_CLK_50MDDR,				2,4},

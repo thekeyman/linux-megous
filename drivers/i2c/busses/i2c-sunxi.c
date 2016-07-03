@@ -294,7 +294,12 @@ set_clk:
 /* soft reset twi */
 static inline void twi_soft_reset(void __iomem *base_addr)
 {
-	unsigned int reg_val = readl(base_addr + TWI_SRST_REG);
+	unsigned int reg_val;
+
+	reg_val = TWI_LCR_IDLE_STATUS;
+	writel(reg_val, base_addr + TWI_LCR_REG);
+
+	reg_val = readl(base_addr + TWI_SRST_REG);
 	reg_val |= TWI_SRST_SRST;
 	writel(reg_val, base_addr + TWI_SRST_REG);
 }

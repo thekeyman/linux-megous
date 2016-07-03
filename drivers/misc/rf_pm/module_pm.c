@@ -17,17 +17,6 @@ static char *module_para = "module_para";
 static struct clk *ap_32k = NULL;
 struct regulator* wifi_ldo[5] = {NULL};
 
-char *module_list[] = {
-	" ",
-	"rtl8188eu",
-	"rtl8723bs",
-	"ap6181",
-	"ap6210",
-	"ap6330",
-	"ap6335",
-	"rtl8189etv",
-};
-
 #define rf_pm_msg(...)    do {printk("[rf_pm]: "__VA_ARGS__);} while(0)
 
 int sunxi_gpio_req(struct gpio_config *gpio)
@@ -74,66 +63,69 @@ int sunxi_gpio_req(struct gpio_config *gpio)
 }
 EXPORT_SYMBOL(sunxi_gpio_req);
 
-//return mod index
-int get_rf_mod_type(void)
-{
-	return mod_info.num;
-}
-EXPORT_SYMBOL(get_rf_mod_type);
-
-//return module name
-char * get_rf_mod_name(void)
-{
-	return module_list[mod_info.num];
-}
-EXPORT_SYMBOL(get_rf_mod_name);
-
 int rf_module_power(int onoff)
 {
 	int i = 0, ret = 0;
 
 	if (onoff) {
 		rf_pm_msg("regulator on.\n");
-		for (i = 0; mod_info.power[i].name != NULL; i++){
-			wifi_ldo[i] = regulator_get(NULL, mod_info.power[i].name);
-			if (IS_ERR(wifi_ldo[i])) {
-				rf_pm_msg("get power regulator %s failed.\n", mod_info.power[i].name);
-				break;
-			}
-		}
-		wifi_ldo[i] = NULL;
+		for (i = 0; mod_info.power[i].used > 0; i++){
+			if(mod_info.power[i].used == 1) {
+				wifi_ldo[i] = regulator_get(NULL, mod_info.power[i].power_axp);
+				if (IS_ERR(wifi_ldo[i])) {
+					rf_pm_msg("get power regulator %s failed.\n", mod_info.power[i].power_axp);
+					break;
+				}
 
-		for(i = 0; wifi_ldo[i] != NULL; i++){
-			if(mod_info.power[i].vol > 0) {
-				ret = regulator_set_voltage(wifi_ldo[i], mod_info.power[i].vol, mod_info.power[i].vol);
+				if(mod_info.power[i].vol > 0) {
+					ret = regulator_set_voltage(wifi_ldo[i], mod_info.power[i].vol, mod_info.power[i].vol);
+					if (ret < 0) {
+						rf_pm_msg("set_voltage %s %d fail, return %d.\n", mod_info.power[i].power_axp, mod_info.power[i].vol, ret);
+						goto exit;
+					}
+				}
+
+				ret = regulator_enable(wifi_ldo[i]);
 				if (ret < 0) {
-					rf_pm_msg("set_voltage %s %d fail, return %d.\n", mod_info.power[i].name, mod_info.power[i].vol, ret);
+					rf_pm_msg("regulator_enable %s fail, return %d.\n", mod_info.power[i].power_axp, ret);
 					goto exit;
 				}
-			}
-
-			ret = regulator_enable(wifi_ldo[i]);
-			if (ret < 0) {
-				rf_pm_msg("regulator_enable %s fail, return %d.\n", mod_info.power[i].name, ret);
-				goto exit;
+			} else if(mod_info.power[i].used == 2) {
+				if (mod_info.power[i].power_gpio != -1){
+					gpio_set_value(mod_info.power[i].power_gpio, mod_info.power[i].vol? 1:0);
+				} else {
+					rf_pm_msg("get mod_info.power[%d].power_gpio failed\n", i);
+					return -1;
+				}
 			}
 		}
 		return ret;
 	} else {
 		rf_pm_msg("regulator off.\n");
-		for(i = 0; wifi_ldo[i] != NULL; i++){
-			ret = regulator_disable(wifi_ldo[i]);
-			if (ret < 0) {
-				rf_pm_msg("regulator_disable %s fail, return %d.\n", mod_info.power[i].name, ret);
-				goto exit;
+		for(i = 0; mod_info.power[i].used > 0; i++){
+			if(mod_info.power[i].used == 1) {
+				ret = regulator_disable(wifi_ldo[i]);
+				if (ret < 0) {
+					rf_pm_msg("regulator_disable %s fail, return %d.\n", mod_info.power[i].power_axp, ret);
+					goto exit;
+				}
+			} else if(mod_info.power[i].used == 2) {
+				if (mod_info.power[i].power_gpio != -1){
+					gpio_set_value(mod_info.power[i].power_gpio, mod_info.power[i].vol? 0:1);
+				} else {
+					rf_pm_msg("get mod_info.power[%d].power_gpio failed\n", i);
+					return -1;
+				}
 			}
 		}
 	}
 
 exit:
-	for(i = 0; wifi_ldo[i] != NULL; i++){
-		regulator_put(wifi_ldo[i]);
-		wifi_ldo[i] = NULL;
+	for(i = 0; i < ARRAY_SIZE(wifi_ldo); i++){
+		if(wifi_ldo[i]) {
+			regulator_put(wifi_ldo[i]);
+			wifi_ldo[i] = NULL;
+		}
 	}
 
 	return ret;
@@ -216,40 +208,37 @@ static int get_module_res(void)
 
 	memset(mod_info_p, 0, sizeof(struct rf_mod_info));
 
-	type = script_get_item(module_para, "module_num", &val);
-	if (SCIRPT_ITEM_VALUE_TYPE_INT != type) {
-		rf_pm_msg("failed to fetch wifi configuration!\n");
-		return -1;
-	}
-	mod_info_p->num = val.val;
-	if (mod_info_p->num <= 0) {
-		rf_pm_msg("no wifi used in configuration\n");
-		return -1;
-	}
-	rf_pm_msg("select module num is %d\n", mod_info_p->num);
-
 	for(i = 0; i < 4; i++) {
+		mod_info_p->power[i].used = 0; //unused
 		type = script_get_item(module_para, power_table[i].power_name, &val);
-		if(SCIRPT_ITEM_VALUE_TYPE_STR != type) {
-			rf_pm_msg("failed to fetch %s\n",power_table[i].power_name);
-			break;
-		} else {
+		if(SCIRPT_ITEM_VALUE_TYPE_STR == type) {
 			if(!strcmp(val.str, "")) {
-				break;
+				continue;
+			} else {
+				mod_info_p->power[i].power_axp = val.str;
+				rf_pm_msg("module power%d name %s\n", i, mod_info_p->power[i].power_axp);
+				mod_info_p->power[i].used = 1;    //used power_axp
 			}
-			mod_info_p->power[i].name = val.str;
-			rf_pm_msg("module power%d name %s\n", i, mod_info_p->power[i].name);
-		}
-		type = script_get_item(module_para, power_table[i].value_name, &val);
-		if(SCIRPT_ITEM_VALUE_TYPE_INT != type) {
-			rf_pm_msg("failed to fetch %s\n",power_table[i].value_name);
-			mod_info_p->power[i].name = NULL;
-			break;
+		} else if(SCIRPT_ITEM_VALUE_TYPE_PIO == type){
+			gpio_p = &val.gpio;
+			mod_info_p->power[i].power_gpio = gpio_p->gpio;
+			sunxi_gpio_req(gpio_p);
+			mod_info_p->power[i].used = 2;    //used power_gpio
 		} else {
-			mod_info_p->power[i].vol = val.val;
+			rf_pm_msg("Did not config %s in sys_config\n",power_table[i].power_name);
+			continue;
+		}
+		if(mod_info_p->power[i].used) {
+			type = script_get_item(module_para, power_table[i].value_name, &val);
+			if(SCIRPT_ITEM_VALUE_TYPE_INT != type) {
+				rf_pm_msg("failed to fetch %s\n",power_table[i].value_name);
+				mod_info_p->power[i].used = 0;
+				break;
+			} else {
+				mod_info_p->power[i].vol = val.val;
+			}
 		}
 	}
-	mod_info_p->power[i+1].name = NULL;
 
 	mod_info_p->chip_en = -1;
 	type = script_get_item(module_para, "chip_en", &val);

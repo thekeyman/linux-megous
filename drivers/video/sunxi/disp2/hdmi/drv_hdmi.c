@@ -5,6 +5,7 @@
 #include <linux/regulator/consumer.h>
 #include <linux/clk-private.h>
 #include <mach/sunxi-chip.h>
+#include <asm/firmware.h>
 
 #define HDMI_IO_NUM 5
 static bool hdmi_io_used[HDMI_IO_NUM]={0};
@@ -552,7 +553,7 @@ __s32 Hdmi_init(void)
 {
 #if defined(CONFIG_SND_SUNXI_SOC_HDMIAUDIO)
 	__audio_hdmi_func audio_func;
-	#if defined (CONFIG_SND_SUNXI_SOC_AUDIOHUB_INTERFACE)
+	#if defined (CONFIG_SND_SUNXI_SOC_AUDIOHUB_INTERFACE) || defined (CONFIG_SND_SOC_RT3261)
 	__audio_hdmi_func audio_func_muti;
 	#endif
 #endif
@@ -637,7 +638,7 @@ __s32 Hdmi_init(void)
 			audio_func.hdmi_audio_enable = Hdmi_Audio_Enable;
 			audio_func.hdmi_set_audio_para = Hdmi_Set_Audio_Para;
 			audio_set_hdmi_func(&audio_func);
-#if defined (CONFIG_SND_SUNXI_SOC_AUDIOHUB_INTERFACE)
+#if defined (CONFIG_SND_SUNXI_SOC_AUDIOHUB_INTERFACE) || defined (CONFIG_SND_SOC_RT3261)
 			audio_func_muti.hdmi_audio_enable = Hdmi_Audio_Enable;
 			audio_func_muti.hdmi_set_audio_para = Hdmi_Set_Audio_Para;
 			audio_set_muti_hdmi_func(&audio_func_muti);
@@ -708,6 +709,9 @@ __s32 Hdmi_resume(void)
 {
 	mutex_lock(&mlock);
 	if(hdmi_used && (1 == b_hdmi_suspend)) {
+#ifdef CONFIG_SUNXI_TRUSTZONE
+		call_firmware_op(resume_hdcp_key);
+#endif
 		/* normal state */
 		if(clk_enable_count == 0) {
 			hdmi_clk_enable();
