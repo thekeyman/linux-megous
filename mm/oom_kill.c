@@ -780,3 +780,9 @@ void pagefault_out_of_memory(void)
 	if (!test_thread_flag(TIF_MEMDIE))
 		schedule_timeout_uninterruptible(1);
 }
+
+void dump_user_task(void)
+{
+	dump_tasks(NULL, NULL);
+}
+EXPORT_SYMBOL(dump_user_task);

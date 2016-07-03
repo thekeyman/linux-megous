@@ -57,9 +57,9 @@
 
 
 #define  NAND_DRV_VERSION_0		0x2
-#define  NAND_DRV_VERSION_1		0x22
-#define  NAND_DRV_DATE			0x20150401
-#define  NAND_DRV_TIME			0x1122
+#define  NAND_DRV_VERSION_1		0x23
+#define  NAND_DRV_DATE			0x20150521
+#define  NAND_DRV_TIME			0x0929
 
 struct clk *pll6;
 struct clk *nand0_clk;
@@ -1400,7 +1400,7 @@ int NAND_ReleaseVoltage(void)
 
 int NAND_IS_Secure_sys(void)
 {
-	if(sunxi_soc_is_secure())
+	if(sunxi_boot_is_secure())
 		return 0;
 	else
 		return -1;

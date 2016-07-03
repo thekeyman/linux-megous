@@ -579,7 +579,7 @@ int bsp_hdmi_ddc_read(char cmd,char pointer,char offset,int nbyte,char * pbuf)
 			to_cnt--;	//wait for 10ms for timeout
 			if(to_cnt == 0)
 			{
-				pr_warn("ddc read timeout, byte cnt = %d\n",nbyte);
+				// pr_warn("ddc read timeout, byte cnt = %d\n",nbyte);
 				break;
 			}
 			if( (hdmi_read(0x0013) & 0x02) == 0x02)
@@ -643,4 +643,8 @@ void bsp_hdmi_hrst()
 void bsp_hdmi_hdl()
 {
 
+}
+
+void bsp_hdmi_hdcp_err_check(void)
+{
 }

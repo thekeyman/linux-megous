@@ -77,7 +77,7 @@ s32 tv_detect_thread(void *parg)
 			break;
 		}
 		if(!tv_suspend_status) {
-				hpd = aw1683_tve_plug_status();
+			hpd = aw1683_tve_plug_status();
 			if(hpd != tv_hpd_sourc) {
 				tv_hpd_sourc = hpd;
 				tv_report_hpd_work();
@@ -389,7 +389,7 @@ s32 tv_resume(void)
 			tv_source_ops.tcon_simple_enable(tv_device);
 	}
 	mutex_unlock(&mlock);
-
+	aw1683_tve_init();
 	return  0;
 }
 
@@ -487,6 +487,8 @@ static int ac200_tv_probe(struct platform_device *pdev)
 	init_data.func.get_video_timing_info = tv_get_video_timing_info;
 	init_data.func.get_interface_para = tv_get_interface_para;
 	init_data.func.get_input_csc = tv_get_input_csc;
+	init_data.func.resume = tv_resume;
+	init_data.func.suspend = tv_suspend;
 	disp_vdevice_get_source_ops(&tv_source_ops);
 	tv_device = disp_vdevice_register(&init_data);
 

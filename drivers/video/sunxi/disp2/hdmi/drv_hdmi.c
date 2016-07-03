@@ -553,7 +553,7 @@ __s32 Hdmi_init(void)
 {
 #if defined(CONFIG_SND_SUNXI_SOC_HDMIAUDIO)
 	__audio_hdmi_func audio_func;
-	#if defined (CONFIG_SND_SUNXI_SOC_AUDIOHUB_INTERFACE) || defined (CONFIG_SND_SOC_RT3261)
+	#if defined (CONFIG_SND_SUNXI_SOC_AUDIOHUB_INTERFACE) || defined (CONFIG_SND_SOC_RT3261) || ((defined CONFIG_ARCH_SUN8IW7)&& (defined CONFIG_MFD_ACX00))
 	__audio_hdmi_func audio_func_muti;
 	#endif
 #endif
@@ -638,7 +638,7 @@ __s32 Hdmi_init(void)
 			audio_func.hdmi_audio_enable = Hdmi_Audio_Enable;
 			audio_func.hdmi_set_audio_para = Hdmi_Set_Audio_Para;
 			audio_set_hdmi_func(&audio_func);
-#if defined (CONFIG_SND_SUNXI_SOC_AUDIOHUB_INTERFACE) || defined (CONFIG_SND_SOC_RT3261)
+#if defined (CONFIG_SND_SUNXI_SOC_AUDIOHUB_INTERFACE) || defined (CONFIG_SND_SOC_RT3261) || ((defined CONFIG_ARCH_SUN8IW7)&& (defined CONFIG_MFD_ACX00))
 			audio_func_muti.hdmi_audio_enable = Hdmi_Audio_Enable;
 			audio_func_muti.hdmi_set_audio_para = Hdmi_Set_Audio_Para;
 			audio_set_muti_hdmi_func(&audio_func_muti);
@@ -710,7 +710,8 @@ __s32 Hdmi_resume(void)
 	mutex_lock(&mlock);
 	if(hdmi_used && (1 == b_hdmi_suspend)) {
 #ifdef CONFIG_SUNXI_TRUSTZONE
-		call_firmware_op(resume_hdcp_key);
+		if( Hdmi_get_hdcp_enable())
+			call_firmware_op(resume_hdcp_key);
 #endif
 		/* normal state */
 		if(clk_enable_count == 0) {

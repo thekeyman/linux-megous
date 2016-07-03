@@ -68,6 +68,11 @@ MODULE_ALIAS("mmc:block");
 #define MMC_SANITIZE_REQ_TIMEOUT 240000
 #define MMC_EXTRACT_INDEX_FROM_ARG(x) ((x & 0x00FF0000) >> 16)
 
+
+
+
+
+
 static DEFINE_MUTEX(block_mutex);
 
 /*
@@ -2741,11 +2746,17 @@ static const struct mmc_fixup blk_fixups[] =
 	END_FIXUP
 };
 
+#ifdef CONFIG_FATFS_FS_SUPPORT
+	extern int mmc_fatfs_probe(card);
+	extern void mmc_fatfs_remove(card);
+	extern int mmc_fatfs_init(void);
+	extern void mmc_fatfs_exit(void);
+#endif
+
 static int mmc_blk_probe(struct mmc_card *card)
 {
 	struct mmc_blk_data *md, *part_md;
 	char cap_str[10];
-
 	/*
 	 * Check that the card supports the command class(es) we need.
 	 */
@@ -2778,6 +2789,11 @@ static int mmc_blk_probe(struct mmc_card *card)
 		if (mmc_add_disk(part_md))
 			goto out;
 	}
+
+#ifdef CONFIG_FATFS_FS_SUPPORT
+	mmc_fatfs_probe(card);			// add for fatfs
+#endif
+
 	return 0;
 
  out:
@@ -2792,6 +2808,11 @@ static void mmc_blk_remove(struct mmc_card *card)
 
 	mmc_blk_remove_parts(card, md);
 	mmc_claim_host(card->host);
+
+#ifdef CONFIG_FATFS_FS_SUPPORT
+	mmc_fatfs_remove(card);			// add for fatfs
+#endif
+	
 	mmc_blk_part_switch(card, md);
 	mmc_release_host(card->host);
 	mmc_blk_remove_req(md);
@@ -2862,6 +2883,10 @@ static int __init mmc_blk_init(void)
 	if (res)
 		goto out;
 
+#ifdef CONFIG_FATFS_FS_SUPPORT
+	mmc_fatfs_init();
+#endif
+
 	res = mmc_register_driver(&mmc_driver);
 	if (res)
 		goto out2;
@@ -2875,6 +2900,10 @@ static int __init mmc_blk_init(void)
 
 static void __exit mmc_blk_exit(void)
 {
+#ifdef CONFIG_FATFS_FS_SUPPORT
+	mmc_fatfs_exit();
+#endif
+
 	mmc_unregister_driver(&mmc_driver);
 	unregister_blkdev(MMC_BLOCK_MAJOR, "mmc");
 }

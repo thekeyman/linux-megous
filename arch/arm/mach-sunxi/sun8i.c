@@ -133,11 +133,14 @@ static int ion_reserve_select(void)
 {
 #ifdef CONFIG_ARCH_SUN8IW7P1
 	u32 chipid = sunxi_smc_readl(SUNXI_SID_VBASE + 0x200);
+early_printk("%s: ion chipid  [0x%x!\n", __func__, chipid);
 	switch (chipid & 0x0ff) {
-		case 0x24:	/* H2 */
-			return 2;
-		case 0x42:	/* H3s */
+		case 0x42:	/* H2+ */
+		case 0x83:
 			return 1;
+		case 0x00:      /* H3 */
+		case 0x81:
+			return 0;
 		default:	/* H3 */
 			return 0;
 		}

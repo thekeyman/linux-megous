@@ -62,8 +62,10 @@ CONFIG_BR_EXT = y
 CONFIG_ANTENNA_DIVERSITY = n
 CONFIG_CUSTOM_DEFAULT_MAC_ADDRESS = y
 ######################## Wake On Lan ##########################
+ifeq ($(CONFIG_WAKE_ON_WLAN), y)
 CONFIG_WOWLAN = y
 CONFIG_GPIO_WAKEUP = y
+endif
 CONFIG_WAKEUP_GPIO_IDX = default
 CONFIG_PNO_SUPPORT = n
 CONFIG_PNO_SET_DEBUG = n

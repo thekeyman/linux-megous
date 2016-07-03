@@ -24,7 +24,7 @@
 
 #define RTL871X_MODULE_NAME "8723BS"
 #ifdef CONFIG_FOR_RTL8723BS_VQ0 
-#define DRV_NAME "rtl8723bs-vq0"
+#define DRV_NAME "rtl8723bs_vq0"
 #else
 #define DRV_NAME "rtl8723bs"
 #endif

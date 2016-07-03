@@ -1537,7 +1537,9 @@ static void usb_passby(struct sunxi_hci_hcd *sunxi_hci, u32 enable)
 			if(sunxi_hci->hsic_flag){
 				reg_value = usb_get_hsic_phy_ctrl(reg_value, enable);
 			}else{
+#ifdef CONFIG_USB_SUSPEND
 				reg_value |= (1 << 10);		/* AHB Master interface INCR8 enable */
+#endif
 				reg_value |= (1 << 9);		/* AHB Master interface burst type INCR4 enable */
 				reg_value |= (1 << 8);		/* AHB Master interface INCRX align enable */
 #ifdef SUNXI_USB_FPGA
@@ -1574,7 +1576,9 @@ static void usb_passby(struct sunxi_hci_hcd *sunxi_hci, u32 enable)
 			if(sunxi_hci->hsic_flag){
 				reg_value = usb_get_hsic_phy_ctrl(reg_value, enable);
 			}else{
+#ifdef CONFIG_USB_SUSPEND
 				reg_value |= (1 << 10);		/* AHB Master interface INCR8 enable */
+#endif
 				reg_value |= (1 << 9);		/* AHB Master interface burst type INCR4 enable */
 				reg_value |= (1 << 8);		/* AHB Master interface INCRX align enable */
 				reg_value |= (1 << 0);		/* ULPI bypass enable */
@@ -1604,7 +1608,9 @@ static void usb_passby(struct sunxi_hci_hcd *sunxi_hci, u32 enable)
 				reg_value = usb_get_hsic_phy_ctrl(reg_value, enable);
 
 			}else{
+#ifdef CONFIG_USB_SUSPEND
 				reg_value |= (1 << 10);		/* AHB Master interface INCR8 enable */
+#endif
 				reg_value |= (1 << 9);		/* AHB Master interface burst type INCR4 enable */
 				reg_value |= (1 << 8);		/* AHB Master interface INCRX align enable */
 				reg_value |= (1 << 0);		/* ULPI bypass enable */
@@ -1637,7 +1643,9 @@ static void usb_passby(struct sunxi_hci_hcd *sunxi_hci, u32 enable)
 			if(sunxi_hci->hsic_flag){
 				reg_value = usb_get_hsic_phy_ctrl(reg_value, enable);
 			}else{
+#ifdef CONFIG_USB_SUSPEND
 				reg_value |= (1 << 10);		/* AHB Master interface INCR8 enable */
+#endif
 				reg_value |= (1 << 9);		/* AHB Master interface burst type INCR4 enable */
 				reg_value |= (1 << 8);		/* AHB Master interface INCRX align enable */
 				reg_value |= (1 << 0);		/* ULPI bypass enable */
@@ -1997,6 +2005,24 @@ static struct platform_device sunxi_usb_ohci_device[] = {
 };
 #endif
 
+#ifdef CONFIG_ARCH_SUN8IW8
+static void sunxi_usbc_work(struct work_struct *data)
+{
+	struct sunxi_hci_hcd *sunxi_hci  = NULL;
+
+	sunxi_hci = &sunxi_ehci0;
+
+	printk("sunxi_usbc_work, usbc:%d\n", sunxi_hci->usbc_no);
+
+	__sunxi_set_vbus(sunxi_hci, 0);
+	msleep(100);
+	__sunxi_set_vbus(sunxi_hci, 1);
+
+	printk("end sunxi_usbc_work\n");
+
+}
+#endif
+
 static int init_sunxi_hci(struct sunxi_hci_hcd *sunxi_hci, u32 usbc_no, u32 ohci, const char *hci_name)
 {
 	s32 ret = 0;
@@ -2143,7 +2169,9 @@ static int __init sunxi_hci_init(void)
 #ifdef  CONFIG_USB_SUNXI_OHCI0
 
 		init_sunxi_hci(&sunxi_ohci0, HCI0_USBC_NO, 1, ohci_name);
-
+#ifdef CONFIG_ARCH_SUN8IW8
+		INIT_WORK(&sunxi_ohci0.usbc_work, sunxi_usbc_work);
+#endif
 #ifndef  CONFIG_USB_SUNXI_EHCI0
 		alloc_pin(&sunxi_ohci0);
 #endif

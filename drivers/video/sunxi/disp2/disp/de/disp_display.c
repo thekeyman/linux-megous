@@ -258,6 +258,10 @@ s32 disp_init_connections(disp_bsp_init_para * para)
 						dispdev->set_manager(dispdev, mgr);
 				}
 			}
+		} else if(0 == para->boot_info.sync) {
+			dispdev = disp_device_get(disp, DISP_OUTPUT_TYPE_LCD);
+			if((dispdev) && (dispdev->set_manager))
+				dispdev->set_manager(dispdev, mgr);
 		}
 
 		enhance = disp_get_enhance(disp);

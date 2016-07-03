@@ -23,16 +23,18 @@
 #include <linux/arisc/arisc.h>
 #include <linux/pwm.h>
 #include <mach/sys_config.h>
+#include <linux/regulator/consumer.h>
 
 //#define AC200_RSB_BUS
 #define SUNXI_CHIP_NAME	"ACX00-CHIP"
 static unsigned int twi_id = 3;
+atomic_t acx00_en;
 
 struct regmap_config acx00_base_regmap_config = {
 	.reg_bits = 8,
 	.val_bits = 16,
 };
-
+static struct regulator *vcc_ave = NULL;
 #ifdef AC200_RSB_BUS
 /**
  * acx00_rsb_reg_read: Read a single ACX00X00 register.
@@ -147,6 +149,22 @@ int acx00_reg_write(struct acx00 *acx00, unsigned short reg,
 }
 EXPORT_SYMBOL_GPL(acx00_reg_write);
 
+int acx00_enable(void)
+{
+	return atomic_read(&acx00_en);
+}
+EXPORT_SYMBOL_GPL(acx00_enable);
+
+static void acx00_init_work(struct work_struct *work)
+{
+	struct acx00 *acx00 = container_of(work, struct acx00, init_work);
+
+	atomic_set(&acx00_en, 0);
+	msleep(120);
+	acx00_reg_write(acx00, 0x0002,0x1);
+	atomic_set(&acx00_en, 1);
+}
+
 static struct mfd_cell acx00_devs[] = {
 	{
 		.name = "acx00-codec",
@@ -189,6 +207,78 @@ static __devexit void acx00_device_exit(struct acx00 *acx00)
 {
 	mfd_remove_devices(acx00->dev);
 }
+/**************************read reg interface**************************/
+static ssize_t acx00_dump_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t count)
+{
+	static int val = 0;
+	int reg,num,i=0;
+	int value_r[128];
+	struct acx00 *acx00 = dev_get_drvdata(dev);
+	val = simple_strtol(buf, NULL, 16);
+	reg =(val>>8);
+	num=val&0xff;
+	printk("\n");
+	printk("read:start add:0x%x,count:0x%x\n",reg,num);
+	do{
+		value_r[i] = acx00_reg_read(acx00, reg);
+		printk("0x%x: 0x%04x ",reg,value_r[i]);
+		reg+=1;
+		i++;
+		if(i == num)
+			printk("\n");
+		if(i%4==0)
+			printk("\n");
+	}while(i<num);
+	return count;
+}
+
+static ssize_t acx00_dump_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	printk("echo reg|count > dump\n");
+	printk("eg read star addres=0x0006,count 0x10:echo 0x610 > dump\n");
+	printk("eg read star addres=0x2000,count 0x10:echo 0x200010 > dump\n");
+    return 0;
+}
+
+/**************************write reg interface**************************/
+static ssize_t acx00_write_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t count)
+{
+	static int val = 0;
+	int reg;
+	int value_w;
+	struct acx00 *acx00 = dev_get_drvdata(dev);
+	val = simple_strtol(buf, NULL, 16);
+
+	reg = (val >> 16);
+	value_w =  val & 0xFFFF;
+	acx00_reg_write(acx00, reg, value_w);
+	printk("write 0x%x to reg:0x%x\n",value_w,reg);
+	return count;
+}
+
+static ssize_t acx00_write_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	printk("echo reg|val > write\n");
+	printk("eg write value:0x13fe to address:0x0004 :echo 0x413fe > write\n");
+	printk("eg write value:0x6 to address:0x2000 :echo 0x20000006 > write\n");
+    return 0;
+}
+
+static DEVICE_ATTR(dump, 0644, acx00_dump_show, acx00_dump_store);
+static DEVICE_ATTR(write, 0644, acx00_write_show, acx00_write_store);
+static struct attribute *audio_debug_attrs[] = {
+	&dev_attr_dump.attr,
+	&dev_attr_write.attr,
+	NULL,
+};
+static struct attribute_group audio_debug_attr_group = {
+	.name   = "acx00_debug",
+	.attrs  = audio_debug_attrs,
+};
 
 static __devinit int acx00_i2c_probe(struct i2c_client *i2c,
 				      const struct i2c_device_id *id)
@@ -218,12 +308,16 @@ static __devinit int acx00_i2c_probe(struct i2c_client *i2c,
 			ret);
 		return ret;
 	}
-
+	ret = sysfs_create_group(&i2c->dev.kobj, &audio_debug_attr_group);
+	if (ret) {
+		pr_err("failed to create attr group\n");
+	}
+	INIT_WORK(&acx00->init_work, acx00_init_work);
 	acx00->pwm_ac200 = pwm_request(0, NULL);
 	pwm_config(acx00->pwm_ac200, 20, 41);
 	pwm_enable(acx00->pwm_ac200);
-
-	acx00_reg_write(acx00, 0x0002,0x1);
+	atomic_set(&acx00_en, 0);
+	schedule_work(&acx00->init_work);
 #endif
 
 	return acx00_device_init(acx00, i2c->irq);
@@ -233,10 +327,34 @@ static __devexit int acx00_i2c_remove(struct i2c_client *i2c)
 {
 	struct acx00 *acx00 = i2c_get_clientdata(i2c);
 
+	sysfs_remove_group(&i2c->dev.kobj, &audio_debug_attr_group);
 	acx00_device_exit(acx00);
 
 	pwm_disable(acx00->pwm_ac200);
 	pwm_free(acx00->pwm_ac200);
+	return 0;
+}
+static int acx00_i2c_suspend(struct i2c_client *client,pm_message_t state)
+{
+	if(vcc_ave != NULL) {
+		regulator_disable(vcc_ave);
+		regulator_put(vcc_ave);
+		vcc_ave = NULL;
+	}
+	atomic_set(&acx00_en, 0);
+	return 0;
+}
+
+static int acx00_i2c_resume(struct i2c_client *client)
+{
+	struct acx00 *acx00 = i2c_get_clientdata(client);
+
+	vcc_ave = regulator_get(NULL, "vcc-ave-33");
+	if (IS_ERR_OR_NULL(vcc_ave)) {
+		pr_err("get audio vcc-ave-33 failed\n");
+	} else
+		regulator_enable(vcc_ave);
+	schedule_work(&acx00->init_work);
 	return 0;
 }
 
@@ -270,6 +388,8 @@ static struct i2c_driver acx00_i2c_driver = {
 		.name 	= "ACX00-CHIP",
 	},
 	.address_list = normal_i2c,
+	.suspend  = acx00_i2c_suspend,
+	.resume = acx00_i2c_resume,
 };
 
 static int ac200_used = 0;
@@ -286,16 +406,29 @@ static int __init acx00_i2c_init(void)
 	ac200_used = val.val;
 
 	if (ac200_used) {
-		pr_err("%s,l:%d\n", __func__, __LINE__);
+		type = script_get_item("acx0", "twi_ac200_used", &val);
+		if (SCIRPT_ITEM_VALUE_TYPE_INT != type) {
+			pr_err("[acx0] twi_ac200_used type err!\n");
+		}else
+			twi_id = val.val;
+
 		acx00_i2c_driver.detect = acx00_detect;
 		ret = i2c_add_driver(&acx00_i2c_driver);
 		if (ret != 0)
 			pr_err("Failed to register acx00 I2C driver: %d\n", ret);
+
+		vcc_ave = regulator_get(NULL, "vcc-ave-33");
+		if (IS_ERR_OR_NULL(vcc_ave)) {
+			pr_err("get audio vcc-ave-33 failed\n");
+		} else{
+			regulator_enable(vcc_ave);
+
+		}
 	}
 
 	return ret;
 }
-subsys_initcall(acx00_i2c_init);
+subsys_initcall_sync(acx00_i2c_init);
 
 static void __exit acx00_i2c_exit(void)
 {

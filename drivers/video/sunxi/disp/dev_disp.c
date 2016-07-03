@@ -342,7 +342,7 @@ s32 drv_lcd_enable(u32 sel)
 	if(bsp_disp_lcd_is_used(sel) && (g_disp_drv.b_lcd_enabled[sel] == 0))	{
 		bsp_disp_lcd_pre_enable(sel);
 
-		if(NULL == (g_sw_init_para.sw_init_flag & (1 << sel))) {
+		if(0 == (g_sw_init_para.sw_init_flag & (1 << sel))) {
 			flow = bsp_disp_lcd_get_open_flow(sel);
 			for(i=0; i<flow->func_num; i++)	{
 				flow->func[i].func(sel);
@@ -606,6 +606,9 @@ static u32 disp_parse_cmdline(__disp_bsp_init_para *para)
     } else {
         value = 0x0;
     }
+#if !defined(CONFIG_HOMLET_PLATFORM)
+		value = 0x0;
+#endif
     para->sw_init_para = &g_sw_init_para;
     g_sw_init_para.disp_rsl = value;
     g_sw_init_para.closed = (value >> 24) & 0xFF;
@@ -1210,7 +1213,7 @@ long disp_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	unsigned long karg[4];
 	unsigned long ubuffer[4] = {0};
-	s32 ret = 0;
+	int ret = 0;
 	int num_screens = 2;
 
 	num_screens = bsp_disp_feat_get_num_screens();
@@ -1272,9 +1275,11 @@ long disp_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		}	else {
 			ret = suspend_output_type[ubuffer[0]];
 		}
+#if defined(CONFIG_HOMLET_PLATFORM)
 		if(DISP_OUTPUT_TYPE_LCD == ret) {
 			ret = bsp_disp_get_lcd_output_type(ubuffer[0]);
 		}
+#endif
 		break;
 
 	case DISP_CMD_GET_SCN_WIDTH:

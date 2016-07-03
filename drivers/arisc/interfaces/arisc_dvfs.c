@@ -137,7 +137,6 @@ int arisc_dvfs_cfg_vf_table(void)
 	struct gpio_config *pin_cfg;
 	char pin_name[SUNXI_PIN_NAME_MAX_LEN];
 	unsigned long config;
-	unsigned int board_vendor;
 #endif
 
 	/* initialize message manager spinlock */
@@ -236,10 +235,6 @@ int arisc_dvfs_cfg_vf_table(void)
 		return -EINVAL;
 	}
 	pmessage->paras[0] = script_val.val;
-
-	board_vendor = sunxi_get_board_vendor_id();
-	if (!(board_vendor&0x08))    /*for costdown board*/
-		pmessage->paras[0] = 0;
 
 	if (pmessage->paras[0] != 1) /* not gpio pmu */
 		goto out;

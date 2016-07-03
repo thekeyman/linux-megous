@@ -10,7 +10,7 @@ config SND_SUNXI_SOC_DAUDIO1_INTERFACE
 	  to select the audio interfaces to support below.
 config SND_SUNXI_SOC_DAUDIO1_PUBLIC_MACHINE
 	tristate "Daudio1 Public Machine for SUNXI chips"
-	depends on ARCH_SUN8IW7 && SND_SOC_RT3261 = n
+	depends on ARCH_SUN8IW7 && SND_SOC_RT3261 = n && MFD_ACX00 = n
 	default n
 	help
 	  Say Y or M if you want to add audiocodec support

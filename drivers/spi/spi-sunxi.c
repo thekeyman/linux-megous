@@ -937,7 +937,6 @@ static int sunxi_spi_mode_check(struct sunxi_spi *sspi, struct spi_device *spi, 
 
 	return 0;
 }
-
 /*
  * < 64 : cpu ;  >= 64 : dma
  * wait for done completion in this function, wakup in the irq hanlder
@@ -1571,7 +1570,9 @@ static int sunxi_spi_hw_init(struct sunxi_spi *sspi, struct sunxi_spi_platform_d
 	spi_ss_ctrl(base_addr, 1);
 	/* 8. reset fifo */
 	spi_reset_fifo(base_addr);
-
+#ifdef CONFIG_ARCH_SUN8IW8
+	spi_clear_dual_read(base_addr);
+#endif
 	return 0;
 }
 

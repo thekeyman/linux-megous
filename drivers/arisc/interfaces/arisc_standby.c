@@ -145,7 +145,7 @@ EXPORT_SYMBOL(arisc_standby_super);
  * return: result, 0 - query successed,
  *                !0 - query failed;
  */
-int arisc_query_wakeup_source(unsigned long *event)
+int arisc_query_wakeup_source(unsigned int *event)
 {
 	*event = wakeup_event;
 
@@ -226,8 +226,8 @@ EXPORT_SYMBOL(arisc_query_set_standby_info);
  * return: result, 0 - query successed,
  *                !0 - query failed;
  */
-int arisc_query_dram_crc_result(unsigned long *perror, unsigned long *ptotal_count,
-	unsigned long *perror_count)
+int arisc_query_dram_crc_result(unsigned int *perror, unsigned int *ptotal_count,
+	unsigned int *perror_count)
 {
 	*perror = dram_crc_error;
 	*ptotal_count = dram_crc_total_count;
@@ -237,8 +237,8 @@ int arisc_query_dram_crc_result(unsigned long *perror, unsigned long *ptotal_cou
 }
 EXPORT_SYMBOL(arisc_query_dram_crc_result);
 
-int arisc_set_dram_crc_result(unsigned long error, unsigned long total_count,
-	unsigned long error_count)
+int arisc_set_dram_crc_result(unsigned int error, unsigned int total_count,
+	unsigned int error_count)
 {
 	dram_crc_error = error;
 	dram_crc_total_count = total_count;

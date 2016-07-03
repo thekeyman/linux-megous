@@ -39,7 +39,6 @@
 #define ISP_ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
 
 
-
 /* ISP module config */
 /* TABLE */
 
@@ -47,7 +46,6 @@
 #define ISP_LENS_TBL_SIZE           256
 #define ISP_GAMMA_TBL_SIZE          256
 #define ISP_DRC_TBL_SIZE            256
-
 
 //sensor
 #define MAX_PIC_RESOLUTION_NUM      10
@@ -72,6 +70,7 @@ struct isp_drc_config
 {
 	enum isp_rgb_drc_mode rgb_drc_mode;
 	unsigned short drc_table[ISP_DRC_TBL_SIZE];
+	unsigned short drc_table_last[ISP_DRC_TBL_SIZE];
 };
 
 /*

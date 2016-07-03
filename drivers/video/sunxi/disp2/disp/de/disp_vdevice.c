@@ -2,6 +2,7 @@
 
 struct disp_vdevice_private_data {
 	u32 enabled;
+	bool suspended;
 
 	disp_tv_mode mode;
 
@@ -378,9 +379,16 @@ static s32 disp_vdevice_suspend(struct disp_device* vdevice)
 		return DIS_FAIL;
 	}
 
-	if(vdevicep->func.suspend != NULL) {
-		vdevicep->func.suspend();
+	disp_sys_lock((void*)&vdevicep->mlock);
+	if(false == vdevicep->suspended) {
+		if(vdevicep->func.suspend != NULL) {
+			vdevicep->func.suspend();
+		}
+		else
+			DE_WRN("%s: suspend is null.\n", __func__);
+		vdevicep->suspended = true;
 	}
+	disp_sys_unlock((void*)&vdevicep->mlock);
 
 	return 0;
 }
@@ -394,9 +402,16 @@ static s32 disp_vdevice_resume(struct disp_device* vdevice)
 		return DIS_FAIL;
 	}
 
-	if(vdevicep->func.resume != NULL) {
-		vdevicep->func.resume();
+	disp_sys_lock((void*)&vdevicep->mlock);
+	if(true == vdevicep->suspended) {
+		if(vdevicep->func.resume != NULL) {
+			vdevicep->func.resume();
+		}
+		else
+			DE_WRN("%s: suspend is null.\n", __func__);
+		vdevicep->suspended = false;
 	}
+	disp_sys_unlock((void*)&vdevicep->mlock);
 
 	return 0;
 }
@@ -604,6 +619,20 @@ struct disp_device* disp_vdevice_register(disp_vdevice_init_data *data)
 	vdevice->priv_data = (void*)vdevicep;
 	vdevice->init(vdevice);
 	disp_device_register(vdevice);
+	switch(vdevice->type) {
+	case DISP_OUTPUT_TYPE_HDMI:
+		gdisp.hdmi_registered = 1;
+		break;
+	case DISP_OUTPUT_TYPE_TV:
+		//gdisp.tv_registered = 1;
+		//break;
+	case DISP_OUTPUT_TYPE_LCD:
+		//gdisp.lcd_registered[vdevice->disp] = 1;
+		//break;
+	case DISP_OUTPUT_TYPE_VGA:
+	default: ;
+		//DE_WRN("fixme: unsupport type[%d] ???\n", vdevice->type);
+	}
 	if(gdisp.init_para.start_process)
 		gdisp.init_para.start_process();
 

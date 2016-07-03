@@ -47,7 +47,7 @@ CONFIG_BT_COEXIST = y
 CONFIG_RTL8192CU_REDEFINE_1X1 = n
 CONFIG_INTEL_WIDI = n
 CONFIG_WAPI_SUPPORT = n
-CONFIG_EFUSE_CONFIG_FILE = y
+CONFIG_EFUSE_CONFIG_FILE = n
 CONFIG_EXT_CLK = n
 CONFIG_TRAFFIC_PROTECT = y
 CONFIG_LOAD_PHY_PARA_FROM_FILE = y
@@ -62,8 +62,10 @@ CONFIG_BR_EXT = y
 CONFIG_ANTENNA_DIVERSITY = n
 CONFIG_CUSTOM_DEFAULT_MAC_ADDRESS = y
 ######################## Wake On Lan ##########################
+ifeq ($(CONFIG_WAKE_ON_WLAN), y)
 CONFIG_WOWLAN = y
 CONFIG_GPIO_WAKEUP = y
+endif
 CONFIG_WAKEUP_GPIO_IDX = default
 CONFIG_PNO_SUPPORT = n
 CONFIG_PNO_SET_DEBUG = n
@@ -716,7 +718,7 @@ EXTRA_CFLAGS += -DCONFIG_EFUSE_CONFIG_FILE
 ifeq ($(MODULE_NAME), 8189es)
 EXTRA_CFLAGS += -DEFUSE_MAP_PATH=\"/system/etc/wifi/wifi_efuse_8189e.map\"
 else ifeq ($(MODULE_NAME), 8723bs)
-EXTRA_CFLAGS += -DEFUSE_MAP_PATH=\"/system/etc/wifi/wifi_efuse_8723bs-vq0.map\"
+EXTRA_CFLAGS += -DEFUSE_MAP_PATH=\"/system/etc/wifi/wifi_efuse_8723bs_vq0.map\"
 else
 EXTRA_CFLAGS += -DEFUSE_MAP_PATH=\"/system/etc/wifi/wifi_efuse_$(MODULE_NAME).map\"
 endif
@@ -1407,7 +1409,7 @@ endif
 
 endif
 
-USER_MODULE_NAME ?= 8723bs-vq0
+USER_MODULE_NAME ?= 8723bs_vq0
 ifneq ($(USER_MODULE_NAME),)
 MODULE_NAME := $(USER_MODULE_NAME)
 endif
@@ -1470,7 +1472,7 @@ obj-$(CONFIG_RTL8723BS_VQ0) := $(MODULE_NAME).o
 
 else
 
-export CONFIG_RTL8723BS-VQ0 = m
+export CONFIG_RTL8723BS_VQ0 = m
 
 all: modules
 

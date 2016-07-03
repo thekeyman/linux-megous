@@ -38,11 +38,14 @@
 #define EXTEPHY_CTRL1 0x0016
 
 #define EPHY_CTRL 0x6000
+#define EPHY_SID 0x8004
 
 struct ephy_res {
 	struct device_driver *plat_drv;
 	struct device_driver *phy_drv;
+	struct phy_device *phydev;
 	struct acx00 *acx;
+	struct work_struct   en_work;
 };
 static struct ephy_res ephy_priv;
 
@@ -54,6 +57,7 @@ static int ephy_reset(struct phy_device *phydev)
 	bmcr = phy_read(phydev, MII_BMCR);
 	if (bmcr < 0)
 		return bmcr;
+
 	bmcr |= BMCR_RESET;
 	bmcr = phy_write(phydev, MII_BMCR, bmcr);
 	if (bmcr < 0)
@@ -71,10 +75,6 @@ static int ephy_reset(struct phy_device *phydev)
 static int ephy_config_init(struct phy_device *phydev)
 {
 	int c;
-
-	c = ephy_reset(phydev);
-	if (c < 0)
-		return c;
 
 	/* Iint ephy */
 	phy_write(phydev, 0x1f, 0x0100);	/* Switch to Page 1 */
@@ -109,7 +109,7 @@ static int ephy_probe(struct phy_device *phydev)
 
 	drv = phydev->drv;
 	ephy_priv.phy_drv = &drv->driver;
-
+	ephy_priv.phydev = phydev;
 	return 0;
 }
 
@@ -123,6 +123,38 @@ static int ephy_ack_interrupt(struct phy_device *phydev)
 	return 0;
 }
 #endif
+
+static void sunxi_ephy_enable(struct ephy_res *priv)
+{
+#ifdef CONFIG_MFD_ACX00
+	int value;
+	if (!acx00_enable())
+		msleep(200);
+
+	value = acx00_reg_read(priv->acx, EXTEPHY_CTRL0);
+	value |= 0x03;
+	acx00_reg_write(priv->acx, EXTEPHY_CTRL0, value);
+	value = acx00_reg_read(priv->acx, EXTEPHY_CTRL1);
+	value |= 0x0f;
+	acx00_reg_write(priv->acx, EXTEPHY_CTRL1, value);
+	acx00_reg_write(priv->acx, EPHY_CTRL, 0x06);
+
+	/*for ephy */
+	value= acx00_reg_read(priv->acx, EPHY_CTRL);
+	value &= ~(0xf<<12);
+	value |= (0x0F & (0x03 + acx00_reg_read(priv->acx, EPHY_SID)))<<12;
+	acx00_reg_write(priv->acx, EPHY_CTRL, value);
+#endif
+}
+
+static void ephy_work_fn(struct work_struct *work)
+{
+	struct ephy_res *priv = container_of(work, struct ephy_res, en_work);
+
+	if (!acx00_enable())
+		msleep(200);
+	sunxi_ephy_enable(priv);
+}
 
 static struct phy_driver ephy_driver = {
 	.phy_id		= 0x00441400,
@@ -152,7 +184,6 @@ MODULE_DEVICE_TABLE(platform, sunxi_ephy_id);
 static __devinit int ephy_plat_probe(struct platform_device *pdev)
 {
 	struct acx00 *ax = dev_get_drvdata(pdev->dev.parent);
-	int value;
 
 	if (!ax)
 		return -ENODEV;
@@ -161,15 +192,9 @@ static __devinit int ephy_plat_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, &ephy_priv);
 	ephy_priv.plat_drv = pdev->dev.driver;
 
-#ifdef CONFIG_MFD_ACX00
-	value = acx00_reg_read(ax, EXTEPHY_CTRL0);
-	value |= 0x03;
-	acx00_reg_write(ax, EXTEPHY_CTRL0, value);
-	value = acx00_reg_read(ax, EXTEPHY_CTRL1);
-	value |= 0x0f;
-	acx00_reg_write(ax, EXTEPHY_CTRL1, value);
-	acx00_reg_write(ax, EPHY_CTRL, 0x06);
-#endif
+	INIT_WORK(&ephy_priv.en_work, ephy_work_fn);
+
+	sunxi_ephy_enable(&ephy_priv);
 
 	return 0;
 }
@@ -179,10 +204,28 @@ static int __devexit ephy_plat_remove(struct platform_device *pdev)
 	return 0;
 }
 
+static int sunxi_phy_suspend(struct device *dev)
+{
+	return 0;
+}
+
+static int sunxi_phy_resume(struct device *dev)
+{
+	schedule_work(&ephy_priv.en_work);
+	return 0;
+}
+
+/* Suspend hook structures */
+static const struct dev_pm_ops sunxi_phy_pm_ops = {
+	.suspend = sunxi_phy_suspend,
+	.resume = sunxi_phy_resume,
+};
+
 static struct platform_driver ephy_plat_driver = {
 	.driver = {
 		.name = "acx-ephy",
 		.owner = THIS_MODULE,
+		.pm = &sunxi_phy_pm_ops,
 	},
 	.probe = ephy_plat_probe,
 	.remove = __devexit_p(ephy_plat_remove),

@@ -171,9 +171,9 @@ static struct regval_list sensor_default_regs[] =
     {0x3042,0x0000}, //EXTRA_DELAY = 0
     {0x30BA,0x002C}, //DIGITAL_CTRL = 44
     {0x3070,0x0000},
-#if 0
+#if 1
     {0x30FE, 0x0080},  // RESERVED_MFR_30FE
-	{0x31E0, 0x0000},  // RESERVED_MFR_31E0    dpc enable reg	0x0003
+	{0x31E0, 0x0703},  // RESERVED_MFR_31E0    dpc enable reg	0x0003
 	{0x3ECE, 0x08FF},  // RESERVED_MFR_3ECE
 	{0x3ED0, 0xE4F6},  // RESERVED_MFR_3ED0
 	{0x3ED2, 0x0146},  // RESERVED_MFR_3ED2
@@ -469,7 +469,7 @@ static int sensor_s_exp_gain(struct v4l2_subdev *sd, struct sensor_exp_gain *exp
     else
     	frame_length = ar0330_sensor_vts;
 
-    printk("norm exp_val = %d,gain_val = %d\n",exp_val,gain_val);
+//    printk("norm exp_val = %d,gain_val = %d\n",exp_val,gain_val);
 //   sensor_write(sd, 0x300A,frame_length);//coarse integration time
     sensor_s_exp(sd,exp_val);
     sensor_s_gain(sd,gain_val);
@@ -530,12 +530,12 @@ static int sensor_power(struct v4l2_subdev *sd, int on)
 			vfe_dev_dbg("CSI_SUBDEV_PWR_ON!\n");
 			cci_lock(sd);
 			//power on reset
-			vfe_gpio_set_status(sd,PWDN,1);//set the gpio to output
+//			vfe_gpio_set_status(sd,PWDN,1);//set the gpio to output
 			vfe_gpio_set_status(sd,RESET,1);//set the gpio to output
 			vfe_gpio_set_status(sd,POWER_EN,1);//set the gpio to output 
 			
 			vfe_gpio_write(sd,RESET,CSI_GPIO_HIGH);  
-			vfe_gpio_write(sd,PWDN,CSI_GPIO_HIGH);
+//			vfe_gpio_write(sd,PWDN,CSI_GPIO_HIGH);
 			vfe_gpio_write(sd,POWER_EN,CSI_GPIO_LOW);
 			usleep_range(1000,1200);
 			//power supply
@@ -550,47 +550,38 @@ static int sensor_power(struct v4l2_subdev *sd, int on)
 			vfe_set_mclk(sd,ON);
 			usleep_range(10000,12000);
 
-			usleep_range(7000,8000);
-			vfe_gpio_write(sd,PWDN,CSI_GPIO_LOW); 
-			usleep_range(10000,12000); 
+//			usleep_range(7000,8000);
+//			vfe_gpio_write(sd,PWDN,CSI_GPIO_LOW); 
+//			usleep_range(10000,12000); 
 			//reset on io
 			vfe_gpio_write(sd,RESET,CSI_GPIO_LOW);
 			usleep_range(20000,22000);
 			vfe_gpio_write(sd,RESET,CSI_GPIO_HIGH);
-
+			usleep_range(10000,12000);
 			vfe_dev_dbg("CSI_SUBDEV_STBY_OFF!\n");
-			cci_lock(sd);
-			vfe_set_mclk_freq(sd,MCLK);
-			vfe_set_mclk(sd,ON);
-			usleep_range(10000,12000);
-			vfe_gpio_write(sd,PWDN,CSI_GPIO_LOW);
-			usleep_range(10000,12000);
-			ret = sensor_s_sw_stby(sd, CSI_GPIO_LOW);
-			if(ret < 0)
-				vfe_dev_err("soft stby off falied!\n");
-			printk("soft stby off..................................!");
 			cci_unlock(sd);
 			break;
 		case CSI_SUBDEV_PWR_OFF:
 			vfe_dev_dbg("CSI_SUBDEV_PWR_OFF!\n");
 			cci_lock(sd);
-			vfe_gpio_set_status(sd,PWDN,1);//set the gpio to output
-			vfe_gpio_set_status(sd,RESET,1);//set the gpio to output
-			vfe_gpio_write(sd,RESET,CSI_GPIO_LOW);  
-			vfe_gpio_write(sd,PWDN,CSI_GPIO_HIGH);
-			//inactive mclk before power off
-			vfe_set_mclk(sd,OFF);
+//			vfe_gpio_set_status(sd,PWDN,1);//set the gpio to output
+//			vfe_gpio_set_status(sd,RESET,1);//set the gpio to output
+//			vfe_gpio_write(sd,RESET,CSI_GPIO_LOW);  
+//			vfe_gpio_write(sd,PWDN,CSI_GPIO_HIGH);
 			//power supply off
 			vfe_set_pmu_channel(sd,AFVDD,OFF);
 			vfe_set_pmu_channel(sd,DVDD,OFF);
 			vfe_gpio_write(sd,POWER_EN,CSI_GPIO_LOW);
 			vfe_set_pmu_channel(sd,AVDD,OFF);
 			vfe_set_pmu_channel(sd,IOVDD,OFF);
+			//inactive mclk before power off
+			vfe_set_mclk(sd,OFF);
 			//set the io to hi-z
-			vfe_gpio_set_status(sd,RESET,0);//set the gpio to input
-			vfe_gpio_set_status(sd,PWDN,0);//set the gpio to input
-			vfe_gpio_set_status(sd,POWER_EN,0);//set the gpio to input
+//			vfe_gpio_set_status(sd,RESET,0);//set the gpio to input
+//			vfe_gpio_set_status(sd,PWDN,0);//set the gpio to input
+//			vfe_gpio_set_status(sd,POWER_EN,0);//set the gpio to input
 			cci_unlock(sd);
+			usleep_range(50000,52000);  
 			break;
 		default:
 			return -EINVAL;

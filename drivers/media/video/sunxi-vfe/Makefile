@@ -1,7 +1,14 @@
+EXTRA_LDFLAGS += --strip-debug
 obj-$(CONFIG_CSI_VFE) += vfe_os.o
 obj-$(CONFIG_CSI_VFE) += vfe_subdev.o
 obj-$(CONFIG_CSI_VFE) += device/
+
+ifneq ($(strip $(CONFIG_ARCH_SUN8IW8)),)
+
+else
 obj-$(CONFIG_CSI_VFE) += actuator/
+endif
+
 obj-$(CONFIG_CSI_VFE) += csi_cci/
 #obj-$(CONFIG_CSI_VFE) += flash_light/
 #obj-$(CONFIG_CSI_VFE) += camera_detector/
@@ -16,7 +23,7 @@ vfe_v4l2-y					+= isp_cfg/isp_cfg.o
 vfe_v4l2-y					+= utility/cfg_op.o
 vfe_v4l2-y					+= vfe.o
 vfe_v4l2-y					+= lib/libisp
-
+EXTRA_LDFLAGS += --strip-debug		
 ifneq ($(strip $(CONFIG_ARCH_SUN9I)),)
 vfe_v4l2-y					+= lib/lib_mipicsi2_v2
 else ifneq ($(strip $(CONFIG_ARCH_SUN8IW6)),)

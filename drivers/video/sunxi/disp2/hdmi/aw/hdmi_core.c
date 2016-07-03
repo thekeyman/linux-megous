@@ -81,6 +81,9 @@ __s32 hdmi_core_initial(bool sw_only)
 		video_enable = 1;
 		hdmi_state = HDMI_State_HPD_Done;
 		if(bsp_hdmi_get_hpd()) {
+			if (hdcp_enable==1)
+				bsp_hdmi_hdcp_err_check();
+
 			ParseEDID();
 			video_on = 1;
 			Hdmi_hpd_event();

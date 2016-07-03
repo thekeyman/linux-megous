@@ -918,9 +918,19 @@ s32 bsp_disp_lcd_post_enable(u32 screen_id)
 s32 bsp_disp_lcd_pre_disable(u32 screen_id)
 {
 	struct disp_lcd* lcd;
+	struct disp_manager *mgr;
 
+	mgr = disp_get_layer_manager(screen_id);
 	lcd = disp_get_lcd(screen_id);
-	if(lcd && lcd->pre_disable) {
+	if(!mgr || !lcd) {
+		DE_WRN("get lcd%d or mgr%d fail\n", screen_id, screen_id);
+        return -1;
+	}
+
+	if(mgr->set_output_type)
+		mgr->set_output_type(mgr, DISP_OUTPUT_TYPE_NONE);
+
+	if(lcd->pre_disable) {
 		return lcd->pre_disable(lcd);
 	}
 	return DIS_FAIL;
@@ -938,10 +948,6 @@ s32 bsp_disp_lcd_post_disable(u32 screen_id)
 		DE_WRN("get lcd%d or mgr%d fail\n", screen_id, screen_id);
         return -1;
 	}
-
-	if(mgr->set_output_type)
-		mgr->set_output_type(mgr, DISP_OUTPUT_TYPE_NONE);
-	bsp_disp_delay_ms(1);
 
 	if(lcd->post_disable)
 		ret = lcd->post_disable(lcd);

@@ -32,6 +32,7 @@ static int daudio_master 		= 0;
 static int audio_format 		= 0;
 static int signal_inversion 	= 0;
 static int ac200_used 	= 0;
+static int ac100_used 	= 0;
 
 static int sunxi_snddaudio_hw_params(struct snd_pcm_substream *substream,
 					struct snd_pcm_hw_params *params)
@@ -243,7 +244,12 @@ static int __init sunxi_snddaudio0_init(void)
 		pr_err("[acx0] ac200_used type err!\n");
 	}
 	ac200_used = val.val;
-	if (ac200_used) {
+	type = script_get_item("acx0", "ac100_used", &val);
+	if (SCIRPT_ITEM_VALUE_TYPE_INT != type) {
+		pr_err("[acx0] ac100_used type err!\n");
+	}
+	ac100_used = val.val;
+	if (ac200_used&&(ac100_used==0)) {
 		if((err = platform_device_register(&sunxi_daudio_device)) < 0)
 			return err;
 

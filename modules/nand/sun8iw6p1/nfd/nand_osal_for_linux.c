@@ -1399,7 +1399,7 @@ int NAND_ReleaseVoltage(void)
 
 int NAND_IS_Secure_sys(void)
 {
-	if(sunxi_soc_is_secure())
+	if(sunxi_boot_is_secure())
 		return 0;
 	else
 		return -1;

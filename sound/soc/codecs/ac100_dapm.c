@@ -100,12 +100,16 @@ struct ac100_priv {
 
 	struct mutex dac_mutex;
 	struct mutex adc_mutex;
+	struct mutex mute_mutex;
 	u8 dac_enable;
 	u8 adc_enable;
 	struct mutex aifclk_mutex;
 	u8 aif1_clken;
 	u8 aif2_clken;
 	u8 aif3_clken;
+
+	u8 aif2_mute;
+	u8 aif1_mute;
 
 	/*voltage supply*/
 	int num_supplies;
@@ -408,6 +412,16 @@ static void set_configuration(struct snd_soc_codec *codec)
 	/*headphone calibration clock frequency select*/
 	snd_soc_update_bits(codec, SPKOUT_CTRL, (0x7<<HPCALICKS), (0x7<<HPCALICKS));
 
+	#ifdef CONFIG_SND_SUNXI_SOC_DAUDIO0_KARAOKE_MACHINE
+	snd_soc_update_bits(codec, ADC_APC_CTRL, (0x1<<ADCLEN), (0x1<<ADCLEN));
+	snd_soc_update_bits(codec, ADC_APC_CTRL, (0x1<<ADCREN), (0x1<<ADCREN));
+	snd_soc_update_bits(codec, ADC_DIG_CTRL, (0x1<<ENAD), (0x1<<ENAD));
+	snd_soc_update_bits(codec, SYSCLK_CTRL, (0x1<<AIF2CLK_ENA), (0x1<<AIF2CLK_ENA));
+	snd_soc_update_bits(codec, SYSCLK_CTRL, (0x1<<AIF1CLK_ENA), (0x1<<AIF1CLK_ENA));
+	snd_soc_update_bits(codec, MOD_CLK_ENA, (0x1<<MOD_CLK_ADC_DIG), (0x1<<MOD_CLK_ADC_DIG));
+	snd_soc_update_bits(codec, MOD_RST_CTRL, (0x1<<MOD_RESET_ADC_DIG), (0x1<<MOD_RESET_ADC_DIG));
+	#endif
+
 }
 static int late_enable_dac(struct snd_soc_dapm_widget *w,
 			  struct snd_kcontrol *kcontrol, int event)
@@ -462,10 +476,12 @@ static int late_enable_adc(struct snd_soc_dapm_widget *w,
 		if (ac100->adc_enable > 0){
 			ac100->adc_enable--;
 			if (ac100->adc_enable == 0){
+				#ifndef CONFIG_SND_SUNXI_SOC_DAUDIO0_KARAOKE_MACHINE
 				snd_soc_update_bits(codec, ADC_DIG_CTRL, (0x1<<ENAD), (0x0<<ENAD));
 				/*disable adc module clk*/
 				snd_soc_update_bits(codec, MOD_CLK_ENA, (0x1<<MOD_CLK_ADC_DIG), (0x0<<MOD_CLK_ADC_DIG));
 				snd_soc_update_bits(codec, MOD_RST_CTRL, (0x1<<MOD_RESET_ADC_DIG), (0x0<<MOD_RESET_ADC_DIG));
+				#endif
 			}
 		}
 		break;
@@ -558,6 +574,7 @@ int ac100_aif1clk(struct snd_soc_dapm_widget *w,
 			snd_soc_update_bits(codec, SYSCLK_CTRL, (0x1<<AIF1CLK_ENA), (0x1<<AIF1CLK_ENA));
 			snd_soc_update_bits(codec, MOD_CLK_ENA, (0x1<<MOD_CLK_AIF1), (0x1<<MOD_CLK_AIF1));
 			snd_soc_update_bits(codec, MOD_RST_CTRL, (0x1<<MOD_RESET_AIF1), (0x1<<MOD_RESET_AIF1));
+
 			/*enable systemclk*/
 			if (ac100->aif2_clken == 0 && ac100->aif3_clken == 0)
 				snd_soc_update_bits(codec, SYSCLK_CTRL, (0x1<<SYSCLK_ENA), (0x1<<SYSCLK_ENA));
@@ -569,7 +586,9 @@ int ac100_aif1clk(struct snd_soc_dapm_widget *w,
 			ac100->aif1_clken--;
 			if (ac100->aif1_clken == 0){
 				/*disable AIF1CLK*/
+				#ifndef CONFIG_SND_SUNXI_SOC_DAUDIO0_KARAOKE_MACHINE
 				snd_soc_update_bits(codec, SYSCLK_CTRL, (0x1<<AIF1CLK_ENA), (0x0<<AIF1CLK_ENA));
+				#endif
 				snd_soc_update_bits(codec, MOD_CLK_ENA, (0x1<<MOD_CLK_AIF1), (0x0<<MOD_CLK_AIF1));
 				snd_soc_update_bits(codec, MOD_RST_CTRL, (0x1<<MOD_RESET_AIF1), (0x0<<MOD_RESET_AIF1));
 				/*DISABLE systemclk*/
@@ -608,7 +627,9 @@ int ac100_aif2clk(struct snd_soc_dapm_widget *w,
 			ac100->aif2_clken--;
 			if (ac100->aif2_clken == 0){
 				/*disable AIF2CLK*/
+				#ifndef CONFIG_SND_SUNXI_SOC_DAUDIO0_KARAOKE_MACHINE
 				snd_soc_update_bits(codec, SYSCLK_CTRL, (0x1<<AIF2CLK_ENA), (0x0<<AIF2CLK_ENA));
+				#endif
 				snd_soc_update_bits(codec, MOD_CLK_ENA, (0x1<<MOD_CLK_AIF2), (0x0<<MOD_CLK_AIF2));
 				snd_soc_update_bits(codec, MOD_RST_CTRL, (0x1<<MOD_RESET_AIF2), (0x0<<MOD_RESET_AIF2));
 				/*DISABLE systemclk*/
@@ -818,6 +839,11 @@ static const struct snd_kcontrol_new ac100_controls[] = {
 	SOC_SINGLE_TLV("speaker volume", SPKOUT_CTRL, SPK_VOL, 0x1f, 0, speaker_vol_tlv),
 	SOC_SINGLE_TLV("line out volume", LOUT_CTRL, LINEOUTG, 0x7, 0, lineout_vol_tlv),
 	SOC_SINGLE_TLV("headphone volume", HPOUT_CTRL, HP_VOL, 0x3f, 0, headphone_vol_tlv),
+#ifdef CONFIG_SND_SUNXI_SOC_DAUDIO0_KARAOKE_MACHINE
+	SOC_SINGLE("AIF1 ADCR Switch Duplicate", AIF1_MXR_SRC, AIF1_AD0R_ADCR_MXR, 0x1, 0),
+	SOC_SINGLE("DACR ADCR Switch Duplicate", DAC_MXR_SRC,  	DACR_MXR_ADCR, 1, 0),
+#endif
+
 };
 /*AIF1 AD0 OUT */
 static const char *aif1out0l_text[] = {
@@ -910,7 +936,11 @@ static const struct snd_kcontrol_new aif1_ad0l_mxr_src_ctl[] = {
 static const struct snd_kcontrol_new aif1_ad0r_mxr_src_ctl[] = {
 	SOC_DAPM_SINGLE("AIF1 DA0R Switch", 	AIF1_MXR_SRC,  	AIF1_AD0R_AIF1_DA0R_MXR, 1, 0),
 	SOC_DAPM_SINGLE("AIF2 DACR Switch", 	AIF1_MXR_SRC, 	AIF1_AD0R_AIF2_DACR_MXR, 1, 0),
+	#ifdef CONFIG_SND_SUNXI_SOC_DAUDIO0_KARAOKE_MACHINE
+	SOC_DAPM_SINGLE("ADCR Switch", 	ESPKOUT_CTRL, 	0, 1, 0),
+	#else
 	SOC_DAPM_SINGLE("ADCR Switch", 		AIF1_MXR_SRC, 	AIF1_AD0R_ADCR_MXR, 1, 0),
+	#endif
 	SOC_DAPM_SINGLE("AIF2 DACL Switch", 	AIF1_MXR_SRC, 	AIF1_AD0R_AIF2_DACL_MXR, 1, 0),
 };
 
@@ -932,7 +962,11 @@ static const struct snd_kcontrol_new dacl_mxr_src_controls[] = {
 	SOC_DAPM_SINGLE("AIF1DA0L Switch", 		DAC_MXR_SRC, 	DACL_MXR_AIF1_DA0L, 1, 0),
 };
 static const struct snd_kcontrol_new dacr_mxr_src_controls[] = {
+	#ifdef CONFIG_SND_SUNXI_SOC_DAUDIO0_KARAOKE_MACHINE
+	SOC_DAPM_SINGLE("ADCR Switch", 			ESPKOUT_CTRL,  	1, 1, 0),
+	#else
 	SOC_DAPM_SINGLE("ADCR Switch", 			DAC_MXR_SRC,  	DACR_MXR_ADCR, 1, 0),
+	#endif
 	SOC_DAPM_SINGLE("AIF2DACR Switch", 		DAC_MXR_SRC, 	DACR_MXR_AIF2_DACR, 1, 0),
 	SOC_DAPM_SINGLE("AIF1DA1R Switch", 		DAC_MXR_SRC, 	DACR_MXR_AIF1_DA1R, 1, 0),
 	SOC_DAPM_SINGLE("AIF1DA0R Switch", 		DAC_MXR_SRC, 	DACR_MXR_AIF1_DA0R, 1, 0),
@@ -1237,12 +1271,17 @@ static const struct snd_soc_dapm_widget ac100_dapm_widgets[] = {
 	SND_SOC_DAPM_PGA_E("AIF2INR Mux VIR", SND_SOC_NOPM, 0, 0, NULL, 0,
 			aif2inr_vir_event, SND_SOC_DAPM_PRE_PMU|SND_SOC_DAPM_POST_PMD),
 
-
+	#ifndef CONFIG_SND_SUNXI_SOC_DAUDIO0_KARAOKE_MACHINE
 	SND_SOC_DAPM_MIXER_E("LEFT ADC input Mixer", ADC_APC_CTRL, ADCLEN, 0,
 		ac100_ladcmix_controls, ARRAY_SIZE(ac100_ladcmix_controls),late_enable_adc, SND_SOC_DAPM_PRE_PMU|SND_SOC_DAPM_POST_PMD),
 	SND_SOC_DAPM_MIXER_E("RIGHT ADC input Mixer", ADC_APC_CTRL, ADCREN, 0,
 		ac100_radcmix_controls, ARRAY_SIZE(ac100_radcmix_controls),late_enable_adc, SND_SOC_DAPM_PRE_PMU|SND_SOC_DAPM_POST_PMD),
-
+	#else
+	SND_SOC_DAPM_MIXER_E("LEFT ADC input Mixer", SND_SOC_NOPM, 0, 0,
+		ac100_ladcmix_controls, ARRAY_SIZE(ac100_ladcmix_controls),late_enable_adc, SND_SOC_DAPM_PRE_PMU|SND_SOC_DAPM_POST_PMD),
+	SND_SOC_DAPM_MIXER_E("RIGHT ADC input Mixer", SND_SOC_NOPM, 0, 0,
+		ac100_radcmix_controls, ARRAY_SIZE(ac100_radcmix_controls),late_enable_adc, SND_SOC_DAPM_PRE_PMU|SND_SOC_DAPM_POST_PMD),
+	#endif
 	/*mic reference*/
 	SND_SOC_DAPM_PGA("MIC1 PGA", ADC_SRCBST_CTRL, MIC1AMPEN, 0, NULL, 0),
 	SND_SOC_DAPM_PGA("MIC2 PGA", ADC_SRCBST_CTRL, MIC2AMPEN, 0, NULL, 0),
@@ -1586,6 +1625,7 @@ static const struct pll_div codec_pll_div[] = {
 	{6000000, 22579200, 38, 429, 0},/*((429+0*0.2)*6000000)/(38*(2*1+1))*/
 	{13000000, 22579200, 19, 99, 0},
 	{19200000, 22579200, 25, 88, 1},
+	{24000000, 22579200, 38, 107, 1},
 	{128000, 24576000, 1, 576, 0},
 	{192000, 24576000, 1, 384, 0},
 	{256000, 24576000, 1, 288, 0},
@@ -1594,6 +1634,7 @@ static const struct pll_div codec_pll_div[] = {
 	{6000000, 24576000, 25, 307, 1},
 	{13000000, 24576000, 42, 238, 1},
 	{19200000, 24576000, 25, 88, 1},
+	{24000000, 24576000, 25, 76, 4},
 };
 
 /*for all of the fs freq. lrck_div is 64*/
@@ -1646,20 +1687,29 @@ static const struct aif1_word_size codec_aif1_wsize[] = {
 static int ac100_aif_mute(struct snd_soc_dai *codec_dai, int mute)
 {
 	struct snd_soc_codec *codec = codec_dai->codec;
+	struct ac100_priv *ac100 = snd_soc_codec_get_drvdata(codec);
+	mutex_lock(&ac100->mute_mutex);
 	if(mute){
-		snd_soc_write(codec, DAC_VOL_CTRL, 0);
+		if (0 == ac100->aif2_mute)
+			snd_soc_write(codec, DAC_VOL_CTRL, 0);
 	}else{
 		snd_soc_write(codec, DAC_VOL_CTRL, 0xa0a0);
 	}
+	mutex_unlock(&ac100->mute_mutex);
 	return 0;
 }
 static int ac100_aif2_mute(struct snd_soc_dai *codec_dai, int mute)
 {
 	struct snd_soc_codec *codec = codec_dai->codec;
-
+	struct ac100_priv *ac100 = snd_soc_codec_get_drvdata(codec);
+	mutex_lock(&ac100->mute_mutex);
 	if (mute == 0) {
 		snd_soc_write(codec, DAC_VOL_CTRL, 0xa0a0);
+		ac100->aif2_mute = 1;
 	}
+	else
+		ac100->aif2_mute = 0;
+	mutex_unlock(&ac100->mute_mutex);
 	return 0;
 }
 static void ac100_aif_shutdown(struct snd_pcm_substream *substream,
@@ -2012,10 +2062,11 @@ static int ac100_aif2_hw_params(struct snd_pcm_substream *substream,
 			break;
 		}
 	}
-
 	if (params_channels(params) == 1) {
+	
 		snd_soc_update_bits(codec, AIF_CLK_CTRL, (0x1<<1), (0x1<<1));
-	}
+	} else
+		snd_soc_update_bits(codec, AIF_CLK_CTRL, (0x1<<1), (0x1<<0));
 	return 0;
 }
 
@@ -2632,11 +2683,12 @@ static int ac100_codec_probe(struct snd_soc_codec *codec)
 	mutex_init(&ac100->dac_mutex);
 	mutex_init(&ac100->adc_mutex);
 	mutex_init(&ac100->aifclk_mutex);
+	mutex_init(&ac100->mute_mutex);
 
 	/*get the default pa val(close)*/
 	type = script_get_item("ac100_audio0", "audio_pa_ctrl", &item);
 	if (SCIRPT_ITEM_VALUE_TYPE_PIO != type) {
-		pr_err("script_get_item return type err\n");
+		pr_err("ac100_audio0 audio_pa_ctrl script_get_item return type err\n");
 		spkgpio.used = false;
 	} else {
 		spkgpio.used = true;
@@ -2881,6 +2933,22 @@ static int __devinit ac100_probe(struct platform_device *pdev)
 {
 	int ret = 0;
 	struct ac100_priv *ac100;
+#ifdef CONFIG_ARCH_SUN8IW7
+	int reg_val;
+
+	/*PLL_PERIPH1*/
+	writel(0x89010000,0xf1c00090);
+	writel(0xa707000f,0xf1f01444);
+	writel(0xa707000f,0xf1f01444);
+
+	reg_val = readl(0xf1c20804);
+	reg_val &=~(0x7<<8);
+	reg_val |= (0x1<<8);
+	writel(reg_val, 0xf1c20804);
+	reg_val = readl(0xf1c20810);
+	reg_val |= (0x1<<10);
+	writel(reg_val, 0xf1c20810);
+#endif
 	pr_debug("%s,line:%d\n", __func__, __LINE__);
 
 	ac100 = devm_kzalloc(&pdev->dev, sizeof(struct ac100_priv), GFP_KERNEL);

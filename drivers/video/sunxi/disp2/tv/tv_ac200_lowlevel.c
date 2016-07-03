@@ -37,8 +37,31 @@ s32 aw1683_tve_init(void)
 
 	//sid for tve
 	aw1683_rd_reg(0x8002, &data);
-	aw1683_wr_reg(0x4306, data?(data&0x3ff):(0x28f));
+	if(data == 0)
+	{
+		aw1683_wr_reg(0x4306, 0x28f);
+	}
+	else if(data < 0x3f5 && data > 0)
+	{
+		aw1683_wr_reg(0x4306, data + 10);
+	}
+	else
+	{
+		aw1683_wr_reg(0x4306, data);
 
+	} if(data == 0)
+	{
+		aw1683_wr_reg(0x4306, 0x28f);
+	}
+	else if(data < 0x3f5 && data > 0)
+	{
+		aw1683_wr_reg(0x4306, data + 10);
+	}
+		else
+	{
+		aw1683_wr_reg(0x4306, data);
+
+	}
 	//tve anto check
 	aw1683_wr_reg(0x4008,0x12a0);	//dac enable
 	aw1683_wr_reg(0x400a,0x4300);	//dac value
@@ -192,7 +215,7 @@ s32 aw1683_tve_set_mode(u32 mode)
 		aw1683_wr_reg(0x413e, 0x0000);
 		aw1683_wr_reg(0x43a0, 0x0001);
 		aw1683_wr_reg(0x43a2, 0x0003);
-		aw1683_wr_reg(0x5014, 0x2148);
+		aw1683_wr_reg(0x5014, 0x2148+1);
 		aw1683_wr_reg(0x4130, 0x0380);
 		aw1683_wr_reg(0x4132, 0x2009);	//2004
 		aw1683_wr_reg(0x4000, 0x0300);

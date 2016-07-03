@@ -29,6 +29,8 @@
 #include <linux/pinctrl/consumer.h>
 
 #define DRV_VERSION "0.4.3"
+static int ac200_used 	= 0;
+static int ac100_used 	= 0;
 
 /* reg off defination */
 #define LOSC_CTRL_REG0				0xa000
@@ -845,7 +847,24 @@ static struct platform_driver sunxi_rtc_driver = {
 
 static int __init sunxi_rtc_init(void)
 {
-	return platform_driver_register(&sunxi_rtc_driver);
+	script_item_u val;
+	script_item_value_type_e  type;
+
+	type = script_get_item("acx0", "ac200_used", &val);
+	if (SCIRPT_ITEM_VALUE_TYPE_INT != type) {
+		pr_err("[acx0] ac200_used type err!\n");
+	}
+	ac200_used = val.val;
+	type = script_get_item("acx0", "ac100_used", &val);
+	if (SCIRPT_ITEM_VALUE_TYPE_INT != type) {
+		pr_err("[acx0] ac100_used type err!\n");
+	}
+	ac100_used = val.val;
+
+	if (ac200_used&&(ac100_used==0)) {
+		return platform_driver_register(&sunxi_rtc_driver);
+	}
+	return 0;
 }
 
 static void __exit sunxi_rtc_exit(void)

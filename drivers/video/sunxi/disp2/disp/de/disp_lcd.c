@@ -233,6 +233,11 @@ static s32 lcd_parse_panel_para(u32 disp, disp_panel_para * info)
         info->lcd_cpu_te = value;
     }
 
+	ret = disp_sys_script_get_item(primary_key, "lcd_cpu_mode", &value, 1);
+    if(ret == 1)
+    {
+        info->lcd_cpu_mode = value;
+    }
     ret = disp_sys_script_get_item(primary_key, "lcd_frm", &value, 1);
     if(ret == 1)
     {

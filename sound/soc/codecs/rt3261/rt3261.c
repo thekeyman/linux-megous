@@ -87,9 +87,10 @@ static struct rt3261_init_reg init_list[] = {
 	{0x6a	, 0x0023},//PR23 = 0804'h
 	{0x6c	, 0x0804},
 	{0x70, 0x0000},
+	{0x91,	0x0f00},
 	/*playback*/
 	{0x2a	, 0x1414},//Dig inf 1 -> Sto DAC mixer -> DACL
-	{0x2c	, 0x2a00},
+	{0x2c	, 0x2200},
 	{0x6a	, 0x0090},
 	{0x6c	, 0x2000},
 	{0x6a	, 0x0091},
@@ -107,9 +108,9 @@ static struct rt3261_init_reg init_list[] = {
 	{0x0e		, 0x0080},//IN2 boost pypass and signal ended mode //IN2 boost 40db and signal ended mode
 	{0x3c	, 0x003f},//Mic2 INL -> RECMIXL (0x5f is open). default close.
 	{0x3e	, 0x007d},//Mic1 MICBST1 -> RECMIXR (0x7d is open). default close.
-	{0x27	, 0x1860},//ADC -> Sto ADC mixer
+	{0x27	, 0x0800},//ADC -> Sto ADC mixer
 	{0x28  , 0x7030}, //AMIC1
-    {0x2f,  0x2300},
+    {0x2f,  0x0300},
 	{0x1c,	0x4f4f},//0x2f2f  0x6f6f
 
     /*lineout */
@@ -118,7 +119,7 @@ static struct rt3261_init_reg init_list[] = {
     {0x53, 0xc000},
     {0x8e, 0x809d},
     {0x8f, 0x3100},
-    {0x03, 0x0e0e},
+    {0x03, 0x0808},
 
 	/*power up*/
 	{0x61, 0xd8c6},
@@ -243,7 +244,7 @@ static const u16 rt3261_reg[RT3261_VENDOR_ID2 + 1] = {
 	[RT3261_DEPOP_M1] = 0x0004,
 	[RT3261_DEPOP_M2] = 0x1100,
 	[RT3261_DEPOP_M3] = 0x0646,
-	[RT3261_CHARGE_PUMP] = 0x0c00,
+	[RT3261_CHARGE_PUMP] = 0x0f00,
 	[RT3261_MICBIAS] = 0x3000,
 	[RT3261_EQ_CTRL1] = 0x2080,
 	[RT3261_DRC_AGC_1] = 0x2206,
@@ -867,6 +868,31 @@ static int rt3261_regctl_put(struct snd_kcontrol *kcontrol,
 }
 #endif
 
+static int codec_micphone_get(struct snd_kcontrol *kcontrol,
+                               struct snd_ctl_elem_value *ucontrol)
+{
+       return 0;
+}
+
+static int codec_micphone_put(struct snd_kcontrol *kcontrol,
+                       struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
+	int micstart = ucontrol->value.integer.value[0];
+	pr_err("## %s,micstart=%d\n", __FUNCTION__,micstart);
+	if(micstart){
+		pr_err("## %s,mic start\n", __FUNCTION__);
+		snd_soc_write(codec,RT3261_DIG_INF_DATA,0x2300);
+		snd_soc_write(codec,RT3261_STO_ADC_MIXER,0x1860);
+		snd_soc_write(codec,RT3261_DIG_MIXER,0x2a00);
+	}else {
+		pr_err("## %s,mic stop\n", __FUNCTION__);
+		snd_soc_write(codec,RT3261_DIG_INF_DATA,0x0300);
+		snd_soc_write(codec,RT3261_STO_ADC_MIXER,0x0800);
+		snd_soc_write(codec,RT3261_DIG_MIXER,0x2200);
+	}
+	return 0;
+}
 
 static int rt3261_vol_rescale_get(struct snd_kcontrol *kcontrol,
 		struct snd_ctl_elem_value *ucontrol)
@@ -982,6 +1008,7 @@ static const struct snd_kcontrol_new rt3261_snd_mic_controls[] = {
     /* channels control */
     SOC_DOUBLE("HDMI Channel Switch", RT3261_ADC_DIG_VOL, 15, 7, 1, 1),
     SOC_DOUBLE("CVBS Channel Switch", RT3261_OUTPUT, 15, 7, 1, 1),
+    SOC_SINGLE_BOOL_EXT("Micphone Switch", 0, codec_micphone_get, codec_micphone_put),
 };
 
 static const struct snd_kcontrol_new rt3261_snd_controls[] = {
@@ -3194,6 +3221,7 @@ static ssize_t rt3261_codec_show(struct device *dev,
 	unsigned int val;
 	int cnt = 0, i;
 	cnt += sprintf(buf, "RT3261 codec register\n");
+	codec->cache_bypass = 1;
 	for (i = 0; i <= RT3261_VENDOR_ID2; i++) {
 		if (cnt + RT3261_REG_DISP_LEN >= PAGE_SIZE)
 			break;
@@ -3203,7 +3231,7 @@ static ssize_t rt3261_codec_show(struct device *dev,
 		cnt += snprintf(buf + cnt, RT3261_REG_DISP_LEN,
 				"#rng%02x  #rv%04x  #rd0\n", i, val);
 	}
-
+	codec->cache_bypass = 0;
 	if (cnt >= PAGE_SIZE)
 		cnt = PAGE_SIZE - 1;
 
@@ -3377,7 +3405,7 @@ static int rt3261_probe(struct snd_soc_codec *codec)
 	pr_err("Codec driver version %s\n", VERSION);
 
 //	codec->dapm.idle_bias_off = 1;
-    msleep(150); // delay to avoid i2c write error.
+    msleep(300); // delay to avoid i2c write error.
 
 	ret = snd_soc_codec_set_cache_io(codec, 8, 16, SND_SOC_I2C);
 	if (ret != 0) {

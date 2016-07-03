@@ -122,15 +122,16 @@ static async_cookie_t  lowest_in_progress(struct list_head *running)
  */
 static void async_run_entry_fn(struct work_struct *work)
 {
-	struct async_entry *entry =
-		container_of(work, struct async_entry, work);
+	struct async_entry *entry = NULL;
 	unsigned long flags;
 	ktime_t uninitialized_var(calltime), delta, rettime;
 
-        if( ((unsigned int )work >> 16) == 0x0) {
-                printk("\n---------------fatal error ! work addr[%p]--------------------\n", work);
-                return;
-        }
+	if( (((unsigned long )work) >> 16) == 0x0) {
+		printk("async_run_entry_fn: work[0x%lx]------fatal error---------!\n", (unsigned long)work);
+		return;
+	}
+
+	entry =	container_of(work, struct async_entry, work);
 
 	/* 1) move self to the running queue */
 	spin_lock_irqsave(&async_lock, flags);

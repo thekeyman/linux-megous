@@ -78,3 +78,7 @@ obj-$(CONFIG_SUNXI_DMA_TEST)	+= dma_test/
 obj-$(CONFIG_SUNXI_TRANSFORM)	+= sunxi_tr/
 obj-y				+= sunxi-scr/
 obj-y				+= sunxi-di/
+
+obj-${CONFIG_ID}       += sunxi_id/
+obj-${CONFIG_RESET_KEY} += sunxi_key/
+obj-$(CONFIG_IR_CUT)   += sunxi_ir_cut/

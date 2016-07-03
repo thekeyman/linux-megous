@@ -990,15 +990,18 @@ static int Fb_map_kernel_logo(__u32 sel, struct fb_info *info)
 	effective_height = (fb_height<y)?fb_height:y;
 
 	if(bmp->header.height & 0x80000000) {
+		if(fb_width > x) {
 		screen_offset = (void *)((u32)info->screen_base + (fb_width * (abs(fb_height - y) / 2)
 				+ abs(fb_width - x) / 2) * (info->var.bits_per_pixel >> 3));
-//		image_offset = (void *)((u32)image_offset + (x * (abs(y - fb_height) / 2)
-//				+ abs(x - fb_width) / 2) * (info->var.bits_per_pixel >> 3));
+		} else if(fb_width < x) {
+				image_offset = (void *)((u32)bmp_data + (x * ((y - fb_height) / 2)
+						+ (x - fb_width) / 2) * (info->var.bits_per_pixel >> 3));
+		}
 
 		for(i=0; i<effective_height; i++) {
 			memcpy((void*)screen_offset, image_offset, effective_width*(info->var.bits_per_pixel >> 3));
 			screen_offset = (void*)((u32)screen_offset + fb_width*(info->var.bits_per_pixel >> 3));
-			image_offset = (void *)image_offset + x *  (info->var.bits_per_pixel >> 3);
+			image_offset = (void *)image_offset + x * (info->var.bits_per_pixel >> 3);
 		}
 	}
 	else {
@@ -1163,8 +1166,14 @@ static s32 display_fb_request(u32 fb_id, disp_fb_create_info *fb_para)
 				g_fbi.fbinfo[fb_id]->var.hsync_len = tt.hor_sync_time;
 				g_fbi.fbinfo[fb_id]->var.vsync_len = tt.ver_sync_time;
 			}
+#if 0			
 			info->var.width = bsp_disp_get_screen_physical_width(sel);
 			info->var.height = bsp_disp_get_screen_physical_height(sel);
+#endif
+			#define FIX_DPI_10X 	(1300)
+			#define CM_PER_INCH_10X (254)
+			info->var.width = xres * CM_PER_INCH_10X / FIX_DPI_10X;
+			info->var.height = yres * CM_PER_INCH_10X / FIX_DPI_10X;
 
 			memset(&config, 0, sizeof(disp_layer_config));
 
@@ -1324,6 +1333,7 @@ s32 fb_init(struct platform_device *pdev)
        fb_parse_bootlogo_base(&bootlogo_addr, &bootlogo_sz);
 #endif
 
+/*
 	for(i=0; i<num_screens; i++) {
 		char task_name[25];
 
@@ -1338,6 +1348,7 @@ s32 fb_init(struct platform_device *pdev)
 			sched_setscheduler_nocheck(g_fbi.vsync_task[i], SCHED_FIFO, &param);
 		}
 	}
+*/
 	init_waitqueue_head(&g_fbi.wait[0]);
 	init_waitqueue_head(&g_fbi.wait[1]);
 	init_waitqueue_head(&g_fbi.wait[2]);

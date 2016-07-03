@@ -1255,6 +1255,7 @@ CONFIG_WLAN=y
 # CONFIG_USB_ZD1201 is not set
 # CONFIG_USB_NET_RNDIS_WLAN is not set
 # CONFIG_WIFI_CONTROL_FUNC is not set
+# CONFIG_WAKE_ON_WLAN is not set
 # CONFIG_ATH_COMMON is not set
 CONFIG_BCMDHD=m
 CONFIG_BCMDHD_FW_PATH="/system/vendor/modules/fw_bcmdhd.bin"
@@ -1513,7 +1514,7 @@ CONFIG_I2C_HELPER_AUTO=y
 # CONFIG_I2C_PXA_PCI is not set
 # CONFIG_I2C_SIMTEC is not set
 CONFIG_I2C_SUNXI=y
-CONFIG_SUNXI_S_TWI=y
+# CONFIG_SUNXI_S_TWI is not set
 # CONFIG_I2C_XILINX is not set
 
 #

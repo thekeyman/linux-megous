@@ -521,6 +521,40 @@ static int sensor_g_exp(struct v4l2_subdev *sd, __s32 *value)
 	vfe_dev_dbg("sensor_get_exposure = %d\n", info->exp);
 	return 0;
 }
+static int sensor_s_win_off(struct v4l2_subdev *sd, struct sensor_win_off *win_off)
+{
+	int reg_h_off, reg_v_off, hor_total, ver_total,h_star=0,h_end=0,v_star=0,v_end=0;
+	int hor_off_total, ver_off_total;
+	unsigned char val1=0, val2 = 0; 
+	struct sensor_info *info = to_state(sd);
+
+	sensor_read(sd, 0x3800, &val1);
+	sensor_read(sd, 0x3801, &val2);
+	h_star = ((val1&0x1f)<<8)+val2;
+	sensor_read(sd, 0x3804, &val1);
+	sensor_read(sd, 0x3805, &val2);
+	h_end = ((val1&0x1f)<<8)+val2;
+	
+	sensor_read(sd, 0x3802, &val1);
+	sensor_read(sd, 0x3803, &val2);
+	v_star = ((val1&0x1f)<<8)+val2;
+	sensor_read(sd, 0x3806, &val1);
+	sensor_read(sd, 0x3807, &val2);
+	v_end = ((val1&0x1f)<<8)+val2;
+	hor_total = h_end - h_star;
+	ver_total = v_end - v_star;
+
+	hor_off_total = hor_total - info->width;
+	ver_off_total = ver_total - info->height;
+	reg_h_off = CLIP(hor_off_total/2 + win_off->hor_off*hor_off_total/200, 0, 1000);
+	reg_v_off = CLIP(ver_off_total/2 + win_off->ver_off*ver_off_total/200, 0, 1000);
+	//printk("hor_off_total = %d, %d, reg_h_off = %d, %d\n",hor_off_total, ver_off_total,reg_h_off , reg_v_off);
+	sensor_write(sd, 0x3810, (reg_h_off>>8)&0x1f);
+	sensor_write(sd, 0x3811, reg_h_off&0xfe);
+	sensor_write(sd, 0x3812, (reg_v_off>>8)&0x1f);
+	sensor_write(sd, 0x3813, reg_v_off&0xfe);
+	return 0;
+}
 int ov4689_sensor_vts ;
 static int sensor_s_exp_gain(struct v4l2_subdev *sd, struct sensor_exp_gain *exp_gain)
 {
@@ -936,6 +970,9 @@ static long sensor_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
     case ISP_SET_EXP_GAIN:
 		ret = sensor_s_exp_gain(sd, (struct sensor_exp_gain *)arg);
       break;
+    case ISP_SET_WIN_OFF:
+		ret = sensor_s_win_off(sd, (struct sensor_win_off *)arg);
+      break;
     default:
       return -EINVAL;
   }
@@ -992,7 +1029,27 @@ static struct sensor_win_size sensor_win_sizes[] = {
 		.regs_size  = ARRAY_SIZE(sensor_quxga_regs),
 		.set_size   = NULL,
 	},
-		/* 2688*1520 */
+	/* 2048*1520 for 4:3 capture */
+	{
+		.width		= 2048,
+		.height 	= 1520,
+		.hoffset	= 320,
+		.voffset	= 0,
+		.hts		= 2576,
+		.vts		= 1554,//2480,
+		.pclk		= 120*1000*1000,
+		.mipi_bps	= 720*1000*1000,
+		.fps_fixed	= 2,
+		.bin_factor = 1,
+		.intg_min	= 16,
+		.intg_max	= (1554-4)<<4,
+		.gain_min	= 1<<4,
+		.gain_max	= (12<<4)-1,
+		.regs		= sensor_quxga_regs,
+		.regs_size	= ARRAY_SIZE(sensor_quxga_regs),
+		.set_size	= NULL,
+	},
+		/* 2304*1296 */
 	{
 		.width      = 2304,//QUXGA_WIDTH,//3280,
 		.height     = 1296,//QUXGA_HEIGHT,//2464,

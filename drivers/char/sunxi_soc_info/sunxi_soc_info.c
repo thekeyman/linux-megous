@@ -24,6 +24,7 @@
 #define CHECK_SOC_SECURE_ATTR 0x00
 #define CHECK_SOC_VERSION     0x01
 #define CHECK_SOC_BONDING     0x03
+#define CHECK_SOC_BOOT_ATTR   0x04
 
 
 static int soc_info_open(struct inode *inode, struct file *file)
@@ -60,6 +61,13 @@ static long soc_info_ioctl(struct file *file, unsigned int ioctl_num,
 			sunxi_get_soc_chipid_str(id);
 			err = copy_to_user((void __user *)ioctl_param, id, 8);
 			pr_debug("soc id:%s\n", id);
+			break;
+		case CHECK_SOC_BOOT_ATTR:
+			err = sunxi_boot_is_secure() ; 
+			if(err)
+				pr_debug("secure boot %d\n",err);
+			else
+				pr_debug("normal boot %d\n",err);
 			break;
 		default:
 			pr_err("un supported cmd:%d\n", ioctl_num);
@@ -203,7 +211,7 @@ ssize_t sys_info_show(struct class *class, struct class_attribute *attr, char *b
 	                sunxi_get_soc_ver()&0x0ffff);
 	/* Board vendor id*/
 	databuf[0] = sunxi_get_board_vendor_id();
-	size += sprintf(buf + size, "sunxi_board_id    : %d(%d)\n", databuf[0]&~(0xe0), (databuf[0]>>5)&0x01);
+	size += sprintf(buf + size, "sunxi_board_id    : %d(%d)\n", (databuf[0]<0)?(-1):(databuf[0]&~(0xe0)), (databuf[0]<0)?(-1):((databuf[0]>>5)&0x01));
 
 	return size;
 }

@@ -299,7 +299,7 @@ int arisc_standby_super(struct super_standby_para *para, arisc_cb_t cb, void *cb
  *
  * return: result, 0 - query successed, !0 - query failed;
  */
-int arisc_query_wakeup_source(unsigned long *event);
+int arisc_query_wakeup_source(unsigned int *event);
 
 extern int arisc_query_set_standby_info(struct standby_info_para *para, arisc_rw_type_e op);
 
@@ -338,11 +338,11 @@ extern int arisc_query_standby_power_cfg(struct standby_info_para *para);
  * return: result, 0 - query successed,
  *                !0 - query failed;
  */
-int arisc_query_dram_crc_result(unsigned long *perror, unsigned long *ptotal_count,
-	unsigned long *perror_count);
+int arisc_query_dram_crc_result(unsigned int *perror, unsigned int *ptotal_count,
+	unsigned int *perror_count);
 
-int arisc_set_dram_crc_result(unsigned long error, unsigned long total_count,
-	unsigned long error_count);
+int arisc_set_dram_crc_result(unsigned int error, unsigned int total_count,
+	unsigned int error_count);
 
 /**
  * notify arisc cpux restored.

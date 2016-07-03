@@ -48,6 +48,8 @@ static int mainmic_val 		= 0;
 static int submic_val 		= 0;
 static int agc_used 		= 0;
 static int drc_used 		= 0;
+static int ac200_used 	= 0;
+static int ac100_used 	= 0;
 
 #define acx00_RATES  (SNDRV_PCM_RATE_8000_192000|SNDRV_PCM_RATE_KNOT)
 #define acx00_FORMATS (SNDRV_PCM_FMTBIT_S8 | SNDRV_PCM_FMTBIT_S16_LE | \
@@ -111,14 +113,6 @@ static void agc_config(struct snd_soc_codec *codec)
 }
 
 static void drc_config(struct snd_soc_codec *codec)
-{
-}
-
-static void agc_enable(struct snd_soc_codec *codec,bool on)
-{
-}
-
-static void drc_enable(struct snd_soc_codec *codec,bool on)
 {
 }
 
@@ -225,16 +219,10 @@ static int acx00_lineout_event(struct snd_soc_dapm_widget *w,
 	switch (event) {
 	case SND_SOC_DAPM_POST_PMU:
 		ACX00_DBG("[speaker open ]%s,line:%d\n",__func__,__LINE__);
-		if (drc_used) {
-			drc_enable(codec,1);
-		}
 		snd_soc_update_bits(codec, LINEOUT_CTRL, (0x1f<<LINEOUTVOL), (lineout_val<<LINEOUTVOL));
 		break;
 	case SND_SOC_DAPM_PRE_PMD :
 		ACX00_DBG("[speaker close ]%s,line:%d\n",__func__,__LINE__);
-		if (drc_used) {
-			drc_enable(codec,0);
-		}
 		snd_soc_update_bits(codec, LINEOUT_CTRL, (0x1f<<LINEOUTVOL), (0x0<<LINEOUTVOL));
 	default:
 		break;
@@ -725,13 +713,7 @@ static int acx00_set_fll(struct snd_soc_dai *codec_dai, int pll_id, int source,
 static int acx00_audio_startup(struct snd_pcm_substream *substream,
 	struct snd_soc_dai *codec_dai)
 {
-	struct snd_soc_codec *codec = codec_dai->codec;
 	ACX00_DBG("%s,line:%d\n", __func__, __LINE__);
-	if (substream->stream == SNDRV_PCM_STREAM_CAPTURE) {
-		if(agc_used){
-			agc_enable(codec, 1);
-		}
-	}
 	return 0;
 }
 
@@ -802,79 +784,6 @@ static void codec_resume_work(struct work_struct *work)
 		drc_config(codec);
 	}
 }
-
-/**************************read reg interface**************************/
-static ssize_t acx00_dump_store(struct device *dev,
-	struct device_attribute *attr, const char *buf, size_t count)
-{
-	static int val = 0;
-	int reg,num,i=0;
-	int value_r[128];
-	struct acx00_priv *acx00 = dev_get_drvdata(dev);
-	val = simple_strtol(buf, NULL, 16);
-	reg =(val>>8);
-	num=val&0xff;
-	printk("\n");
-	printk("read:start add:0x%x,count:0x%x\n",reg,num);
-	do{
-		value_r[i] = snd_soc_read(acx00->codec, reg);
-		printk("0x%x: 0x%04x ",reg,value_r[i]);
-		reg+=1;
-		i++;
-		if(i == num)
-			printk("\n");
-		if(i%4==0)
-			printk("\n");
-	}while(i<num);
-	return count;
-}
-
-static ssize_t acx00_dump_show(struct device *dev,
-	struct device_attribute *attr, char *buf)
-{
-	printk("echo reg|count > dump\n");
-	printk("eg read star addres=0x0006,count 0x10:echo 0x610 > dump\n");
-	printk("eg read star addres=0x2000,count 0x10:echo 0x200010 > dump\n");
-    return 0;
-}
-
-/**************************write reg interface**************************/
-static ssize_t acx00_write_store(struct device *dev,
-	struct device_attribute *attr, const char *buf, size_t count)
-{
-	static int val = 0;
-	int reg;
-	int value_w;
-	struct acx00_priv *acx00 = dev_get_drvdata(dev);
-	val = simple_strtol(buf, NULL, 16);
-
-	reg = (val >> 16);
-	value_w =  val & 0xFFFF;
-	snd_soc_write(acx00->codec, reg, value_w);
-	printk("write 0x%x to reg:0x%x\n",value_w,reg);
-	return count;
-}
-
-static ssize_t acx00_write_show(struct device *dev,
-	struct device_attribute *attr, char *buf)
-{
-	printk("echo reg|val > write\n");
-	printk("eg write value:0x13fe to address:0x0004 :echo 0x413fe > write\n");
-	printk("eg write value:0x6 to address:0x2000 :echo 0x20000006 > write\n");
-    return 0;
-}
-
-static DEVICE_ATTR(dump, 0644, acx00_dump_show, acx00_dump_store);
-static DEVICE_ATTR(write, 0644, acx00_write_show, acx00_write_store);
-static struct attribute *audio_debug_attrs[] = {
-	&dev_attr_dump.attr,
-	&dev_attr_write.attr,
-	NULL,
-};
-static struct attribute_group audio_debug_attr_group = {
-	.name   = "acx00_debug",
-	.attrs  = audio_debug_attrs,
-};
 
 /************************************************************/
 static int acx00_codec_probe(struct snd_soc_codec *codec)
@@ -1013,41 +922,56 @@ static int __devinit acx00_probe(struct platform_device *pdev)
 {
 	int ret = 0;
 	struct acx00_priv *acx00;
+	script_item_value_type_e  type;
+	script_item_u val;
 
-	acx00 = devm_kzalloc(&pdev->dev, sizeof(struct acx00_priv), GFP_KERNEL);
-	if (acx00 == NULL) {
-		return -ENOMEM;
+	type = script_get_item("acx0", "ac200_used", &val);
+	if (SCIRPT_ITEM_VALUE_TYPE_INT != type) {
+		pr_err("[acx0] ac200_used type err!\n");
 	}
-	platform_set_drvdata(pdev, acx00);
+	ac200_used = val.val;
 
-	acx00->acx00 = dev_get_drvdata(pdev->dev.parent);
-
-	ret = snd_soc_register_codec(&pdev->dev, &soc_codec_dev_sndvir_audio, acx00_dai, ARRAY_SIZE(acx00_dai));
-	if (ret < 0) {
-		dev_err(&pdev->dev, "Failed to register acx00: %d\n", ret);
+	type = script_get_item("acx0", "ac100_used", &val);
+	if (SCIRPT_ITEM_VALUE_TYPE_INT != type) {
+		pr_err("[acx0] ac100_used type err!\n");
 	}
-	ret = sysfs_create_group(&pdev->dev.kobj, &audio_debug_attr_group);
-	if (ret) {
-		pr_err("failed to create attr group\n");
-	}
+	ac100_used = val.val;
 
+	if (ac200_used&&(ac100_used==0)) {
+		acx00 = devm_kzalloc(&pdev->dev, sizeof(struct acx00_priv), GFP_KERNEL);
+		if (acx00 == NULL) {
+			return -ENOMEM;
+		}
+		platform_set_drvdata(pdev, acx00);
+
+		acx00->acx00 = dev_get_drvdata(pdev->dev.parent);
+
+		ret = snd_soc_register_codec(&pdev->dev, &soc_codec_dev_sndvir_audio, acx00_dai, ARRAY_SIZE(acx00_dai));
+		if (ret < 0) {
+			dev_err(&pdev->dev, "Failed to register acx00: %d\n", ret);
+		}
+	}
 	return 0;
 }
 
 static void acx00_shutdown(struct platform_device *pdev)
 {
-	struct acx00_priv *acx00 = platform_get_drvdata(pdev);
-	struct snd_soc_codec *codec = acx00->codec;
+	struct acx00_priv *acx00 = NULL;
+	struct snd_soc_codec *codec = NULL;
 
-	/*disable lineout*/
-	snd_soc_update_bits(codec, LINEOUT_CTRL, (0x1<<LINEOUTEN), (0<<LINEOUTEN));
-	/*disable pa_ctrl*/
-	gpio_set_value(item.gpio.gpio, 0);
+	if (ac200_used&&(ac100_used==0)) {
+		acx00 = platform_get_drvdata(pdev);
+		codec = acx00->codec;
+
+		/*disable lineout*/
+		snd_soc_update_bits(codec, LINEOUT_CTRL, (0x1<<LINEOUTEN), (0<<LINEOUTEN));
+		/*disable pa_ctrl*/
+		gpio_set_value(item.gpio.gpio, 0);
+	}
 }
 
 static int __devexit acx00_remove(struct platform_device *pdev)
 {
-	sysfs_remove_group(&pdev->dev.kobj, &audio_debug_attr_group);
 	snd_soc_unregister_codec(&pdev->dev);
 	return 0;
 }

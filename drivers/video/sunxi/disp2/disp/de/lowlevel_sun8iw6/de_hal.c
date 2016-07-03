@@ -392,13 +392,11 @@ int de_al_lyr_apply(unsigned int screen_id, struct disp_layer_config_data *data,
 
 			//3d mode
 			if(data[k].config.info.fb.flags){
-				de_fb src_size;
-				src_size.w = layer[j][i+1].w;
-				src_size.h = layer[j][i+1].h;
 				if(data[k].config.info.b_trd_out)
 					lay_cfg[k+1].en     = data[k].config.enable;
 				else
 					lay_cfg[k+1].en     = 0;
+
 				lay_cfg[k+1].alpha_mode = data[k].config.info.alpha_mode;
 				lay_cfg[k+1].alpha      = data[k].config.info.alpha_value;
 				lay_cfg[k+1].fcolor_en  = data[k].config.info.mode;

@@ -17,6 +17,8 @@
 #include <mach/sys_config.h>
 #include <mach/gpio.h>
 #include <asm/io.h>
+#include <linux/delay.h>
+
 
 #define MIC_EFFECT_MAJOR    179
 #define MIC_EFFECT_MAGIC    'd'
@@ -32,7 +34,11 @@
 #define MIC_EFFECT_YCH      3
 
 script_item_u io1_item;
+script_item_u io2_item;
+script_item_u io3_item;
+
 script_item_u pt1_item;
+script_item_u pt2_item;
 script_item_u pt3_item;
 
 struct mic_effect_data{
@@ -46,35 +52,40 @@ static long mic_effect_dev_ioctl(struct file *file,
         unsigned int cmd, unsigned long arg)
 {
     struct mic_effect_data bwr0;
-     void __user *ubuf = NULL;
+    void __user *ubuf = (void __user *)arg;
     if (_IOC_TYPE(cmd) != MIC_EFFECT_MAGIC
             || _IOC_NR(cmd) > MIC_EFFECT_IOCMAX)
         return -ENOTTY;
 
-    ubuf = (void __user *)arg;
     switch (cmd){
         case MIC_EFFECT_SET:
             if (copy_from_user(&bwr, ubuf, sizeof(bwr))) {
                 goto error;
             }
-           pr_err("%s: mode = %d, param = %d\n", __func__, bwr.mode, bwr.param);
+           pr_info("%s: mode = %d, param = %d\n", __func__, bwr.mode, bwr.param);
           if (bwr.mode != 1)
               goto error;
              
             switch (bwr.param)
             {
                 case MIC_EFFECT_LYP:
-                    printk(KERN_ERR "##MIC_EFFECT_LYP");
-                    gpio_set_value(pt1_item.gpio.gpio, 0);
-                    gpio_set_value(pt3_item.gpio.gpio, 0);
+                    gpio_set_value(io1_item.gpio.gpio, 0);
+                    gpio_set_value(io2_item.gpio.gpio, 0);
+                    gpio_set_value(io3_item.gpio.gpio, 0);
+                    gpio_set_value(pt1_item.gpio.gpio, 1);
+                    gpio_set_value(pt3_item.gpio.gpio, 1);
                     return 0;
                 case MIC_EFFECT_KTV:
-                    printk(KERN_ERR "##MIC_EFFECT_KTV");
+                    gpio_set_value(io1_item.gpio.gpio, 1);
+					gpio_set_value(io2_item.gpio.gpio, 0);
+                    gpio_set_value(io3_item.gpio.gpio, 0);
                     gpio_set_value(pt1_item.gpio.gpio, 1);
                     gpio_set_value(pt3_item.gpio.gpio, 0);
                     return 0;
                 case MIC_EFFECT_YCH:
-                    printk(KERN_ERR "##MIC_EFFECT_YCH");
+                    gpio_set_value(io1_item.gpio.gpio, 1);
+					gpio_set_value(io2_item.gpio.gpio, 0);
+                    gpio_set_value(io3_item.gpio.gpio, 0);
                     gpio_set_value(pt1_item.gpio.gpio, 1);
                     gpio_set_value(pt3_item.gpio.gpio, 1);
                     return 0;
@@ -100,7 +111,7 @@ error:
 int mic_gpio_init(void)
 {
     script_item_value_type_e  type;
-    int ret;
+    pr_info("%s ()\n", __func__);
 
     type = script_get_item("audio_echo", "io_1", &io1_item);
     if (SCIRPT_ITEM_VALUE_TYPE_PIO != type) {
@@ -108,29 +119,56 @@ int mic_gpio_init(void)
     }
     gpio_request(io1_item.gpio.gpio, "IO_1");
     gpio_direction_output(io1_item.gpio.gpio, 1);
-    gpio_set_value(io1_item.gpio.gpio, 1);
+    gpio_set_value(io1_item.gpio.gpio, 0);
+
+	type = script_get_item("audio_echo", "io_2", &io2_item);
+	if (SCIRPT_ITEM_VALUE_TYPE_PIO != type) {
+		pr_err("[audio_echo] io_2 type err!\n");
+	}
+	gpio_request(io2_item.gpio.gpio, "IO_2");
+	gpio_direction_output(io2_item.gpio.gpio, 1);
+	gpio_set_value(io2_item.gpio.gpio, 0);
+
+	type = script_get_item("audio_echo", "io_3", &io3_item);
+	if (SCIRPT_ITEM_VALUE_TYPE_PIO != type) {
+		pr_err("[audio_echo] io_3 type err!\n");
+	}
+	gpio_request(io3_item.gpio.gpio, "IO_3");
+	gpio_direction_output(io3_item.gpio.gpio, 1);
+	gpio_set_value(io3_item.gpio.gpio, 0);
+
     type = script_get_item("audio_echo", "pt_vco1", &pt1_item);
     if (SCIRPT_ITEM_VALUE_TYPE_PIO != type) {
         pr_err("[audio_echo] pt_vco1 type err!\n");
     }
-    ret = gpio_request(pt1_item.gpio.gpio, "PT_VCO1");
-    if (ret < 0) {
-    	pr_err("err:%s,l:%d, pt1_item.gpio.gpio:%d\n", __func__, __LINE__, pt1_item.gpio.gpio);
-    }
+    gpio_request(pt1_item.gpio.gpio, "PT_VCO1");
     gpio_direction_output(pt1_item.gpio.gpio, 1);
-    gpio_set_value(pt1_item.gpio.gpio, 0);
+    gpio_set_value(pt1_item.gpio.gpio, 1);
+
+	type = script_get_item("audio_echo", "pt_vco2", &pt2_item);
+    if (SCIRPT_ITEM_VALUE_TYPE_PIO != type) {
+        pr_err("[audiocodec] pt_vco2 type err!\n");
+    }
+    gpio_request(pt2_item.gpio.gpio, "PT_VCO2");
+    gpio_direction_output(pt2_item.gpio.gpio, 1);
+    gpio_set_value(pt2_item.gpio.gpio, 0);
+
     type = script_get_item("audio_echo", "pt_vco3", &pt3_item);
     if (SCIRPT_ITEM_VALUE_TYPE_PIO != type) {
-        pr_err("[audio_echo] pt_vco1 type err!\n");
+        pr_err("[audio_echo] pt_vco3 type err!\n");
     }
     gpio_request(pt3_item.gpio.gpio, "PT_VCO3");
     gpio_direction_output(pt3_item.gpio.gpio, 1);
-    gpio_set_value(pt3_item.gpio.gpio, 0);
+    gpio_set_value(pt3_item.gpio.gpio, 1);
+
     return 0;
 }
 
 int mic_effect_open(struct inode *fi, struct file *fp)
 {
+    /* init GPIO for MIC sound effect */
+    pr_info("%s ()\n", __func__);
+
     return 0;
 }
 
@@ -150,8 +188,6 @@ static int __init mic_effect_init(void)
 {
     struct class *cls;
     int ret;
-    pr_err(KERN_INFO "####     %s\n", __func__);
-
     ret = mic_gpio_init();
 
 	/* create mic effect dev node */

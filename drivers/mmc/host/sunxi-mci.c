@@ -879,7 +879,7 @@ s32 sunxi_mci_request_done(struct sunxi_mmc_host* smc_host)
 			} while (time_before(jiffies, expire) && !(rint & SDXC_CmdDone));
 		}
 
-		sunxi_mci_dump_errinfo(smc_host);
+		//sunxi_mci_dump_errinfo(smc_host);
 		if (req->data)
 			SMC_DBG(smc_host, "In data %s operation\n",
 				req->data->flags & MMC_DATA_WRITE ? "write" : "read");
@@ -3207,6 +3207,9 @@ void sunxi_mci_regs_save(struct sunxi_mmc_host* smc_host)
 	bak_regs->funcsel	= mci_readl(smc_host, REG_FUNS);
 	bak_regs->debugc	= mci_readl(smc_host, REG_DBGC);
 	bak_regs->idmacc	= mci_readl(smc_host, REG_DMAC);
+#if defined(CONFIG_ARCH_SUN8IW7P1)	
+	bak_regs->ntsr		= mci_readl(smc_host, REG_NTSR);
+#endif
 }
 
 void sunxi_mci_regs_restore(struct sunxi_mmc_host* smc_host)
@@ -3221,6 +3224,9 @@ void sunxi_mci_regs_restore(struct sunxi_mmc_host* smc_host)
 	mci_writel(smc_host, REG_FUNS , bak_regs->funcsel );
 	mci_writel(smc_host, REG_DBGC , bak_regs->debugc  );
 	mci_writel(smc_host, REG_DMAC , bak_regs->idmacc  );
+#if defined(CONFIG_ARCH_SUN8IW7P1)		
+	mci_writel(smc_host, REG_NTSR , bak_regs->ntsr  );
+#endif
 }
 
 static int sunxi_mci_suspend(struct device *dev)

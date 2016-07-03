@@ -30,14 +30,14 @@
 #include <video/drv_display.h>
 #include <linux/regulator/consumer.h>
 
-static char modules_name[64] = "gm7121";
+//static char modules_name[64] = "gm7121";
 //extern s32 disp_set_tv_func(u32 screen_id, disp_tv_func *func);
 #define GM7121_Config(sub_addr,data) tv_i2c_write(sub_addr, data)
 void gm7121_init(disp_tv_mode tv_mode);
 static disp_tv_mode g_tv_mode = DISP_TV_MOD_PAL;
 static u32 tv_i2c_id = 1;
 static u32 tv_i2c_used = 0;
-static u32 tv_screen_id = 0;
+//static u32 tv_screen_id = 0;
 static u32 tv_used = 0;
 static u32 tv_power_used = 0;
 static char tv_power[16] = {0};

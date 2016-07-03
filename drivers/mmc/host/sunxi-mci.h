@@ -407,6 +407,8 @@ struct sunxi_mmc_ctrl_regs {
 	u32 funcsel;
 	u32 debugc;
 	u32 idmacc;
+	u32 ntsr;
+ 
 };
 
 /* UHS-I Operation Modes
