@@ -627,6 +627,10 @@ static int codec_pa_play_open(void)
 	/*enable dac digital*/
 	codec_wr_control(SUNXI_DAC_DPC, 0x1, DAC_EN, 0x1);
 	codec_wr_prcm_control(LINEOUT_PA_GAT, 0x1, PA_CLK_GC, 0x0);
+	
+	/* This is workaround for loud poping anytime sound is opened */
+	codec_wr_prcm_control(ROMIXSC, 0x1, RMIXMUTEDACR, 0);
+	codec_wr_prcm_control(LOMIXSC, 0x1, LMIXMUTEDACL, 0);
 
 	/*set TX FIFO send drq level*/
 	codec_wr_control(SUNXI_DAC_FIFOC ,0x7f, TX_TRI_LEVEL, 0xf);

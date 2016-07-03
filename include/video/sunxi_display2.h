@@ -130,7 +130,8 @@ typedef enum
 	DISP_TV_MOD_3840_2160P_30HZ     = 0x1c,
 	DISP_TV_MOD_3840_2160P_25HZ     = 0x1d,
 	DISP_TV_MOD_3840_2160P_24HZ     = 0x1e,
-	DISP_TV_MODE_NUM                = 0x1f,
+	DISP_TV_MOD_800_480P            = 0x1f,
+	DISP_TV_MODE_NUM                = 0x20,
 }disp_tv_mode;
 
 
