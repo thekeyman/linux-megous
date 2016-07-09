@@ -58,6 +58,7 @@ struct sun8i_ths_data {
 	struct clk *clk;
 	struct clk *busclk;
 	void __iomem *regs;
+	void __iomem *calreg;
 	struct thermal_zone_device *tzd;
 	u32 temp;
 };
@@ -89,6 +90,12 @@ static irqreturn_t sun8i_ths_irq_thread(int irq, void *_data)
 
 static void sun8i_ths_h3_init(struct sun8i_ths_data *data)
 {
+	u32 caldata;
+	
+	caldata = readl(data->calreg) & 0xfff;
+	if (caldata != 0)
+		writel(caldata, data->regs + THS_H3_CDATA);
+
 	writel(THS_H3_CTRL0_SENSOR_ACQ0(THS_H3_CTRL0_SENSOR_ACQ0_VALUE),
 		data->regs + THS_H3_CTRL0);
 	writel(THS_H3_FILTER_EN | THS_H3_FILTER_TYPE(THS_H3_FILTER_TYPE_VALUE),
@@ -125,6 +132,19 @@ static int sun8i_ths_probe(struct platform_device *pdev)
 	data->regs = devm_ioremap_resource(&pdev->dev, res);
 	if (IS_ERR(data->regs)) {
 		ret = PTR_ERR(data->regs);
+		dev_err(&pdev->dev, "failed to ioremap THS registers: %d\n", ret);
+		return ret;
+	}
+
+	res = platform_get_resource(pdev, IORESOURCE_MEM, 1);
+        if (!res) {
+                dev_err(&pdev->dev, "no calibration data memory resource defined\n");
+                return -EINVAL;
+        }
+
+	data->calreg = devm_ioremap_resource(&pdev->dev, res);
+	if (IS_ERR(data->calreg)) {
+		ret = PTR_ERR(data->calreg);
 		dev_err(&pdev->dev, "failed to ioremap THS registers: %d\n", ret);
 		return ret;
 	}
