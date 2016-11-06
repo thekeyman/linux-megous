@@ -31,12 +31,27 @@ config CPU_IDLE_GOV_MENU
 config ARCH_NEEDS_CPU_IDLE_COUPLED
 	def_bool n
 
+config DT_IDLE_STATES
+	bool
+
 if CPU_IDLE
+
+menu "ARM CPU Idle Drivers"
+depends on ARM || ARM64
+source "drivers/cpuidle/Kconfig.arm"
+endmenu
 
 config CPU_IDLE_CALXEDA
 	bool "CPU Idle Driver for Calxeda processors"
 	depends on ARCH_HIGHBANK
 	help
 	  Select this to enable cpuidle on Calxeda processors.
+
+config CPU_IDLE_SUNXI
+	bool "CPU Idle Driver for Sunxi processors"
+	depends on ARCH_SUN8IW11
+	select ARM_CPU_SUSPEND
+	help
+	  Select this to enable cpuidle on Sunxi processors.
 
 endif

@@ -81,6 +81,20 @@ source "net/netlabel/Kconfig"
 
 endif # if INET
 
+config ANDROID_PARANOID_NETWORK
+	bool "Only allow certain groups to create sockets"
+	default ANDROID
+	help
+		none
+
+config NET_ACTIVITY_STATS
+	bool "Network activity statistics tracking"
+	default ANDROID
+	help
+	 Network activity statistics are useful for tracking wireless
+	 modem activity on 2G, 3G, 4G wireless networks. Counts number of
+	 transmissions and groups them in specified time buckets.
+
 config NETWORK_SECMARK
 	bool "Security Marking"
 	help
@@ -220,7 +234,7 @@ source "net/vmw_vsock/Kconfig"
 source "net/netlink/Kconfig"
 
 config RPS
-	boolean
+	boolean "RPS"
 	depends on SMP && SYSFS && USE_GENERIC_SMP_HELPERS
 	default y
 
@@ -320,14 +334,16 @@ config FIB_RULES
 menuconfig WIRELESS
 	bool "Wireless"
 	depends on !S390
-	default y
+	default n
 
+if !COMPAT_WIRELESS
 if WIRELESS
 
 source "net/wireless/Kconfig"
 source "net/mac80211/Kconfig"
 
 endif # WIRELESS
+endif # !COMPAT_WIRELESS
 
 source "net/wimax/Kconfig"
 
@@ -336,7 +352,6 @@ source "net/9p/Kconfig"
 source "net/caif/Kconfig"
 source "net/ceph/Kconfig"
 source "net/nfc/Kconfig"
-
 
 endif   # if NET
 

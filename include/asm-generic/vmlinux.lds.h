@@ -171,6 +171,28 @@
 #define CLK_OF_TABLES()
 #endif
 
+#ifdef CONFIG_OF_RESERVED_MEM
+#define RESERVEDMEM_OF_TABLES()				\
+	. = ALIGN(8);					\
+	VMLINUX_SYMBOL(__reservedmem_of_table) = .;	\
+	*(__reservedmem_of_table)			\
+	*(__reservedmem_of_table_end)
+#else
+#define RESERVEDMEM_OF_TABLES()
+#endif
+
+#define ___OF_TABLE(cfg, name)	_OF_TABLE_##cfg(name)
+#define __OF_TABLE(cfg, name)	___OF_TABLE(cfg, name)
+#define OF_TABLE(cfg, name)	__OF_TABLE(config_enabled(cfg), name)
+#define _OF_TABLE_0(name)
+#define _OF_TABLE_1(name)						\
+	. = ALIGN(8);							\
+	VMLINUX_SYMBOL(__##name##_of_table) = .;			\
+	*(__##name##_of_table)						\
+	*(__##name##_of_table_end)
+
+#define CPUIDLE_METHOD_OF_TABLES() OF_TABLE(CONFIG_CPU_IDLE, cpuidle_method)
+
 #define KERNEL_DTB()							\
 	STRUCT_ALIGN();							\
 	VMLINUX_SYMBOL(__dtb_start) = .;				\
@@ -515,7 +537,9 @@
 	CPU_DISCARD(init.rodata)					\
 	MEM_DISCARD(init.rodata)					\
 	CLK_OF_TABLES()							\
+	RESERVEDMEM_OF_TABLES()						\
 	CLKSRC_OF_TABLES()						\
+	CPUIDLE_METHOD_OF_TABLES()                                      \
 	KERNEL_DTB()							\
 	IRQCHIP_OF_MATCH_TABLE()
 

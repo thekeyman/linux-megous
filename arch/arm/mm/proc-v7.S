@@ -183,6 +183,7 @@ __v7_ca9mp_setup:
 	b	1f
 __v7_ca7mp_setup:
 __v7_ca15mp_setup:
+__v7_ca53mp_setup:
 	mov	r10, #0
 1:
 #ifdef CONFIG_SMP
@@ -350,9 +351,7 @@ __v7_setup:
 #endif
 	adr	r5, v7_crval
 	ldmia	r5, {r5, r6}
-#ifdef CONFIG_CPU_ENDIAN_BE8
-	orr	r6, r6, #1 << 25		@ big-endian page tables
-#endif
+ ARM_BE8(orr	r6, r6, #1 << 25)		@ big-endian page tables
 #ifdef CONFIG_SWP_EMULATE
 	orr     r5, r5, #(1 << 10)              @ set SW bit in "clear"
 	bic     r6, r6, #(1 << 10)              @ clear it in "mmuset"
@@ -475,6 +474,16 @@ __krait_proc_info:
 	 */
 	__v7_proc __v7_setup, hwcaps = HWCAP_IDIV
 	.size	__krait_proc_info, . - __krait_proc_info
+
+	/*
+	 * ARM Ltd. Cortex A53 processor.
+	 */
+	.type	__v7_ca53mp_proc_info, #object
+__v7_ca53mp_proc_info:
+	.long	0x410fd030
+	.long	0xff0ffff0
+	__v7_proc __v7_ca53mp_setup
+	.size	__v7_ca53mp_proc_info, . - __v7_ca53mp_proc_info
 
 	/*
 	 * Match any ARMv7 processor core.

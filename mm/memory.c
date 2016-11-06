@@ -118,6 +118,8 @@ __setup("norandmaps", disable_randmaps);
 unsigned long zero_pfn __read_mostly;
 unsigned long highest_memmap_pfn __read_mostly;
 
+EXPORT_SYMBOL(zero_pfn);
+
 /*
  * CONFIG_MMU architectures set up ZERO_PAGE in their paging_init()
  */
@@ -2758,7 +2760,7 @@ reuse:
 			set_page_dirty_balance(dirty_page, page_mkwrite);
 			/* file_update_time outside page_lock */
 			if (vma->vm_file)
-				file_update_time(vma->vm_file);
+				vma_file_update_time(vma);
 		}
 		put_page(dirty_page);
 		if (page_mkwrite) {
@@ -3465,7 +3467,7 @@ static int __do_fault(struct mm_struct *mm, struct vm_area_struct *vma,
 
 		/* file_update_time outside page_lock */
 		if (vma->vm_file && !page_mkwrite)
-			file_update_time(vma->vm_file);
+			vma_file_update_time(vma);
 	} else {
 		unlock_page(vmf.page);
 		if (anon)

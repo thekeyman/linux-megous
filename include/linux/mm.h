@@ -52,6 +52,9 @@ extern unsigned long sysctl_admin_reserve_kbytes;
 /* to align the pointer to the (next) page boundary */
 #define PAGE_ALIGN(addr) ALIGN(addr, PAGE_SIZE)
 
+/* test whether an address (unsigned long or pointer) is aligned to PAGE_SIZE */
+#define PAGE_ALIGNED(addr)	IS_ALIGNED((unsigned long)addr, PAGE_SIZE)
+
 /*
  * Linux kernel virtual memory manager primitives.
  * The idea being to have a "virtual" mm in the same way
@@ -324,6 +327,8 @@ static inline int is_vmalloc_or_module_addr(const void *x)
 	return 0;
 }
 #endif
+
+extern void kvfree(const void *addr);
 
 static inline void compound_lock(struct page *page)
 {
@@ -922,6 +927,7 @@ extern void pagefault_out_of_memory(void);
 extern void show_free_areas(unsigned int flags);
 extern bool skip_free_areas_node(unsigned int flags, int nid);
 
+void shmem_set_file(struct vm_area_struct *vma, struct file *file);
 int shmem_zero_setup(struct vm_area_struct *);
 
 extern int can_do_mlock(void);
@@ -1034,6 +1040,28 @@ static inline int fixup_user_fault(struct task_struct *tsk,
 	return -EFAULT;
 }
 #endif
+
+#ifdef CONFIG_MMU
+extern void vma_do_file_update_time(struct vm_area_struct *, const char[], int);
+extern struct file *vma_do_pr_or_file(struct vm_area_struct *, const char[],
+				      int);
+extern void vma_do_get_file(struct vm_area_struct *, const char[], int);
+extern void vma_do_fput(struct vm_area_struct *, const char[], int);
+
+#define vma_file_update_time(vma)	vma_do_file_update_time(vma, __func__, \
+								__LINE__)
+#define vma_pr_or_file(vma)		vma_do_pr_or_file(vma, __func__, \
+							  __LINE__)
+#define vma_get_file(vma)		vma_do_get_file(vma, __func__, __LINE__)
+#define vma_fput(vma)			vma_do_fput(vma, __func__, __LINE__)
+#else
+extern struct file *vmr_do_pr_or_file(struct vm_region *, const char[], int);
+extern void vmr_do_fput(struct vm_region *, const char[], int);
+
+#define vmr_pr_or_file(region)		vmr_do_pr_or_file(region, __func__, \
+							  __LINE__)
+#define vmr_fput(region)		vmr_do_fput(region, __func__, __LINE__)
+#endif /* CONFIG_MMU */
 
 extern int access_process_vm(struct task_struct *tsk, unsigned long addr, void *buf, int len, int write);
 extern int access_remote_vm(struct mm_struct *mm, unsigned long addr,
@@ -1500,7 +1528,7 @@ extern int vma_adjust(struct vm_area_struct *vma, unsigned long start,
 extern struct vm_area_struct *vma_merge(struct mm_struct *,
 	struct vm_area_struct *prev, unsigned long addr, unsigned long end,
 	unsigned long vm_flags, struct anon_vma *, struct file *, pgoff_t,
-	struct mempolicy *);
+	struct mempolicy *, const char __user *);
 extern struct anon_vma *find_mergeable_anon_vma(struct vm_area_struct *);
 extern int split_vma(struct mm_struct *,
 	struct vm_area_struct *, unsigned long addr, int new_below);

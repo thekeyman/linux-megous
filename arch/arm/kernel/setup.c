@@ -37,6 +37,7 @@
 #include <asm/cputype.h>
 #include <asm/elf.h>
 #include <asm/procinfo.h>
+#include <asm/psci.h>
 #include <asm/sections.h>
 #include <asm/setup.h>
 #include <asm/smp_plat.h>
@@ -73,7 +74,7 @@ __setup("fpe=", fpe_setup);
 
 extern void paging_init(struct machine_desc *desc);
 extern void sanity_check_meminfo(void);
-extern void reboot_setup(char *str);
+extern enum reboot_mode reboot_mode;
 extern void setup_dma_zone(struct machine_desc *desc);
 
 unsigned int processor_id;
@@ -260,6 +261,19 @@ static int cpu_has_aliasing_icache(unsigned int arch)
 {
 	int aliasing_icache;
 	unsigned int id_reg, num_sets, line_size;
+
+#ifdef CONFIG_BIG_LITTLE
+	/*
+	 * We expect a combination of Cortex-A15 and Cortex-A7 cores.
+	 * A7 = VIPT aliasing I-cache
+	 * A15 = PIPT (non-aliasing) I-cache
+	 * To cater for this discrepancy, let's assume aliasing I-cache
+	 * all the time.  This means unneeded extra work on the A15 but
+	 * only ptrace is affected which is not performance critical.
+	 */
+	if ((read_cpuid_id() & 0xff0ffff0) == 0x410fc0f0)
+		return 1;
+#endif
 
 	/* PIPT caches never alias. */
 	if (icache_is_pipt())
@@ -691,9 +705,10 @@ static int __init customize_machine(void)
 	if (machine_desc->init_machine)
 		machine_desc->init_machine();
 #ifdef CONFIG_OF
-	else
+	else {
 		of_platform_populate(NULL, of_default_bus_match_table,
 					NULL, NULL);
+	}
 #endif
 	return 0;
 }
@@ -791,8 +806,8 @@ void __init setup_arch(char **cmdline_p)
 
 	setup_dma_zone(mdesc);
 
-	if (mdesc->restart_mode)
-		reboot_setup(&mdesc->restart_mode);
+	if (mdesc->reboot_mode != REBOOT_HARD)
+		reboot_mode = mdesc->reboot_mode;
 
 	init_mm.start_code = (unsigned long) _text;
 	init_mm.end_code   = (unsigned long) _etext;
@@ -818,9 +833,15 @@ void __init setup_arch(char **cmdline_p)
 	unflatten_device_tree();
 
 	arm_dt_init_cpu_maps();
+	psci_init();
 #ifdef CONFIG_SMP
 	if (is_smp()) {
-		smp_set_ops(mdesc->smp);
+		if (!mdesc->smp_init || !mdesc->smp_init()) {
+			if (psci_smp_available())
+				smp_set_ops(&psci_smp_ops);
+			else if (mdesc->smp)
+				smp_set_ops(mdesc->smp);
+		}
 		smp_init_cpus();
 	}
 #endif
@@ -845,7 +866,6 @@ void __init setup_arch(char **cmdline_p)
 	if (mdesc->init_early)
 		mdesc->init_early();
 }
-
 
 static int __init topology_init(void)
 {
@@ -894,6 +914,9 @@ static const char *hwcap_str[] = {
 	"vfpv4",
 	"idiva",
 	"idivt",
+	"vfpd32",
+	"lpae",
+	"evtstrm",
 	NULL
 };
 

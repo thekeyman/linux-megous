@@ -974,8 +974,13 @@ grow_dev_page(struct block_device *bdev, sector_t block,
 	sector_t end_block;
 	int ret = 0;		/* Will call free_more_memory() */
 
+#ifdef CONFIG_CMA
 	page = find_or_create_page(inode->i_mapping, index,
-		(mapping_gfp_mask(inode->i_mapping) & ~__GFP_FS)|__GFP_MOVABLE);
+		(mapping_gfp_mask(inode->i_mapping) & ~__GFP_FS)|__GFP_MOVABLE|__GFP_WRITE);
+#else
+ 	page = find_or_create_page(inode->i_mapping, index,
+ 		(mapping_gfp_mask(inode->i_mapping) & ~__GFP_FS)|__GFP_MOVABLE);
+#endif
 	if (!page)
 		return ret;
 
@@ -2399,7 +2404,7 @@ int block_page_mkwrite(struct vm_area_struct *vma, struct vm_fault *vmf,
 	 * Update file times before taking page lock. We may end up failing the
 	 * fault so this update may be superfluous but who really cares...
 	 */
-	file_update_time(vma->vm_file);
+	vma_file_update_time(vma);
 
 	ret = __block_page_mkwrite(vma, vmf, get_block);
 	sb_end_pagefault(sb);

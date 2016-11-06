@@ -102,7 +102,8 @@ static long madvise_behavior(struct vm_area_struct * vma,
 
 	pgoff = vma->vm_pgoff + ((start - vma->vm_start) >> PAGE_SHIFT);
 	*prev = vma_merge(mm, *prev, start, end, new_flags, vma->anon_vma,
-				vma->vm_file, pgoff, vma_policy(vma));
+				vma->vm_file, pgoff, vma_policy(vma),
+				vma_get_anon_name(vma));
 	if (*prev) {
 		vma = *prev;
 		goto success;
@@ -327,12 +328,12 @@ static long madvise_remove(struct vm_area_struct *vma,
 	 * vma's reference to the file) can go away as soon as we drop
 	 * mmap_sem.
 	 */
-	get_file(f);
+	vma_get_file(vma);
 	up_read(&current->mm->mmap_sem);
 	error = do_fallocate(f,
 				FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE,
 				offset, end - start);
-	fput(f);
+	vma_fput(vma);
 	down_read(&current->mm->mmap_sem);
 	return error;
 }

@@ -75,8 +75,45 @@
  */
 	.arm
 
+	.text
+
+__clear_cpu_cntvoff:
+	adr r13, 3f
+	push    {r0-r3} 
+				 @r0 tmp reg
+	MRS r1, cpsr @backup cpsr
+	ldr r2, =0x0 @for init cntvoff
+
+	MSR  cpsr_c, #0x16 @mon_mode
+	
+	MRC p15,0,r0,c1,c1,0 @SCR.NS=1
+	orr r0,r0,#1
+	MCR p15,0,r0,c1,c1,0
+	
+	MCRR p15,4,r2,r2,c14  @write 0 to 64-bit CNTVOFF 
+
+	BIC r0,r0,#1
+	MCR p15,0,r0,c1,c1,0 @SCR.NS=0
+	
+	MSR  cpsr_c, r1 @restore cpsr
+
+	ISB
+	pop     {r0-r3} 
+	MOV     pc, lr
+ENDPROC(__clear_cpu_cntvoff)
+	
+
+	.type __clear_cpu_cntvoff_stack, #object
+ENTRY(__clear_cpu_cntvoff_stack)
+	.space 16
+	
+	.align 2
+3:	.word __clear_cpu_cntvoff_stack - .
+
+
 	__HEAD
 ENTRY(stext)
+ ARM_BE8(setend	be )			@ ensure we are in BE8 mode
 
  THUMB(	adr	r9, BSYM(1f)	)	@ Kernel is always entered in ARM.
  THUMB(	bx	r9		)	@ If this is a Thumb-2 kernel,
@@ -88,6 +125,8 @@ ENTRY(stext)
 #endif
 	@ ensure svc mode and all interrupts masked
 	safe_svcmode_maskall r9
+	
+	bl __clear_cpu_cntvoff	
 
 	mrc	p15, 0, r9, c0, c0		@ get processor id
 	bl	__lookup_processor_type		@ r5=procinfo r9=cpuid
@@ -342,7 +381,8 @@ __turn_mmu_on_loc:
 	.long	__turn_mmu_on_end
 
 #if defined(CONFIG_SMP)
-	__CPUINIT
+	.text
+__REF
 ENTRY(secondary_startup)
 	/*
 	 * Common entry point for secondary CPUs.
@@ -351,11 +391,15 @@ ENTRY(secondary_startup)
 	 * the processor type - there is no need to check the machine type
 	 * as it has already been validated by the primary processor.
 	 */
+
+ ARM_BE8(setend	be)				@ ensure we are in BE8 mode
+
 #ifdef CONFIG_ARM_VIRT_EXT
 	bl	__hyp_stub_install_secondary
 #endif
 	safe_svcmode_maskall r9
 
+	bl __clear_cpu_cntvoff	
 	mrc	p15, 0, r9, c0, c0		@ get processor id
 	bl	__lookup_processor_type
 	movs	r10, r5				@ invalid processor?
@@ -383,6 +427,7 @@ ENDPROC(secondary_startup)
 	/*
 	 * r6  = &secondary_data
 	 */
+__REF
 ENTRY(__secondary_switched)
 	ldr	sp, [r7, #4]			@ get secondary_data.stack
 	mov	fp, #0
@@ -538,6 +583,7 @@ ENTRY(fixup_smp)
 	ldmfd	sp!, {r4 - r6, pc}
 ENDPROC(fixup_smp)
 
+
 #ifdef CONFIG_ARM_PATCH_PHYS_VIRT
 
 /* __fixup_pv_table - patch the stub instructions with the delta between
@@ -584,8 +630,10 @@ __fixup_a_pv_table:
 	b	2f
 1:	add     r7, r3
 	ldrh	ip, [r7, #2]
+ARM_BE8(rev16	ip, ip)
 	and	ip, 0x8f00
 	orr	ip, r6	@ mask in offset bits 31-24
+ARM_BE8(rev16	ip, ip)
 	strh	ip, [r7, #2]
 2:	cmp	r4, r5
 	ldrcc	r7, [r4], #4	@ use branch for delay slot
@@ -594,8 +642,14 @@ __fixup_a_pv_table:
 #else
 	b	2f
 1:	ldr	ip, [r7, r3]
+#ifdef CONFIG_CPU_ENDIAN_BE8
+	@ in BE8, we load data in BE, but instructions still in LE
+	bic	ip, ip, #0xff000000
+	orr	ip, ip, r6, lsl#24
+#else
 	bic	ip, ip, #0x000000ff
 	orr	ip, ip, r6	@ mask in offset bits 31-24
+#endif
 	str	ip, [r7, r3]
 2:	cmp	r4, r5
 	ldrcc	r7, [r4], #4	@ use branch for delay slot
@@ -614,6 +668,7 @@ ENTRY(fixup_pv_table)
 	bl	__fixup_a_pv_table
 	ldmfd	sp!, {r4 - r7, pc}
 ENDPROC(fixup_pv_table)
+
 
 	.align
 2:	.long	__pv_phys_offset
