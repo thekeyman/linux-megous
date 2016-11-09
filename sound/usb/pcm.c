@@ -341,8 +341,11 @@ static int set_format(struct snd_usb_substream *subs, struct audioformat *fmt)
 	    subs->altset_idx != fmt->altset_idx) {
 		err = usb_set_interface(dev, fmt->iface, fmt->altsetting);
 		if (err < 0) {
-			snd_printk(KERN_ERR "%d:%d:%d: usb_set_interface failed (%d)\n",
-				   dev->devnum, fmt->iface, fmt->altsetting, err);
+			/* FIXME: to avoid usb karaok call too often */
+			/*snd_printk(KERN_ERR "%d:%d:%d:
+				usb_set_interface failed (%d)\n",
+				dev->devnum, fmt->iface, fmt->altsetting, err);
+			*/
 			return -EIO;
 		}
 		snd_printdd(KERN_INFO "setting usb interface %d:%d\n",

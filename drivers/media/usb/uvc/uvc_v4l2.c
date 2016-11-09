@@ -311,15 +311,19 @@ static int uvc_v4l2_set_format(struct uvc_streaming *stream,
 	mutex_lock(&stream->mutex);
 
 	if (uvc_queue_allocated(&stream->queue)) {
-		ret = -EBUSY;
-		goto done;
+		/*
+		* remove this code, if just stopstreaming ,queue is still exist
+		* It's unnecessary to check num_buffers when setformat
+		* ret = -EBUSY;
+		* goto done;
+		*/
 	}
 
 	stream->ctrl = probe;
 	stream->cur_format = format;
 	stream->cur_frame = frame;
 
-done:
+/*done:*/
 	mutex_unlock(&stream->mutex);
 	return ret;
 }

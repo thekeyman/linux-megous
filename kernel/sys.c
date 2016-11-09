@@ -463,6 +463,9 @@ static DEFINE_MUTEX(reboot_mutex);
  *
  * reboot doesn't sync: do that yourself before calling this.
  */
+#if defined(CONFIG_SUNXI_BOOTUP_EXTEND)
+extern void sunxi_bootup_extend_fix(unsigned int *cmd);
+#endif
 SYSCALL_DEFINE4(reboot, int, magic1, int, magic2, unsigned int, cmd,
 		void __user *, arg)
 {
@@ -498,6 +501,9 @@ SYSCALL_DEFINE4(reboot, int, magic1, int, magic2, unsigned int, cmd,
 		cmd = LINUX_REBOOT_CMD_HALT;
 
 	mutex_lock(&reboot_mutex);
+#if defined(CONFIG_SUNXI_BOOTUP_EXTEND)
+	sunxi_bootup_extend_fix(&cmd);
+#endif
 	switch (cmd) {
 	case LINUX_REBOOT_CMD_RESTART:
 		kernel_restart(NULL);

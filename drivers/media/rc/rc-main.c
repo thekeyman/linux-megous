@@ -26,11 +26,12 @@
 #define IR_TAB_MAX_SIZE	8192
 
 /* FIXME: IR_KEYPRESS_TIMEOUT should be protocol specific */
-#define IR_KEYPRESS_TIMEOUT 250
+#define IR_KEYPRESS_TIMEOUT 200
 
 /* Used to keep track of known keymaps */
 static LIST_HEAD(rc_map_list);
 static DEFINE_SPINLOCK(rc_map_lock);
+static int keyrepeated;
 
 static struct rc_map_list *seek_rc_map(const char *name)
 {
@@ -145,8 +146,10 @@ static int ir_create_table(struct rc_map *rc_map,
 static void ir_free_table(struct rc_map *rc_map)
 {
 	rc_map->size = 0;
-	kfree(rc_map->scan);
-	rc_map->scan = NULL;
+	if(rc_map->scan){
+		kfree(rc_map->scan);
+		rc_map->scan = NULL;
+	}
 }
 
 /**
@@ -398,6 +401,17 @@ static int ir_setkeytable(struct rc_dev *dev,
 	return rc;
 }
 
+static int ir_setkeytable_mapping(struct rc_dev *dev,
+			  const struct rc_map *from)
+{
+	struct rc_map *rc_map = &dev->rc_map;
+
+	if(from->mapping)
+		rc_map->mapping = from->mapping;;
+
+	return 0;
+}
+
 /**
  * ir_lookup_by_scancode() - locate mapping by scancode
  * @rc_map:	the struct rc_map to search
@@ -505,11 +519,13 @@ u32 rc_g_keycode_from_table(struct rc_dev *dev, u32 scancode)
 	unsigned long flags;
 
 	spin_lock_irqsave(&rc_map->lock, flags);
-
-	index = ir_lookup_by_scancode(rc_map, scancode);
-	keycode = index < rc_map->len ?
-			rc_map->scan[index].keycode : KEY_RESERVED;
-
+	if(rc_map->mapping){
+		keycode = rc_map->mapping(scancode);
+	}else{
+		index = ir_lookup_by_scancode(rc_map, scancode);
+		keycode = index < rc_map->len ?
+				rc_map->scan[index].keycode : KEY_RESERVED;
+	}
 	spin_unlock_irqrestore(&rc_map->lock, flags);
 
 	if (keycode != KEY_RESERVED)
@@ -534,10 +550,12 @@ static void ir_do_keyup(struct rc_dev *dev, bool sync)
 		return;
 
 	IR_dprintk(1, "keyup key 0x%04x\n", dev->last_keycode);
+	input_event(dev->input_dev, EV_MSC, MSC_SCAN, (dev->last_scancode & (~(0x1<<24))));
 	input_report_key(dev->input_dev, dev->last_keycode, 0);
 	if (sync)
 		input_sync(dev->input_dev);
 	dev->keypressed = false;
+	keyrepeated = 0;
 }
 
 /**
@@ -599,13 +617,14 @@ void rc_repeat(struct rc_dev *dev)
 
 	spin_lock_irqsave(&dev->keylock, flags);
 
-	input_event(dev->input_dev, EV_MSC, MSC_SCAN, dev->last_scancode);
+/*	input_event(dev->input_dev, EV_MSC, MSC_SCAN, dev->last_scancode);*/
 	input_sync(dev->input_dev);
 
 	if (!dev->keypressed)
 		goto out;
 
-	dev->keyup_jiffies = jiffies + msecs_to_jiffies(IR_KEYPRESS_TIMEOUT);
+	keyrepeated = 1;
+	dev->keyup_jiffies = jiffies + msecs_to_jiffies(dev->input_dev->rep[REP_PERIOD]);
 	mod_timer(&dev->timer_keyup, dev->keyup_jiffies);
 
 out:
@@ -627,13 +646,12 @@ static void ir_do_keydown(struct rc_dev *dev, int scancode,
 			  u32 keycode, u8 toggle)
 {
 	bool new_event = !dev->keypressed ||
-			 dev->last_scancode != scancode ||
+			 dev->last_scancode != scancode || (!keyrepeated) ||
 			 dev->last_toggle != toggle;
+	int temp_code = 0;
 
 	if (new_event && dev->keypressed)
 		ir_do_keyup(dev, false);
-
-	input_event(dev->input_dev, EV_MSC, MSC_SCAN, scancode);
 
 	if (new_event && keycode != KEY_RESERVED) {
 		/* Register a keypress */
@@ -641,6 +659,9 @@ static void ir_do_keydown(struct rc_dev *dev, int scancode,
 		dev->last_scancode = scancode;
 		dev->last_toggle = toggle;
 		dev->last_keycode = keycode;
+		keyrepeated = 0;
+		temp_code = scancode | (0x01 << 24);
+		input_event(dev->input_dev, EV_MSC, MSC_SCAN, temp_code);
 
 		IR_dprintk(1, "%s: key down event, "
 			   "key 0x%04x, scancode 0x%04x\n",
@@ -669,7 +690,7 @@ void rc_keydown(struct rc_dev *dev, int scancode, u8 toggle)
 	spin_lock_irqsave(&dev->keylock, flags);
 	ir_do_keydown(dev, scancode, keycode, toggle);
 
-	if (dev->keypressed) {
+	if (dev->keypressed && !keyrepeated) {
 		dev->keyup_jiffies = jiffies + msecs_to_jiffies(IR_KEYPRESS_TIMEOUT);
 		mod_timer(&dev->timer_keyup, dev->keyup_jiffies);
 	}
@@ -1041,11 +1062,13 @@ int rc_register_device(struct rc_dev *dev)
 	rc_map = rc_map_get(dev->map_name);
 	if (!rc_map)
 		rc_map = rc_map_get(RC_MAP_EMPTY);
-	if (!rc_map || !rc_map->scan || rc_map->size == 0)
+	if (!rc_map)
+		return -EINVAL;
+	if ((!rc_map->mapping) && (!rc_map->scan || rc_map->size == 0))
 		return -EINVAL;
 
 	set_bit(EV_KEY, dev->input_dev->evbit);
-	set_bit(EV_REP, dev->input_dev->evbit);
+	/*set_bit(EV_REP, dev->input_dev->evbit);*/
 	set_bit(EV_MSC, dev->input_dev->evbit);
 	set_bit(MSC_SCAN, dev->input_dev->mscbit);
 	if (dev->open)
@@ -1067,6 +1090,8 @@ int rc_register_device(struct rc_dev *dev)
 	rc = device_add(&dev->dev);
 	if (rc)
 		goto out_unlock;
+
+	ir_setkeytable_mapping(dev, rc_map);
 
 	rc = ir_setkeytable(dev, rc_map);
 	if (rc)

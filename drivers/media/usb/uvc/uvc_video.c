@@ -201,8 +201,11 @@ static int uvc_get_video_ctrl(struct uvc_streaming *stream,
 		uvc_printk(KERN_ERR, "Failed to query (%u) UVC %s control : "
 			"%d (exp. %u).\n", query, probe ? "probe" : "commit",
 			ret, size);
-		ret = -EIO;
-		goto out;
+		/*
+		* remove this code, some camera do not support this ctrl
+		* ret = -EIO;
+		* goto out;
+		*/
 	}
 
 	ctrl->bmHint = le16_to_cpup((__le16 *)&data[0]);
@@ -282,7 +285,10 @@ static int uvc_set_video_ctrl(struct uvc_streaming *stream,
 		uvc_printk(KERN_ERR, "Failed to set UVC %s control : "
 			"%d (exp. %u).\n", probe ? "probe" : "commit",
 			ret, size);
-		ret = -EIO;
+		/*
+		* remove this code, some camera do not support this ctrl
+		* ret = -EIO;
+		*/
 	}
 
 	kfree(data);

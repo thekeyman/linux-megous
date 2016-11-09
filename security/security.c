@@ -25,6 +25,7 @@
 #include <linux/personality.h>
 #include <linux/backing-dev.h>
 #include <net/flow.h>
+#include <linux/fivm.h>
 
 #define MAX_LSM_EVM_XATTR	2
 
@@ -741,6 +742,11 @@ int security_mmap_file(struct file *file, unsigned long prot,
 					mmap_prot(file, prot), flags);
 	if (ret)
 		return ret;
+#ifdef CONFIG_FILE_INTEGRITY
+	ret = fivm_mmap_verify(file, prot);
+	if (ret)
+		return ret;
+#endif
 	return ima_file_mmap(file, prot);
 }
 

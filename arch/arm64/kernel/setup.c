@@ -42,6 +42,7 @@
 #include <linux/of_fdt.h>
 #include <linux/of_platform.h>
 #include <linux/efi.h>
+#include <linux/sunxi-sid.h>
 
 #include <asm/fixmap.h>
 #include <asm/cputype.h>
@@ -447,9 +448,15 @@ void __init setup_arch(char **cmdline_p)
 #endif
 }
 
+#ifdef CONFIG_COMMON_CLK_ENABLE_SYNCBOOT_EARLY
+extern int clk_syncboot(void);
+#endif
 static int __init arm64_device_init(void)
 {
 	of_clk_init(NULL);
+#ifdef CONFIG_COMMON_CLK_ENABLE_SYNCBOOT_EARLY
+	clk_syncboot();
+#endif
 	of_platform_populate(NULL, of_default_bus_match_table, NULL, NULL);
 	return 0;
 }
@@ -486,6 +493,14 @@ static const char *hwcap_str[] = {
 static int c_show(struct seq_file *m, void *v)
 {
 	int i;
+
+#if defined(CONFIG_ARCH_SUNXI)
+	u32 serial[4];
+	int ret;
+
+	memset(serial, 0, sizeof(serial));
+	ret = sunxi_get_serial((u8 *)serial);
+#endif
 
 	seq_printf(m, "Processor\t: %s rev %d (%s)\n",
 		   cpu_name, read_cpuid_id() & 15, ELF_PLATFORM);
@@ -528,7 +543,10 @@ static int c_show(struct seq_file *m, void *v)
 	seq_puts(m, "\n");
 
 	seq_printf(m, "Hardware\t: %s\n", machine_name);
-
+#if defined(CONFIG_ARCH_SUNXI)
+	seq_printf(m, "Serial\t\t: %04x%08x%08x\n",
+		   serial[2], serial[1], serial[0]);
+#endif
 	return 0;
 }
 

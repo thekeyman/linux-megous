@@ -1801,6 +1801,30 @@ const struct snd_pcm_hw_constraint_list snd_pcm_known_rates = {
 	.list = rates,
 };
 
+static int snd_pcm_device_access(int card, int device, int stream)
+{
+	char snd_node[64];
+	struct file *fp = NULL;
+	int ret = -1;
+	memset(snd_node, 0, sizeof(snd_node));
+
+	if (stream == SNDRV_PCM_STREAM_PLAYBACK) {
+		/* playback device */
+		snprintf(snd_node, 64, "/dev/snd/pcmC%dD%dp", card, device);
+	} else if (stream == SNDRV_PCM_STREAM_CAPTURE) {
+		/* capture device */
+		snprintf(snd_node, 64, "/dev/snd/pcmC%dD%dc", card, device);
+	} else {
+		return false;
+	}
+	fp = filp_open(snd_node, O_RDONLY, 0666);
+	if (fp != NULL && !IS_ERR(fp)) {
+		filp_close(fp, NULL);
+		ret = 0;
+	}
+	return ret;
+}
+
 static int snd_pcm_hw_rule_rate(struct snd_pcm_hw_params *params,
 				struct snd_pcm_hw_rule *rule)
 {
@@ -2179,10 +2203,18 @@ static int snd_pcm_open(struct file *file, struct snd_pcm *pcm, int stream)
 		err = snd_pcm_open_file(file, pcm, stream);
 		if (err >= 0)
 			break;
+
 		if (err == -EAGAIN) {
 			if (file->f_flags & O_NONBLOCK) {
 				err = -EBUSY;
 				break;
+			} else {
+				int card = pcm->card->number;
+				int device = pcm->device;
+				int ret = snd_pcm_device_access(card,
+					device, stream);
+				if (ret)
+					break;
 			}
 		} else
 			break;

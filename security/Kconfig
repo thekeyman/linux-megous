@@ -117,6 +117,13 @@ config LSM_MMAP_MIN_ADDR
 	  this low address space will need the permission specific to the
 	  systems running LSM.
 
+config FILE_INTEGRITY
+	depends on SECURITYFS
+	tristate "Enable System File Verify Module"
+	default n
+	help
+		Sunxi file integrity verify module for android system
+
 source security/selinux/Kconfig
 source security/smack/Kconfig
 source security/tomoyo/Kconfig
@@ -166,6 +173,8 @@ config DEFAULT_SECURITY
 	default "apparmor" if DEFAULT_SECURITY_APPARMOR
 	default "yama" if DEFAULT_SECURITY_YAMA
 	default "" if DEFAULT_SECURITY_DAC
+
+source security/optee/Kconfig
 
 endmenu
 
