@@ -157,6 +157,24 @@ config LEDS_GPIO
 	  defined as platform devices and/or OpenFirmware platform devices.
 	  The code to use these bindings can be selected below.
 
+config SUNXI_LEDS
+	tristate "LED Support for GPIO connected LEDs on sunxi"
+	depends on LEDS_GPIO
+	select LEDS_TRIGGERS
+	select LEDS_TRIGGER_TIMER
+	help
+	  This option enables support for the LEDs connected to GPIO
+	  outputs on sunxi platform.
+
+config SUNXI_LEDS_COM
+	tristate "LED Support for COMMON GPIO connected LEDs on sunxi"
+	depends on LEDS_GPIO
+	select LEDS_TRIGGERS
+	select LEDS_TRIGGER_TIMER
+	help
+	  This option enables support for the LEDs connected to GPIO
+	  outputs on sunxi platform.
+
 config LEDS_LP3944
 	tristate "LED Support for N.S. LP3944 (Fun Light) I2C chip"
 	depends on LEDS_CLASS
@@ -401,6 +419,13 @@ config LEDS_OT200
 	  This option enables support for the LEDs on the Bachmann OT200.
 	  Say Y to enable LEDs on the Bachmann OT200.
 
+config LEDS_SUNXI_RESPIRATION
+	tristate "Sunxi respiration led driver"
+	depends on LEDS_CLASS
+	depends on ARCH_SUN8IW6
+	help
+	  Sunxi respiration driver.for A83T.
+
 config LEDS_TRIGGERS
 	bool "LED Trigger support"
 	depends on LEDS_CLASS
@@ -473,6 +498,14 @@ config LEDS_TRIGGER_SLEEP
 	depends on LEDS_TRIGGERS && HAS_EARLYSUSPEND
 	help
 	  This turns LEDs on when the screen is off but the cpu still running.
+
+config LEDS_TRIGGER_SUNXI_RESPIRATION
+	tristate "Sunxi respiration trigger driver"
+	depends on LEDS_TRIGGERS 
+	depends on LEDS_CLASS
+	depends on ARCH_SUN8IW6
+	help
+	  Sunxi respiration driver.for A83T.
 
 comment "iptables trigger is under Netfilter config (LED target)"
 	depends on LEDS_TRIGGERS

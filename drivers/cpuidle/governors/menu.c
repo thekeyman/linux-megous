@@ -126,6 +126,10 @@ struct menu_device {
 #define LOAD_INT(x) ((x) >> FSHIFT)
 #define LOAD_FRAC(x) LOAD_INT(((x) & (FIXED_1-1)) * 100)
 
+/* NOTE: this is one of strategies to calculate cpu exit latency,
+ * and not be used now, so, we cancled this code for fix build waring.
+ */
+#if 0
 static int get_loadavg(void)
 {
 	unsigned long this = this_cpu_load();
@@ -133,6 +137,7 @@ static int get_loadavg(void)
 
 	return LOAD_INT(this) * 10 + LOAD_FRAC(this) / 10;
 }
+#endif
 
 static inline int which_bucket(unsigned int duration)
 {
@@ -279,7 +284,12 @@ static int menu_select(struct cpuidle_driver *drv, struct cpuidle_device *dev)
 	data->predicted_us = div_round64(data->expected_us * data->correction_factor[data->bucket],
 					 RESOLUTION * DECAY);
 
-	detect_repeating_patterns(data);
+	/*
+	 * Ignore repeating patterns when we're
+	 * forecasting a very large idle period.
+	 */
+	if(data->predicted_us < MAX_INTERESTING)
+        detect_repeating_patterns(data);
 
 	/*
 	 * We want to default to C1 (hlt), not to busy polling

@@ -483,6 +483,7 @@ ieee80211_crypto_ccmp_decrypt(struct ieee80211_rx_data *rx)
 	u8 pn[CCMP_PN_LEN];
 	int data_len;
 	int queue;
+	static const u8 zero_pn[6] = {0};
 
 	hdrlen = ieee80211_hdrlen(hdr->frame_control);
 
@@ -505,8 +506,11 @@ ieee80211_crypto_ccmp_decrypt(struct ieee80211_rx_data *rx)
 	ccmp_hdr2pn(pn, skb->data + hdrlen);
 
 	queue = rx->security_idx;
-
-	if (memcmp(pn, key->u.ccmp.rx_pn[queue], CCMP_PN_LEN) <= 0) {
+	/*Fix bug for first encrypt packet drop after 8021x, the bug makes dhcp process slow.*/
+	if ((memcmp(key->u.ccmp.rx_pn[queue], zero_pn, CCMP_PN_LEN) == 0) &&
+		(memcmp(pn, zero_pn, CCMP_PN_LEN) == 0)) {
+		/*do nothing*/
+	} else if (memcmp(pn, key->u.ccmp.rx_pn[queue], CCMP_PN_LEN) <= 0) {
 		key->u.ccmp.replays++;
 		return RX_DROP_UNUSABLE;
 	}

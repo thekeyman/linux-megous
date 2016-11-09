@@ -34,6 +34,9 @@
 #include <linux/fs_struct.h>
 #include <linux/posix_acl.h>
 #include <asm/uaccess.h>
+#ifdef CONFIG_FILE_INTEGRITY 
+#include <linux/fivm.h>
+#endif
 
 #include "internal.h"
 #include "mount.h"
@@ -2341,6 +2344,13 @@ common:
 			fput(filp);
 			filp = ERR_PTR(error);
 		}
+#ifdef CONFIG_FILE_INTEGRITY 
+		error = fivm_open_verify(filp,pathname,op->acc_mode);
+		if (error) {
+			fput(filp);
+			filp = ERR_PTR(error);
+		}
+#endif 
 	}
 	if (!IS_ERR(filp)) {
 		if (will_truncate) {

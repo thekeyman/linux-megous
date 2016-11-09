@@ -103,6 +103,7 @@ void __cfg80211_send_deauth(struct net_device *dev,
 	    memcmp(wdev->current_bss->pub.bssid, bssid, ETH_ALEN) == 0) {
 		cfg80211_unhold_bss(wdev->current_bss);
 		cfg80211_put_bss(&wdev->current_bss->pub);
+		cfg80211_unlink_bss(wiphy, &wdev->current_bss->pub);
 		wdev->current_bss = NULL;
 		was_current = true;
 	}

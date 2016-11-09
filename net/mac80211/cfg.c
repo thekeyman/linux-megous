@@ -2104,7 +2104,8 @@ static int ieee80211_mgmt_tx(struct wiphy *wiphy, struct net_device *dev,
 
 	*cookie = (unsigned long) skb;
 
-	if (is_offchan && local->ops->remain_on_channel) {
+	if (is_offchan && local->ops->remain_on_channel &&
+			!ieee80211_is_probe_resp(mgmt->frame_control)) {
 		unsigned int duration;
 		int ret;
 
@@ -2154,11 +2155,13 @@ static int ieee80211_mgmt_tx(struct wiphy *wiphy, struct net_device *dev,
 	 * wait is involved, we might otherwise not be on
 	 * the right channel for long enough!
 	 */
-	if (!is_offchan && !wait && !sdata->vif.bss_conf.idle) {
+	//if (!is_offchan && !wait && !sdata->vif.bss_conf.idle) {
+	if (!is_offchan) {
 		ieee80211_tx_skb(sdata, skb);
 		return 0;
 	}
-
+	if(ieee80211_is_probe_resp(mgmt->frame_control))
+		return 0;
 	wk = kzalloc(sizeof(*wk) + len, GFP_KERNEL);
 	if (!wk) {
 		kfree_skb(skb);

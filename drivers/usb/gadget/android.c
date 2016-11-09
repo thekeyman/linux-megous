@@ -28,6 +28,12 @@
 #include <linux/usb/composite.h>
 #include <linux/usb/gadget.h>
 
+#include <mach/sunxi-chip.h>
+
+#ifdef CONFIG_USB_SUNXI_USB
+//#include <mach/system.h>
+#include <asm/cputype.h>
+#endif
 #include "gadget_chips.h"
 
 /*
@@ -43,6 +49,7 @@
 #include "composite.c"
 
 #include "f_fs.c"
+#include "f_audio_source.c"
 #include "f_mass_storage.c"
 #include "u_serial.c"
 #include "f_acm.c"
@@ -53,6 +60,9 @@
 #include "f_rndis.c"
 #include "rndis.c"
 #include "u_ether.c"
+#ifdef CONFIG_USB_SUNXI_G_WEBCAM
+#include "webcam.c"
+#endif
 
 MODULE_AUTHOR("Mike Lockwood");
 MODULE_DESCRIPTION("Android Composite USB Driver");
@@ -161,7 +171,7 @@ static struct usb_configuration android_config_driver = {
 	.unbind		= android_unbind_config,
 	.bConfigurationValue = 1,
 	.bmAttributes	= USB_CONFIG_ATT_ONE | USB_CONFIG_ATT_SELFPOWER,
-	.bMaxPower	= 0xFA, /* 500ma */
+	.bMaxPower	= 0x70, /* modify 500ma to 224ma support levono win7 mass_storage in usb3.0 by wangjx 2014-3-20 */
 };
 
 static void android_work(struct work_struct *data)
@@ -184,11 +194,11 @@ static void android_work(struct work_struct *data)
 
 	if (uevent_envp) {
 		kobject_uevent_env(&dev->dev->kobj, KOBJ_CHANGE, uevent_envp);
-		pr_info("%s: sent uevent %s\n", __func__, uevent_envp[0]);
-	} else {
-		pr_info("%s: did not send uevent (%d %d %p)\n", __func__,
-			 dev->connected, dev->sw_connected, cdev->config);
-	}
+		//pr_info("%s: sent uevent %s\n", __func__, uevent_envp[0]);
+	} //else {
+		//pr_info("%s: did not send uevent (%d %d %p)\n", __func__,
+		//	 dev->connected, dev->sw_connected, cdev->config);
+	//}
 }
 
 static void android_enable(struct android_dev *dev)
@@ -806,21 +816,37 @@ static int mass_storage_function_init(struct android_usb_function *f,
 	struct mass_storage_function_config *config;
 	struct fsg_common *common;
 	int err;
-
+	int i = 0;
 	config = kzalloc(sizeof(struct mass_storage_function_config),
 								GFP_KERNEL);
 	if (!config)
 		return -ENOMEM;
 
+#ifndef CONFIG_USB_SUNXI_USB
 	config->fsg.nluns = 1;
 	config->fsg.luns[0].removable = 1;
+#else
+    if(g_android_usb_config.luns <= FSG_MAX_LUNS){
+        config->fsg.nluns = g_android_usb_config.luns;
+     }else{
+		config->fsg.nluns = FSG_MAX_LUNS;
+        pr_debug("err: g_android_usb_config.luns is too big, (%d, 8)\n", g_android_usb_config.luns);
+    }
 
+    for(i = 0; i < config->fsg.nluns; i++){
+        config->fsg.luns[i].removable   = 1;
+        config->fsg.luns[i].ro          = 0;
+        config->fsg.luns[i].cdrom       = 0;
+        config->fsg.luns[i].nofua       = 1;
+    }
+#endif
 	common = fsg_common_init(NULL, cdev, &config->fsg);
 	if (IS_ERR(common)) {
 		kfree(config);
 		return PTR_ERR(common);
 	}
 
+#ifndef CONFIG_USB_SUNXI_USB
 	err = sysfs_create_link(&f->dev->kobj,
 				&common->luns[0].dev.kobj,
 				"lun");
@@ -828,6 +854,29 @@ static int mass_storage_function_init(struct android_usb_function *f,
 		kfree(config);
 		return err;
 	}
+#else
+    for(i = 0; i < config->fsg.nluns; i++){
+        char name[32];
+
+        memset(name, 0, 32);
+
+        if(i){
+            snprintf(name, 5, "lun%d\n", i);
+        }else{
+            strcpy(name, "lun");
+        }
+
+        pr_debug("lun name: %s\n", name);
+
+        err = sysfs_create_link(&f->dev->kobj,
+                    &common->luns[i].dev.kobj,
+                    name);
+        if (err) {
+            kfree(config);
+            return err;
+        }
+    }
+#endif
 
 	config->common = common;
 	f->config = config;
@@ -917,6 +966,92 @@ static struct android_usb_function accessory_function = {
 	.ctrlrequest	= accessory_function_ctrlrequest,
 };
 
+static int audio_source_function_init(struct android_usb_function *f,
+			struct usb_composite_dev *cdev)
+{
+	struct audio_source_config *config;
+
+	config = kzalloc(sizeof(struct audio_source_config), GFP_KERNEL);
+	if (!config)
+		return -ENOMEM;
+	config->card = -1;
+	config->device = -1;
+	f->config = config;
+	return 0;
+}
+
+static void audio_source_function_cleanup(struct android_usb_function *f)
+{
+	kfree(f->config);
+}
+
+static int audio_source_function_bind_config(struct android_usb_function *f,
+						struct usb_configuration *c)
+{
+	struct audio_source_config *config = f->config;
+
+	return audio_source_bind_config(c, config);
+}
+
+static void audio_source_function_unbind_config(struct android_usb_function *f,
+						struct usb_configuration *c)
+{
+	struct audio_source_config *config = f->config;
+
+	config->card = -1;
+	config->device = -1;
+}
+
+static ssize_t audio_source_pcm_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct android_usb_function *f = dev_get_drvdata(dev);
+	struct audio_source_config *config = f->config;
+
+	/* print PCM card and device numbers */
+	return sprintf(buf, "%d %d\n", config->card, config->device);
+}
+
+static DEVICE_ATTR(pcm, S_IRUGO | S_IWUSR, audio_source_pcm_show, NULL);
+
+static struct device_attribute *audio_source_function_attributes[] = {
+	&dev_attr_pcm,
+	NULL
+};
+
+static struct android_usb_function audio_source_function = {
+	.name		= "audio_source",
+	.init		= audio_source_function_init,
+	.cleanup	= audio_source_function_cleanup,
+	.bind_config	= audio_source_function_bind_config,
+	.unbind_config	= audio_source_function_unbind_config,
+	.attributes	= audio_source_function_attributes,
+};
+
+#ifdef CONFIG_USB_SUNXI_G_WEBCAM
+static int webcam_function_init(struct android_usb_function *f,
+			struct usb_composite_dev *cdev)
+{
+	return 0;
+}
+
+static void webcam_function_cleanup(struct android_usb_function *f)
+{
+}
+
+static int webcam_function_bind_config(struct android_usb_function *f,
+						struct usb_configuration *c)
+{
+	return webcam_config_bind(c);
+}
+
+static struct android_usb_function webcam_function = {
+	.name		= "webcam",
+	.init		= webcam_function_init,
+	.cleanup	= webcam_function_cleanup,
+	.bind_config	= webcam_function_bind_config,
+};
+#endif
 
 static struct android_usb_function *supported_functions[] = {
 	&ffs_function,
@@ -927,6 +1062,10 @@ static struct android_usb_function *supported_functions[] = {
 	&rndis_function,
 	&mass_storage_function,
 	&accessory_function,
+	&audio_source_function,
+#ifdef CONFIG_USB_SUNXI_G_WEBCAM
+	&webcam_function,
+#endif
 	NULL
 };
 
@@ -1150,7 +1289,6 @@ static ssize_t enable_store(struct device *pdev, struct device_attribute *attr,
 
 	sscanf(buff, "%d", &enabled);
 	if (enabled && !dev->enabled) {
-		cdev->next_string_id = 0;
 		/*
 		 * Update values in composite driver's copy of
 		 * device descriptor.
@@ -1326,10 +1464,34 @@ static int android_bind(struct usb_composite_dev *cdev)
 	strings_dev[STRING_PRODUCT_IDX].id = id;
 	device_desc.iProduct = id;
 
+#ifndef CONFIG_USB_SUNXI_USB
 	/* Default strings - should be updated by userspace */
 	strncpy(manufacturer_string, "Android", sizeof(manufacturer_string)-1);
 	strncpy(product_string, "Android", sizeof(product_string) - 1);
 	strncpy(serial_string, "0123456789ABCDEF", sizeof(serial_string) - 1);
+#else
+{
+	struct android_usb_config usb_config;
+
+	get_android_usb_config(&usb_config);
+
+	strncpy(manufacturer_string, usb_config.usb_manufacturer_name, sizeof(manufacturer_string) - 1);
+	strncpy(product_string, usb_config.usb_product_name, sizeof(product_string) - 1);
+
+	pr_debug("%s, serial_unique = %d\n", __func__, usb_config.serial_unique);
+
+	if(usb_config.serial_unique){
+		u32 serial[4];
+
+		memset(serial, 0, sizeof(serial));
+		sunxi_get_serial((u8 *)serial);
+		memset(serial_string, 0, 256);
+		sprintf(serial_string, "%04x%08x%08x", serial[2], serial[1], serial[0]);
+	}else{
+		strncpy(serial_string, usb_config.usb_serial_number, sizeof(serial_string) - 1);
+	}
+}
+#endif
 
 	id = usb_string_id(cdev);
 	if (id < 0)
@@ -1421,6 +1583,11 @@ static void android_disconnect(struct usb_gadget *gadget)
 	unsigned long flags;
 
 	composite_disconnect(gadget);
+	/* accessory HID support can be active while the
+	   accessory function is not actually enabled,
+	   so we need to inform it when we are disconnected.
+	 */
+	acc_disconnect();
 
 	spin_lock_irqsave(&cdev->lock, flags);
 	dev->connected = 0;
@@ -1451,12 +1618,34 @@ static int android_create_device(struct android_dev *dev)
 	return 0;
 }
 
+/*add for bat charge usb/ac detection*/
+int android_get_usb_state(void)
+{
+	struct android_dev *dev = _android_dev;
+	int ret = 0;
+
+	if(dev)
+		ret = dev->connected;
+	return ret;       //if can not get connection state, act as not connected!
+}
+EXPORT_SYMBOL_GPL(android_get_usb_state);
 
 static int __init init(void)
 {
 	struct android_dev *dev;
 	int err;
 
+#ifdef CONFIG_USB_SUNXI_USB
+{
+	struct android_usb_config usb_config;
+
+	parse_android_usb_config();
+	get_android_usb_config(&usb_config);
+
+	device_desc.idVendor    = usb_config.vendor_id;
+	device_desc.idProduct   = usb_config.mass_storage_id;
+}
+#endif
 	android_class = class_create(THIS_MODULE, "android_usb");
 	if (IS_ERR(android_class))
 		return PTR_ERR(android_class);

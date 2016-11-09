@@ -4,6 +4,7 @@
 
 # Each configuration option enables a list of files.
 
+obj-y				+= virtualmouse.o
 obj-$(CONFIG_INPUT)		+= input-core.o
 input-core-y := input.o input-compat.o input-mt.o ff-core.o
 
@@ -26,3 +27,5 @@ obj-$(CONFIG_INPUT_MISC)	+= misc/
 obj-$(CONFIG_INPUT_APMPOWER)	+= apm-power.o
 obj-$(CONFIG_INPUT_OF_MATRIX_KEYMAP) += of_keymap.o
 obj-$(CONFIG_INPUT_KEYRESET)	+= keyreset.o
+obj-$(CONFIG_INPUT_SW_DEVICE)	+= sw-device.o
+obj-y				+= init-input.o

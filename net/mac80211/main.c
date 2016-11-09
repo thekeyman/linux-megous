@@ -715,7 +715,8 @@ int ieee80211_register_hw(struct ieee80211_hw *hw)
 		if (!local->oper_channel) {
 			/* init channel we're on */
 			local->hw.conf.channel =
-			local->oper_channel = &sband->channels[0];
+			//local->oper_channel = &sband->channels[0];
+			local->oper_channel = &sband->channels[2];
 			local->hw.conf.channel_type = NL80211_CHAN_NO_HT;
 		}
 		channels += sband->n_channels;
@@ -924,6 +925,16 @@ int ieee80211_register_hw(struct ieee80211_hw *hw)
 			wiphy_warn(local->hw.wiphy,
 				   "Failed to add default virtual iface\n");
 	}
+
+    if (local->hw.wiphy->interface_modes &(BIT(NL80211_IFTYPE_P2P_GO) |
+    BIT(NL80211_IFTYPE_P2P_CLIENT))) {
+                 result = ieee80211_if_add(local, "p2p%d", NULL,
+                                    NL80211_IFTYPE_STATION, NULL);
+                      if (result)
+                           wiphy_warn(local->hw.wiphy,
+                                   "Failed to add default virtual iface\n");
+   }
+
 
 	rtnl_unlock();
 

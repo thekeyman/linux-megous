@@ -136,6 +136,17 @@ struct mmc_host_ops {
 	void	(*enable_preset_value)(struct mmc_host *host, bool enable);
 	int	(*select_drive_strength)(unsigned int max_dtr, int host_drv, int card_drv);
 	void	(*hw_reset)(struct mmc_host *host);
+#if defined(CONFIG_ARCH_SUN8IW5P1) \
+		|| defined(CONFIG_ARCH_SUN8IW6P1) \
+		|| defined(CONFIG_ARCH_SUN8IW8P1) \
+		|| defined(CONFIG_ARCH_SUN8IW7P1) \
+		|| defined(CONFIG_ARCH_SUN8IW9P1)
+		int (*sunxi_set_phase)(struct mmc_host *host, \
+						struct mmc_request *req, \
+						int tx_phase, \
+						int rx_phase, \
+						bool send_stop);
+#endif
 };
 
 struct mmc_card;
@@ -245,6 +256,16 @@ struct mmc_host {
 #define MMC_HOST_PW_NOTIFY_NONE		0
 #define MMC_HOST_PW_NOTIFY_SHORT	1
 #define MMC_HOST_PW_NOTIFY_LONG		2
+
+	unsigned int       platform_cap; /* use this variable to update 'card->ext_csd.sec_feature_support'  */
+#define MMC_HOST_PLATFORM_CAP_DIS_SECURE_PURGE  (1U<<0) /* disable secure purge operation */
+#define MMC_HOST_PLATFORM_CAP_DIS_TRIM          (1U<<1) /* disable insecure or secure operation */
+#define MMC_HOST_PLATFORM_CAP_DIS_SANITIZE      (1U<<2) /* disable sanitize operation */
+#define MMC_HOST_PLATFORM_CAP_DIS_SECURE_WIPE_OP (1U<<3) /* disable secure wipe operation */
+
+#define MMC_HOST_PLATFORM_CAP_ENA_CACHE          (1u<<4)/*use to enable eMMC cache funciton in host->caps2*/
+
+
 
 #ifdef CONFIG_MMC_CLKGATE
 	int			clk_requests;	/* internal reference counter */

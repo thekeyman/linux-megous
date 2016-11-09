@@ -1681,7 +1681,7 @@ static void __ieee80211_connection_loss(struct ieee80211_sub_if_data *sdata)
 
 	ieee80211_set_disassoc(sdata, IEEE80211_STYPE_DEAUTH,
 			       WLAN_REASON_DISASSOC_DUE_TO_INACTIVITY,
-			       false, frame_buf);
+			       true, frame_buf);
 	mutex_unlock(&ifmgd->mtx);
 
 	/*
@@ -3011,7 +3011,9 @@ void ieee80211_sta_setup_sdata(struct ieee80211_sub_if_data *sdata)
 
 	ifmgd->flags = 0;
 	ifmgd->powersave = sdata->wdev.ps;
-	ifmgd->uapsd_queues = IEEE80211_DEFAULT_UAPSD_QUEUES;
+	//ifmgd->uapsd_queues = IEEE80211_DEFAULT_UAPSD_QUEUES;
+	/* Disable UAPSD for sta by default */
+	ifmgd->uapsd_queues = 0;
 	ifmgd->uapsd_max_sp_len = IEEE80211_DEFAULT_MAX_SP_LEN;
 
 	mutex_init(&ifmgd->mtx);
@@ -3436,7 +3438,6 @@ int ieee80211_mgd_deauth(struct ieee80211_sub_if_data *sdata,
 		mutex_unlock(&ifmgd->mtx);
 		return 0;
 	}
-
 	printk(KERN_DEBUG
 	       "%s: deauthenticating from %pM by local choice (reason=%d)\n",
 	       sdata->name, req->bssid, req->reason_code);

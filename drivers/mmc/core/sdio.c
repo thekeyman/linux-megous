@@ -107,7 +107,8 @@ static int sdio_read_cccr(struct mmc_card *card, u32 ocr)
 {
 	int ret;
 	int cccr_vsn;
-	int uhs = ocr & R4_18V_PRESENT;
+//	int uhs = ocr & R4_18V_PRESENT;
+	int uhs = 1;
 	unsigned char data;
 	unsigned char speed;
 
@@ -177,6 +178,7 @@ static int sdio_read_cccr(struct mmc_card *card, u32 ocr)
 				if (data & SDIO_UHS_SDR104)
 					card->sw_caps.sd3_bus_mode
 						|= SD_MODE_UHS_SDR104;
+						
 			}
 
 			ret = mmc_io_rw_direct(card, 0, 0,
@@ -562,7 +564,7 @@ static int mmc_sdio_init_uhs_card(struct mmc_card *card)
 		goto out;
 
 	/* Initialize and start re-tuning timer */
-	if (!mmc_host_is_spi(card->host) && card->host->ops->execute_tuning)
+	if (!mmc_host_is_spi(card->host) && card->host->ops->execute_tuning && card->host->ios.timing!=MMC_TIMING_UHS_DDR50)
 		err = card->host->ops->execute_tuning(card->host,
 						      MMC_SEND_TUNING_BLOCK);
 
@@ -781,7 +783,8 @@ static int mmc_sdio_init_card(struct mmc_host *host, u32 ocr,
 
 	/* Initialization sequence for UHS-I cards */
 	/* Only if card supports 1.8v and UHS signaling */
-	if ((ocr & R4_18V_PRESENT) && card->sw_caps.sd3_bus_mode) {
+	//if ((ocr & R4_18V_PRESENT) && card->sw_caps.sd3_bus_mode) {
+	if (card->sw_caps.sd3_bus_mode) {
 		err = mmc_sdio_init_uhs_card(card);
 		if (err)
 			goto remove;
@@ -1233,6 +1236,7 @@ int sdio_reset_comm(struct mmc_card *card)
 
 	mmc_go_idle(host);
 
+	host->ios.timing = MMC_TIMING_LEGACY;  //--20140808
 	mmc_set_clock(host, host->f_min);
 
 	err = mmc_send_io_op_cond(host, 0, &ocr);
@@ -1245,46 +1249,8 @@ int sdio_reset_comm(struct mmc_card *card)
 		goto err;
 	}
 
-	err = mmc_send_io_op_cond(host, host->ocr, &ocr);
+	err = mmc_sdio_init_card(host, host->ocr, card, 0);
 	if (err)
-		goto err;
-
-	if (mmc_host_is_spi(host)) {
-		err = mmc_spi_set_crc(host, use_spi_crc);
-		if (err)
-			goto err;
-	}
-
-	if (!mmc_host_is_spi(host)) {
-		err = mmc_send_relative_addr(host, &card->rca);
-		if (err)
-			goto err;
-		mmc_set_bus_mode(host, MMC_BUSMODE_PUSHPULL);
-	}
-	if (!mmc_host_is_spi(host)) {
-		err = mmc_select_card(card);
-		if (err)
-			goto err;
-	}
-
-	/*
-	 * Switch to high-speed (if supported).
-	 */
-	err = sdio_enable_hs(card);
-	if (err > 0)
-		mmc_sd_go_highspeed(card);
-	else if (err)
-		goto err;
-
-	/*
-	 * Change to the card's maximum speed.
-	 */
-	mmc_set_clock(host, mmc_sdio_get_max_clock(card));
-
-	err = sdio_enable_4bit_bus(card);
-	if (err > 0)
-		mmc_set_bus_width(host, MMC_BUS_WIDTH_4);
-	else if (err)
 		goto err;
 
 	mmc_release_host(host);

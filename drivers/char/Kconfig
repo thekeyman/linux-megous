@@ -629,5 +629,27 @@ config TILE_SROM
 	  device appear much like a simple EEPROM, and knows
 	  how to partition a single ROM for multiple purposes.
 
+config SUNXI_D7S
+	tristate "Sunxi display 7 segment for sun8iw7"
+	depends on ARCH_SUN8IW7
+	default n
+	---help---
+	  Sunxi display 7 segment for h3.
+
+source "drivers/char/sunxi_g2d/Kconfig"
+source "drivers/char/sunxi_ir_cut/Kconfig"
+source "drivers/char/cma_test/Kconfig"
+source "drivers/char/arisc_test/Kconfig"
+source "drivers/char/sunxi_module/Kconfig"
+source "drivers/char/timer_test/Kconfig"
+#source "drivers/char/sunxi_pinctrl_test/Kconfig"
+source "drivers/char/dma_test/Kconfig"
+source "drivers/char/sunxi_tr/Kconfig"
+source "drivers/char/sunxi-scr/Kconfig"
+source "drivers/char/sunxi-di/Kconfig"
+source "drivers/char/sunxi_soc_info/Kconfig"
+source "drivers/char/sunxi_id/Kconfig"
+source "drivers/char/sunxi_key/Kconfig"
+
 endmenu
 

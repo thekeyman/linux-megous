@@ -1,27 +1,9 @@
 /*
  * BT-AMP support routines
  *
- * Copyright (C) 1999-2012, Broadcom Corporation
- * 
- *      Unless you and Broadcom execute a separate written software license
- * agreement governing use of this software, this software is licensed to you
- * under the terms of the GNU General Public License version 2 (the "GPL"),
- * available at http://www.broadcom.com/licenses/GPLv2.php, with the
- * following added to such license:
- * 
- *      As a special exception, the copyright holders of this software give you
- * permission to link this software with independent modules, and to copy and
- * distribute the resulting executable under terms of your choice, provided that
- * you also meet, for each linked independent module, the terms and conditions of
- * the license of that module.  An independent module is a module which is not
- * derived from this software.  The special exception does not apply to any
- * modifications of the software.
- * 
- *      Notwithstanding the above, under no circumstances may you combine this
- * software in any way with any other Broadcom software provided under a license
- * other than the GPL, without Broadcom's express prior written consent.
+ * $Copyright Open Broadcom Corporation$
  *
- * $Id: dhd_bta.c 303834 2011-12-20 06:17:39Z $
+ * $Id: dhd_bta.c 434434 2013-11-06 07:16:02Z $
  */
 #ifndef WLBTAMP
 #error "WLBTAMP is not defined"
@@ -101,7 +83,6 @@ dhd_bta_flush_hcidata(dhd_pub_t *pub, uint16 llh)
 			void *pkt = pktq_pdeq(q, prec);
 			int ifidx;
 
-			PKTPULL(pub->osh, pkt, dhd_bus_hdrlen(pub->bus));
 			dhd_prot_hdrpull(pub, &ifidx, pkt, NULL, NULL);
 
 			if (PKTLEN(pub->osh, pkt) >= RFC1042_HDR_LEN) {
@@ -129,7 +110,6 @@ dhd_bta_flush_hcidata(dhd_pub_t *pub, uint16 llh)
 			}
 
 			dhd_prot_hdrpush(pub, ifidx, pkt);
-			PKTPUSH(pub->osh, pkt, dhd_bus_hdrlen(pub->bus));
 
 			if (head_pkt == NULL)
 				head_pkt = pkt;
@@ -312,6 +292,9 @@ void
 dhd_bta_doevt(dhd_pub_t *dhdp, void *data_buf, uint data_len)
 {
 	amp_hci_event_t *evt = (amp_hci_event_t *)data_buf;
+
+	ASSERT(dhdp);
+	ASSERT(evt);
 
 	switch (evt->ecode) {
 	case HCI_Command_Complete: {

@@ -30,6 +30,7 @@
 
 struct dmaengine_pcm_runtime_data {
 	struct dma_chan *dma_chan;
+	dma_cookie_t cookie;
 
 	unsigned int pos;
 
@@ -123,12 +124,25 @@ EXPORT_SYMBOL_GPL(snd_hwparams_to_dma_slave_config);
 
 static void dmaengine_pcm_dma_complete(void *arg)
 {
-	struct snd_pcm_substream *substream = arg;
-	struct dmaengine_pcm_runtime_data *prtd = substream_to_prtd(substream);
+	struct snd_pcm_substream *substream = NULL;
+	struct dmaengine_pcm_runtime_data *prtd = NULL;
+	unsigned long flags;
+
+	substream = arg;
+	if (!substream) {
+		return;
+	}
+	snd_pcm_stream_lock_irqsave(substream, flags);
+	if (!substream->runtime) {
+		snd_pcm_stream_unlock_irqrestore(substream, flags);
+		return;
+	}
+	prtd = substream_to_prtd(substream);
 
 	prtd->pos += snd_pcm_lib_period_bytes(substream);
 	if (prtd->pos >= snd_pcm_lib_buffer_bytes(substream))
 		prtd->pos = 0;
+	snd_pcm_stream_unlock_irqrestore(substream, flags);
 
 	snd_pcm_period_elapsed(substream);
 }
@@ -139,21 +153,51 @@ static int dmaengine_pcm_prepare_and_submit(struct snd_pcm_substream *substream)
 	struct dma_chan *chan = prtd->dma_chan;
 	struct dma_async_tx_descriptor *desc;
 	enum dma_transfer_direction direction;
+	unsigned long flags = DMA_CTRL_ACK;
 
 	direction = snd_pcm_substream_to_dma_direction(substream);
 
+	if (!substream->runtime->no_period_wakeup)
+		flags |= DMA_PREP_INTERRUPT;
+
 	prtd->pos = 0;
-	desc = dmaengine_prep_dma_cyclic(chan,
-		substream->runtime->dma_addr,
-		snd_pcm_lib_buffer_bytes(substream),
-		snd_pcm_lib_period_bytes(substream), direction);
+#if defined CONFIG_ARCH_SUN9IW1 || defined (CONFIG_ARCH_SUN8IW6) || defined CONFIG_ARCH_SUN8IW7
+		if (!strcmp(substream->pcm->card->id, "sndhdmiraw")) {
+			desc = dmaengine_prep_dma_cyclic(chan,
+				substream->runtime->dma_addr,
+				2*snd_pcm_lib_buffer_bytes(substream),
+				2*snd_pcm_lib_period_bytes(substream), direction, flags);
+		} else if (!strcmp(substream->pcm->card->id, "snddaudio")) {
+		#ifdef CONFIG_ARCH_SUN9IW1
+			desc = dmaengine_prep_dma_cyclic(chan,
+				substream->runtime->dma_addr,
+				snd_pcm_lib_buffer_bytes(substream),
+				snd_pcm_lib_buffer_bytes(substream), direction, flags);
+		#else//CONFIG_ARCH_SUN8IW6
+			desc = dmaengine_prep_dma_cyclic(chan,
+				substream->runtime->dma_addr,
+				snd_pcm_lib_buffer_bytes(substream),
+				snd_pcm_lib_period_bytes(substream), direction, flags);
+		#endif
+		} else {
+			desc = dmaengine_prep_dma_cyclic(chan,
+				substream->runtime->dma_addr,
+				snd_pcm_lib_buffer_bytes(substream),
+				snd_pcm_lib_period_bytes(substream), direction, flags);
+		}
+#else
+		desc = dmaengine_prep_dma_cyclic(chan,
+			substream->runtime->dma_addr,
+			snd_pcm_lib_buffer_bytes(substream),
+			snd_pcm_lib_period_bytes(substream), direction, flags);
+#endif
 
 	if (!desc)
 		return -ENOMEM;
 
 	desc->callback = dmaengine_pcm_dma_complete;
 	desc->callback_param = substream;
-	dmaengine_submit(desc);
+	prtd->cookie = dmaengine_submit(desc);
 
 	return 0;
 }
@@ -200,6 +244,20 @@ int snd_dmaengine_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 EXPORT_SYMBOL_GPL(snd_dmaengine_pcm_trigger);
 
 /**
+ * snd_dmaengine_pcm_pointer_no_residue - dmaengine based PCM pointer implementation
+ * @substream: PCM substream
+ *
+ * This function is deprecated and should not be used by new drivers, as its
+ * results may be unreliable.
+ */
+snd_pcm_uframes_t snd_dmaengine_pcm_pointer_no_residue(struct snd_pcm_substream *substream)
+{
+	struct dmaengine_pcm_runtime_data *prtd = substream_to_prtd(substream);
+	return bytes_to_frames(substream->runtime, prtd->pos);
+}
+EXPORT_SYMBOL_GPL(snd_dmaengine_pcm_pointer_no_residue);
+
+/**
  * snd_dmaengine_pcm_pointer - dmaengine based PCM pointer implementation
  * @substream: PCM substream
  *
@@ -209,7 +267,19 @@ EXPORT_SYMBOL_GPL(snd_dmaengine_pcm_trigger);
 snd_pcm_uframes_t snd_dmaengine_pcm_pointer(struct snd_pcm_substream *substream)
 {
 	struct dmaengine_pcm_runtime_data *prtd = substream_to_prtd(substream);
-	return bytes_to_frames(substream->runtime, prtd->pos);
+	struct dma_tx_state state;
+	enum dma_status status;
+	unsigned int buf_size;
+	unsigned int pos = 0;
+
+	status = dmaengine_tx_status(prtd->dma_chan, prtd->cookie, &state);
+	if (status == DMA_IN_PROGRESS || status == DMA_PAUSED) {
+		buf_size = snd_pcm_lib_buffer_bytes(substream);
+		if (state.residue > 0 && state.residue <= buf_size)
+			pos = buf_size - state.residue;
+	}
+
+	return bytes_to_frames(substream->runtime, pos);
 }
 EXPORT_SYMBOL_GPL(snd_dmaengine_pcm_pointer);
 
@@ -243,7 +313,7 @@ static int dmaengine_pcm_request_channel(struct dmaengine_pcm_runtime_data *prtd
  * Note that this function will use private_data field of the substream's
  * runtime. So it is not availabe to your pcm driver implementation. If you need
  * to keep additional data attached to a substream use
- * snd_dmaeinge_pcm_{set,get}_data.
+ * snd_dmaengine_pcm_{set,get}_data.
  */
 int snd_dmaengine_pcm_open(struct snd_pcm_substream *substream,
 	dma_filter_fn filter_fn, void *filter_data)
@@ -286,3 +356,76 @@ int snd_dmaengine_pcm_close(struct snd_pcm_substream *substream)
 	return 0;
 }
 EXPORT_SYMBOL_GPL(snd_dmaengine_pcm_close);
+
+int snd_dmaengine_pcm_open_diy(void *prtd, dma_filter_fn filter_fn, void *filter_data)
+{
+	int ret;
+	ret = dmaengine_pcm_request_channel((struct dmaengine_pcm_runtime_data *)prtd, filter_fn, filter_data);
+	if (ret < 0) {
+		kfree(prtd);
+		return ret;
+	}
+	return 0;
+}
+EXPORT_SYMBOL_GPL(snd_dmaengine_pcm_open_diy);
+int snd_dmaengine_pcm_close_diy(void *p)
+{
+	struct dmaengine_pcm_runtime_data *prtd = (struct dmaengine_pcm_runtime_data *)p;
+	if(!prtd){
+		printk("<0>!!!!!lkj dma prtd == NULL");
+		return 0;
+	}
+	dma_release_channel(prtd->dma_chan);
+	return 0;
+}
+EXPORT_SYMBOL_GPL(snd_dmaengine_pcm_close_diy);
+static int dmaengine_pcm_prepare_and_submit_diy(void *p,
+			dma_addr_t dma_addr, enum dma_transfer_direction direction, int buffer_bytes, int period_bytes)
+{
+	struct dmaengine_pcm_runtime_data *prtd = (struct dmaengine_pcm_runtime_data *)p;
+	struct dma_chan *chan = prtd->dma_chan;
+	struct dma_async_tx_descriptor *desc;
+	unsigned long flags = DMA_CTRL_ACK;
+	flags |= DMA_PREP_INTERRUPT;
+	prtd->pos = 0;
+	desc = dmaengine_prep_dma_cyclic(chan,
+		dma_addr,
+		buffer_bytes,
+		period_bytes, direction, flags);
+	if (!desc)
+		return -ENOMEM;
+	desc->callback = NULL;
+	desc->callback_param = NULL;
+	prtd->cookie = dmaengine_submit(desc);
+	return 0;
+}
+int snd_dmaengine_pcm_trigger_diy(void *p, int cmd,
+			dma_addr_t dma_addr, enum dma_transfer_direction direction, int buffer_bytes, int period_bytes)
+{
+	struct dmaengine_pcm_runtime_data *prtd = (struct dmaengine_pcm_runtime_data *)p;
+	int ret;
+	switch (cmd) {
+	case SNDRV_PCM_TRIGGER_START:
+		ret = dmaengine_pcm_prepare_and_submit_diy(prtd,dma_addr, direction, buffer_bytes, period_bytes);
+		if (ret)
+			return ret;
+		dma_async_issue_pending(prtd->dma_chan);
+		break;
+	case SNDRV_PCM_TRIGGER_RESUME:
+	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
+		dmaengine_resume(prtd->dma_chan);
+		break;
+	case SNDRV_PCM_TRIGGER_SUSPEND:
+	case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
+		dmaengine_pause(prtd->dma_chan);
+		break;
+	case SNDRV_PCM_TRIGGER_STOP:
+		dmaengine_terminate_all(prtd->dma_chan);
+		break;
+	default:
+		return -EINVAL;
+	}
+	return 0;
+}
+EXPORT_SYMBOL_GPL(snd_dmaengine_pcm_trigger_diy);
+MODULE_LICENSE("GPL");

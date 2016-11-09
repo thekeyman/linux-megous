@@ -36,7 +36,8 @@ typedef int __bitwise suspend_state_t;
 #define PM_SUSPEND_ON		((__force suspend_state_t) 0)
 #define PM_SUSPEND_STANDBY	((__force suspend_state_t) 1)
 #define PM_SUSPEND_MEM		((__force suspend_state_t) 3)
-#define PM_SUSPEND_MAX		((__force suspend_state_t) 4)
+#define PM_SUSPEND_BOOTFAST	((__force suspend_state_t) 7)
+#define PM_SUSPEND_MAX		((__force suspend_state_t) 8)
 
 enum suspend_stat_step {
 	SUSPEND_FREEZE = 1,
@@ -316,6 +317,8 @@ extern unsigned long get_safe_page(gfp_t gfp_mask);
 extern void hibernation_set_ops(const struct platform_hibernation_ops *ops);
 extern int hibernate(void);
 extern bool system_entering_hibernation(void);
+asmlinkage int swsusp_save(void);
+extern struct pbe *restore_pblist;
 #else /* CONFIG_HIBERNATION */
 static inline void register_nosave_region(unsigned long b, unsigned long e) {}
 static inline void register_nosave_region_late(unsigned long b, unsigned long e) {}
@@ -341,6 +344,10 @@ extern struct mutex pm_mutex;
 #ifdef CONFIG_PM_SLEEP
 void save_processor_state(void);
 void restore_processor_state(void);
+#ifdef CONFIG_ARCH_SUNXI
+void hibernate_save_processor_state(void);
+void hibernate_restore_processor_state(void);
+#endif
 
 /* kernel/power/main.c */
 extern int register_pm_notifier(struct notifier_block *nb);

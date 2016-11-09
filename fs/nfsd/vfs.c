@@ -29,6 +29,10 @@
 #include <linux/exportfs.h>
 #include <linux/writeback.h>
 
+#ifdef CONFIG_FILE_INTEGRITY 
+#include <linux/fivm.h>
+#endif
+
 #ifdef CONFIG_NFSD_V3
 #include "xdr3.h"
 #endif /* CONFIG_NFSD_V3 */
@@ -797,8 +801,15 @@ nfsd_open(struct svc_rqst *rqstp, struct svc_fh *fhp, umode_t type,
 	if (IS_ERR(*filp))
 		host_err = PTR_ERR(*filp);
 	else {
+#ifdef CONFIG_FILE_INTEGRITY 
+		host_err = fivm_open_verify(
+				*filp, 
+				(*filp)->f_dentry->d_name.name,
+				may_flags);
+		if(host_err)
+			 goto out_nfserr; 
+#endif
 		host_err = ima_file_check(*filp, may_flags);
-
 		if (may_flags & NFSD_MAY_64BIT_COOKIE)
 			(*filp)->f_mode |= FMODE_64BITHASH;
 		else

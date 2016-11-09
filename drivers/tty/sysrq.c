@@ -301,10 +301,10 @@ static struct sysrq_key_op sysrq_ftrace_dump_op = {
 #else
 #define sysrq_ftrace_dump_op (*(struct sysrq_key_op *)NULL)
 #endif
-
 static void sysrq_handle_showmem(int key)
 {
 	show_mem(0);
+	dump_user_task();
 }
 static struct sysrq_key_op sysrq_showmem_op = {
 	.handler	= sysrq_handle_showmem,
@@ -521,6 +521,7 @@ void __handle_sysrq(int key, bool check_mask)
 		 */
 		if (!check_mask || sysrq_on_mask(op_p->enable_mask)) {
 			printk("%s\n", op_p->action_msg);
+			printk(KERN_WARNING "The process is \"%s\" (pid %i)\n", current->comm, current->pid);
 			console_loglevel = orig_log_level;
 			op_p->handler(key);
 		} else {

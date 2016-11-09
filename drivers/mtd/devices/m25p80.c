@@ -35,12 +35,16 @@
 #include <linux/spi/spi.h>
 #include <linux/spi/flash.h>
 
+#define M25_DBG(fmt, arg...) pr_debug("%s()%d - "fmt, __func__, __LINE__, ##arg)
+#define M25_ERR(fmt, arg...) pr_err("%s()%d - "fmt, __func__, __LINE__, ##arg)
+
 /* Flash opcodes. */
 #define	OPCODE_WREN		0x06	/* Write enable */
 #define	OPCODE_RDSR		0x05	/* Read status register */
 #define	OPCODE_WRSR		0x01	/* Write status register 1 byte */
 #define	OPCODE_NORM_READ	0x03	/* Read data bytes (low frequency) */
 #define	OPCODE_FAST_READ	0x0b	/* Read data bytes (high frequency) */
+#define	OPCODE_DUAL_MODE_READ 0x3B	/* Read data bytes in Dual Mode */
 #define	OPCODE_PP		0x02	/* Page program (up to 256 bytes) */
 #define	OPCODE_BE_4K		0x20	/* Erase 4KiB block */
 #define	OPCODE_BE_32K		0x52	/* Erase 32KiB block */
@@ -73,7 +77,10 @@
 #define	MAX_READY_WAIT_JIFFIES	(40 * HZ)	/* M25P16 specs 40s max chip erase */
 #define	MAX_CMD_SIZE		5
 
-#ifdef CONFIG_M25PXX_USE_FAST_READ
+#if defined(CONFIG_M25PXX_USE_DUAL_MODE_READ)
+#define OPCODE_READ 	OPCODE_DUAL_MODE_READ
+#define FAST_READ_DUMMY_BYTE 0
+#elif defined(CONFIG_M25PXX_USE_FAST_READ)
 #define OPCODE_READ 	OPCODE_FAST_READ
 #define FAST_READ_DUMMY_BYTE 1
 #else
@@ -95,6 +102,53 @@ struct m25p {
 	u8			*command;
 };
 
+#define		MBR_OFFSET				((256-16)*1024)
+#define     MBR_SIZE			    (16 * 1024)
+#define     DL_SIZE					(16 * 1024)
+#define   	MBR_MAGIC			    "softw411"
+#define     MBR_MAX_PART_COUNT		120
+#define     MBR_RESERVED          	(MBR_SIZE - 32 - (MBR_MAX_PART_COUNT * sizeof(PARTITION)))   //mbr����Ŀռ�
+#define 	NOR_BLK_SIZE			512
+
+/* partition information */
+typedef struct sunxi_partition_t
+{
+	unsigned  int       addrhi;				//��ʼ��ַ, ������Ϊ��λ
+	unsigned  int       addrlo;				//
+	unsigned  int       lenhi;				//����
+	unsigned  int       lenlo;				//
+	unsigned  char      classname[16];		//���豸��
+	unsigned  char      name[16];			//���豸��
+	unsigned  int       user_type;          //�û�����
+	unsigned  int       keydata;            //�ؼ����ݣ�Ҫ����������ʧ
+	unsigned  int       ro;                 //��д����
+	unsigned  char      reserved[68];		//�������ݣ�ƥ�������Ϣ128�ֽ�
+}__attribute__ ((packed))PARTITION;
+
+/* mbr information */
+typedef struct
+{
+	unsigned  int       crc32;				        // crc 1k - 4
+	unsigned  int       version;			        // �汾��Ϣ�� 0x00000100
+	unsigned  char 	    magic[8];			        //softw311"
+	unsigned  int 	    copy;				        //����
+	unsigned  int 	    index;				        //�ڼ���MBR����
+	unsigned  int       PartCount;			        //��������
+	unsigned  int       stamp[1];					//����
+	PARTITION           array[MBR_MAX_PART_COUNT];	//
+	unsigned  char      res[MBR_RESERVED];
+}__attribute__ ((packed)) MBR;
+
+#ifdef CONFIG_M25PXX_USE_DUAL_MODE_READ
+/* spi device data, used in dual spi mode */
+struct sunxi_dual_mode_dev_data {
+	int dual_mode;	//dual SPI mode, 0-single mode, 1-dual mode
+	int single_cnt;	//single mode transmit counter
+	int dummy_cnt;	//dummy counter should be sent before receive in dual mode
+};
+struct sunxi_dual_mode_dev_data dual_mode_cfg = {1, 0, 1};
+#endif
+
 static inline struct m25p *mtd_to_m25p(struct mtd_info *mtd)
 {
 	return container_of(mtd, struct m25p, mtd);
@@ -115,10 +169,10 @@ static int read_sr(struct m25p *flash)
 {
 	ssize_t retval;
 	u8 code = OPCODE_RDSR;
-	u8 val;
+	u8 val = 0;
 
 	retval = spi_write_then_read(flash->spi, &code, 1, &val, 1);
-
+	M25_DBG("Read status reg %#x, return %d \n", val, retval);
 	if (retval < 0) {
 		dev_err(&flash->spi->dev, "error %d reading SR\n",
 				(int) retval);
@@ -253,8 +307,10 @@ static int erase_sector(struct m25p *flash, u32 offset)
 			__func__, flash->mtd.erasesize / 1024, offset);
 
 	/* Wait until finished previous write command. */
-	if (wait_till_ready(flash))
+	if (wait_till_ready(flash)) {
+		printk("erase_sector fail \n");
 		return 1;
+	}
 
 	/* Send write enable, then erase commands. */
 	write_enable(flash);
@@ -288,9 +344,14 @@ static int m25p80_erase(struct mtd_info *mtd, struct erase_info *instr)
 			__func__, (long long)instr->addr,
 			(long long)instr->len);
 
+//			__func__, (long long)instr->addr,
+//			(long long)instr->len);
+
 	div_u64_rem(instr->len, mtd->erasesize, &rem);
-	if (rem)
+	if (rem) {
+		printk("m25p80_erase EINVAL fail:\n");
 		return -EINVAL;
+	}
 
 	addr = instr->addr;
 	len = instr->len;
@@ -302,6 +363,7 @@ static int m25p80_erase(struct mtd_info *mtd, struct erase_info *instr)
 		if (erase_chip(flash)) {
 			instr->state = MTD_ERASE_FAILED;
 			mutex_unlock(&flash->lock);
+			printk("m25p80_erase erase_chip warning fail:\n");
 			return -EIO;
 		}
 
@@ -316,6 +378,7 @@ static int m25p80_erase(struct mtd_info *mtd, struct erase_info *instr)
 			if (erase_sector(flash, addr)) {
 				instr->state = MTD_ERASE_FAILED;
 				mutex_unlock(&flash->lock);
+				printk("m25p80_erase erase_sector warning: fail \n");
 				return -EIO;
 			}
 
@@ -379,6 +442,7 @@ static int m25p80_read(struct mtd_info *mtd, loff_t from, size_t len,
 	flash->command[0] = OPCODE_READ;
 	m25p_addr2cmd(flash, from, flash->command);
 
+	M25_DBG("m25p_cmdsz() = %d\n", m25p_cmdsz(flash));
 	spi_sync(flash->spi, &m);
 
 	*retlen = m.actual_length - m25p_cmdsz(flash) - FAST_READ_DUMMY_BYTE;
@@ -429,6 +493,7 @@ static int m25p80_write(struct mtd_info *mtd, loff_t to, size_t len,
 	m25p_addr2cmd(flash, to, flash->command);
 
 	page_offset = to & (flash->page_size - 1);
+	M25_DBG("page_offset = %d, to = 0x%llx, flash->page_size = %d\n", page_offset, to, flash->page_size);
 
 	/* do all the bytes fit onto one page? */
 	if (page_offset + len <= flash->page_size) {
@@ -447,6 +512,7 @@ static int m25p80_write(struct mtd_info *mtd, loff_t to, size_t len,
 		spi_sync(flash->spi, &m);
 
 		*retlen = m.actual_length - m25p_cmdsz(flash);
+		M25_DBG("m.actual_length = %d\n", m.actual_length);
 
 		/* write everything in flash->page_size chunks */
 		for (i = page_size; i < len; i += page_size) {
@@ -467,6 +533,7 @@ static int m25p80_write(struct mtd_info *mtd, loff_t to, size_t len,
 			spi_sync(flash->spi, &m);
 
 			*retlen += m.actual_length - m25p_cmdsz(flash);
+			M25_DBG("*retlen = %d\n", *retlen);
 		}
 	}
 
@@ -639,6 +706,13 @@ static const struct spi_device_id m25p_ids[] = {
 	{ "en25q32b", INFO(0x1c3016, 0, 64 * 1024,  64, 0) },
 	{ "en25p64", INFO(0x1c2017, 0, 64 * 1024, 128, 0) },
 
+	/* GigaDevice */
+	{ "gd25q16", INFO(0xc84015, 0, 64 * 1024,  32, SECT_4K) },
+	{ "gd25q32", INFO(0xc84016, 0, 64 * 1024,  64, SECT_4K) },
+	{ "gd25q64", INFO(0xc84017, 0, 64 * 1024, 128, SECT_4K) },
+	
+	{ "gd25q128", INFO(0xc84018, 0, 64 * 1024, 256, 0) },  // v3   
+
 	/* Intel/Numonyx -- xxxs33b */
 	{ "160s33b",  INFO(0x898911, 0, 64 * 1024,  32, 0) },
 	{ "320s33b",  INFO(0x898912, 0, 64 * 1024,  64, 0) },
@@ -728,6 +802,8 @@ static const struct spi_device_id m25p_ids[] = {
 	{ "w25q32", INFO(0xef4016, 0, 64 * 1024,  64, SECT_4K) },
 	{ "w25x64", INFO(0xef3017, 0, 64 * 1024, 128, SECT_4K) },
 	{ "w25q64", INFO(0xef4017, 0, 64 * 1024, 128, SECT_4K) },
+	{ "W25q128", INFO(0xef4018, 0, 64 * 1024, 256, 0) },
+	
 
 	/* Catalyst / On Semiconductor -- non-JEDEC */
 	{ "cat25c11", CAT25_INFO(  16, 8, 16, 1) },
@@ -738,6 +814,86 @@ static const struct spi_device_id m25p_ids[] = {
 	{ },
 };
 MODULE_DEVICE_TABLE(spi, m25p_ids);
+
+/* Register the whole NorFlash as a partition. */
+static int partition_register(struct mtd_info *mtd, struct mtd_part_parser_data *ppdata)
+{
+	struct mtd_partition partitions[] = {
+		{
+		.name = "NorFlash part0",
+		.offset = 0,
+		.size = MTDPART_SIZ_FULL
+		}};
+
+	return mtd_device_parse_register(mtd, NULL, ppdata, partitions, 1);
+}
+
+#ifdef CONFIG_ARCH_SUN8IW8
+static int partitions_register(struct mtd_info *mtd, struct mtd_part_parser_data *ppdata)
+{
+	int i;
+	int ret = 0;
+    size_t retlen = 0;
+	MBR *sunxi_mbr = NULL;
+	struct mtd_partition *partitions = NULL;
+
+	sunxi_mbr = (MBR *)kzalloc(MBR_SIZE, GFP_KERNEL);
+	if (sunxi_mbr == NULL) {
+		M25_ERR("Failed to kzalloc(%d)\n", MBR_SIZE);
+		return -ENOMEM;
+	}
+	ret = m25p80_read(mtd, MBR_OFFSET, MBR_SIZE, &retlen, (u_char *)sunxi_mbr);
+	M25_DBG("m25p80_read() ret= %d, retlen = %d\n", ret, retlen);
+	if ((ret != 0) || (sunxi_mbr->PartCount == 0)) {
+		kfree(sunxi_mbr);
+		M25_ERR("m25p80_read() ret %d, PartCnt: %d\n", ret, sunxi_mbr->PartCount);
+		return -EINVAL;
+	}
+	if ((sunxi_mbr->PartCount == 0) || (sunxi_mbr->PartCount > MBR_MAX_PART_COUNT)) {
+		M25_ERR("Invalid partitions count: %d\n",  sunxi_mbr->PartCount);
+		kfree(sunxi_mbr);
+		return partition_register(mtd, ppdata);
+	}
+
+	sunxi_mbr->PartCount += 1;
+    partitions = kzalloc(sizeof(struct mtd_partition)*sunxi_mbr->PartCount, GFP_KERNEL);
+	if (partitions == NULL) {
+		M25_ERR("Failed to kzalloc(%d patition)\n", sunxi_mbr->PartCount);
+		kfree(sunxi_mbr);
+		return -ENOMEM;
+	}
+
+	printk("@@@[debug_jaosn]: Invalid partitions count: 4 %d\n",sunxi_mbr->PartCount);
+
+	for (i=0; i<sunxi_mbr->PartCount-1; i++) {
+		
+		partitions[0].name   = "uboot";
+		partitions[0].offset = 0;
+		partitions[0].size   = 256 * 1024;
+			
+		partitions[i+1].name   = sunxi_mbr->array[i].name;
+		partitions[i+1].offset = sunxi_mbr->array[i].addrlo*NOR_BLK_SIZE + MBR_OFFSET;
+		partitions[i+1].size   = sunxi_mbr->array[i].lenlo*NOR_BLK_SIZE;
+		if(i == 0) {
+			M25_DBG("NorFlash partition %d: name=%s, offset=0x%llx, size=0x%llx\n", i,
+			partitions[i].name, partitions[i].offset, partitions[i].size);
+		}
+		M25_DBG("NorFlash partition %d: name=%s, offset=0x%llx, size=0x%llx\n", i+1,
+			partitions[i+1].name, partitions[i+1].offset, partitions[i+1].size);
+	}
+
+    ret = mtd_device_parse_register(mtd, NULL, ppdata, partitions, sunxi_mbr->PartCount-1);
+
+	kfree(partitions);
+	kfree(sunxi_mbr);
+	return ret;
+}
+#else
+static int partitions_register(struct mtd_info *mtd, struct mtd_part_parser_data *ppdata)
+{
+	return partition_register(mtd, ppdata);
+}
+#endif
 
 static const struct spi_device_id *__devinit jedec_probe(struct spi_device *spi)
 {
@@ -765,12 +921,13 @@ static const struct spi_device_id *__devinit jedec_probe(struct spi_device *spi)
 	jedec |= id[2];
 
 	ext_jedec = id[3] << 8 | id[4];
-
+	printk("NorFlash ID: %#x - %#x\n", jedec, ext_jedec);
 	for (tmp = 0; tmp < ARRAY_SIZE(m25p_ids) - 1; tmp++) {
 		info = (void *)m25p_ids[tmp].driver_data;
 		if (info->jedec_id == jedec) {
 			if (info->ext_id != 0 && info->ext_id != ext_jedec)
 				continue;
+			M25_DBG("Found the type: %s\n", m25p_ids[tmp].name);
 			return &m25p_ids[tmp];
 		}
 	}
@@ -787,7 +944,9 @@ static const struct spi_device_id *__devinit jedec_probe(struct spi_device *spi)
 static int __devinit m25p_probe(struct spi_device *spi)
 {
 	const struct spi_device_id	*id = spi_get_device_id(spi);
-	struct flash_platform_data	*data;
+#ifndef CONFIG_M25PXX_USE_DUAL_MODE_READ
+	struct flash_platform_data	*data = NULL;
+#endif
 	struct m25p			*flash;
 	struct flash_info		*info;
 	unsigned			i;
@@ -803,6 +962,10 @@ static int __devinit m25p_probe(struct spi_device *spi)
 	 * a chip ID, try the JEDEC id commands; they'll work for most
 	 * newer chips, even if we don't recognize the particular chip.
 	 */
+#ifdef CONFIG_M25PXX_USE_DUAL_MODE_READ
+	M25_ERR("Use the Dual Mode Read.\n");
+	spi->dev.platform_data = &dual_mode_cfg;
+#else
 	data = spi->dev.platform_data;
 	if (data && data->type) {
 		const struct spi_device_id *plat_id;
@@ -819,14 +982,19 @@ static int __devinit m25p_probe(struct spi_device *spi)
 		else
 			dev_warn(&spi->dev, "unrecognized id %s\n", data->type);
 	}
+#endif
 
 	info = (void *)id->driver_data;
+	pr_debug("info->jedec_id = %#x \n", info->jedec_id);
 
 	if (info->jedec_id) {
 		const struct spi_device_id *jid;
 
 		jid = jedec_probe(spi);
+		pr_debug("jid = %p\n", jid);
+
 		if (IS_ERR(jid)) {
+			pr_debug("IS_ERR(jid)\n");
 			return PTR_ERR(jid);
 		} else if (jid != id) {
 			/*
@@ -868,10 +1036,13 @@ static int __devinit m25p_probe(struct spi_device *spi)
 		write_sr(flash, 0);
 	}
 
+#ifndef CONFIG_M25PXX_USE_DUAL_MODE_READ
 	if (data && data->name)
 		flash->mtd.name = data->name;
 	else
+#else
 		flash->mtd.name = dev_name(&spi->dev);
+#endif
 
 	flash->mtd.type = MTD_NORFLASH;
 	flash->mtd.writesize = 1;
@@ -938,9 +1109,13 @@ static int __devinit m25p_probe(struct spi_device *spi)
 	/* partitions should match sector boundaries; and it may be good to
 	 * use readonly partitions for writeprotected sectors (BP2..BP0).
 	 */
+#if 0	 
 	return mtd_device_parse_register(&flash->mtd, NULL, &ppdata,
 			data ? data->parts : NULL,
 			data ? data->nr_parts : 0);
+#else
+	return partitions_register(&flash->mtd, &ppdata);
+#endif
 }
 
 
@@ -955,6 +1130,8 @@ static int __devexit m25p_remove(struct spi_device *spi)
 		kfree(flash->command);
 		kfree(flash);
 	}
+
+	spi->dev.platform_data = NULL;
 	return 0;
 }
 

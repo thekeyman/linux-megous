@@ -2,27 +2,9 @@
  *  BCMSDH interface glue
  *  implement bcmsdh API for SDIOH driver
  *
- * Copyright (C) 1999-2012, Broadcom Corporation
- * 
- *      Unless you and Broadcom execute a separate written software license
- * agreement governing use of this software, this software is licensed to you
- * under the terms of the GNU General Public License version 2 (the "GPL"),
- * available at http://www.broadcom.com/licenses/GPLv2.php, with the
- * following added to such license:
- * 
- *      As a special exception, the copyright holders of this software give you
- * permission to link this software with independent modules, and to copy and
- * distribute the resulting executable under terms of your choice, provided that
- * you also meet, for each linked independent module, the terms and conditions of
- * the license of that module.  An independent module is a module which is not
- * derived from this software.  The special exception does not apply to any
- * modifications of the software.
- * 
- *      Notwithstanding the above, under no circumstances may you combine this
- * software in any way with any other Broadcom software provided under a license
- * other than the GPL, without Broadcom's express prior written consent.
+ * $ Copyright Open Broadcom Corporation $
  *
- * $Id: bcmsdh.c 300445 2011-12-03 05:37:20Z $
+ * $Id: bcmsdh.c 450676 2014-01-22 22:45:13Z $
  */
 
 /**
@@ -42,26 +24,17 @@
 #include <bcmsdh.h>	/* BRCM API for SDIO clients (such as wl, dhd) */
 #include <bcmsdbus.h>	/* common SDIO/controller interface */
 #include <sbsdio.h>	/* SDIO device core hardware definitions. */
-
 #include <sdio.h>	/* SDIO Device and Protocol Specs */
 
 #define SDIOH_API_ACCESS_RETRY_LIMIT	2
 const uint bcmsdh_msglevel = BCMSDH_ERROR_VAL;
 
-/**
- * BCMSDH API context
- */
-struct bcmsdh_info
-{
-	bool	init_success;	/* underlying driver successfully attached */
-	void	*sdioh;		/* handler for sdioh */
-	uint32  vendevid;	/* Target Vendor and Device ID on SD bus */
-	osl_t   *osh;
-	bool	regfail;	/* Save status of last reg_read/reg_write call */
-	uint32	sbwad;		/* Save backplane window address */
-};
 /* local copy of bcm sd handler */
 bcmsdh_info_t * l_bcmsdh = NULL;
+
+#if 0 && (NDISVER < 0x0630)
+extern SDIOH_API_RC sdioh_detach(osl_t *osh, sdioh_info_t *sd);
+#endif
 
 #if defined(OOB_INTR_ONLY) && defined(HW_OOB)
 extern int
@@ -84,7 +57,7 @@ bcmsdh_enable_hw_oob_intr(bcmsdh_info_t *sdh, bool enable)
  * @return bcmsdh_info_t Handle to BCMSDH context.
  */
 bcmsdh_info_t *
-bcmsdh_attach(osl_t *osh, void *cfghdl, void **regsva, uint irq)
+bcmsdh_attach(osl_t *osh, void *sdioh, ulong *regsva)
 {
 	bcmsdh_info_t *bcmsdh;
 
@@ -93,22 +66,17 @@ bcmsdh_attach(osl_t *osh, void *cfghdl, void **regsva, uint irq)
 		return NULL;
 	}
 	bzero((char *)bcmsdh, sizeof(bcmsdh_info_t));
+	bcmsdh->sdioh = sdioh;
+	bcmsdh->osh = osh;
+	bcmsdh->init_success = TRUE;
+	*regsva = SI_ENUM_BASE;
+
+	/* Report the BAR, to fix if needed */
+	bcmsdh->sbwad = SI_ENUM_BASE;
 
 	/* save the handler locally */
 	l_bcmsdh = bcmsdh;
 
-	if (!(bcmsdh->sdioh = sdioh_attach(osh, cfghdl, irq))) {
-		bcmsdh_detach(osh, bcmsdh);
-		return NULL;
-	}
-
-	bcmsdh->osh = osh;
-	bcmsdh->init_success = TRUE;
-
-	*regsva = (uint32 *)SI_ENUM_BASE;
-
-	/* Report the BAR, to fix if needed */
-	bcmsdh->sbwad = SI_ENUM_BASE;
 	return bcmsdh;
 }
 
@@ -118,14 +86,15 @@ bcmsdh_detach(osl_t *osh, void *sdh)
 	bcmsdh_info_t *bcmsdh = (bcmsdh_info_t *)sdh;
 
 	if (bcmsdh != NULL) {
-		if (bcmsdh->sdioh) {
+#if 0 && (NDISVER < 0x0630)
+		if (bcmsdh->sdioh)
 			sdioh_detach(osh, bcmsdh->sdioh);
-			bcmsdh->sdioh = NULL;
-		}
+#endif
 		MFREE(osh, bcmsdh, sizeof(bcmsdh_info_t));
 	}
 
 	l_bcmsdh = NULL;
+
 	return 0;
 }
 
@@ -362,9 +331,10 @@ bcmsdh_cis_read(void *sdh, uint func, uint8 *cis, uint length)
 		}
 		bcopy(cis, tmp_buf, length);
 		for (tmp_ptr = tmp_buf, ptr = cis; ptr < (cis + length - 4); tmp_ptr++) {
-			ptr += sprintf((char*)ptr, "%.2x ", *tmp_ptr & 0xff);
+			ptr += snprintf((char*)ptr, (cis + length - ptr - 4),
+				"%.2x ", *tmp_ptr & 0xff);
 			if ((((tmp_ptr - tmp_buf) + 1) & 0xf) == 0)
-				ptr += sprintf((char *)ptr, "\n");
+				ptr += snprintf((char *)ptr, (cis + length - ptr -4), "\n");
 		}
 		MFREE(bcmsdh->osh, tmp_buf, length);
 	}
@@ -415,8 +385,10 @@ bcmsdh_reg_read(void *sdh, uint32 addr, uint size)
 
 	ASSERT(bcmsdh->init_success);
 
-	if (bcmsdhsdio_set_sbaddr_window(bcmsdh, addr, FALSE))
+	if (bcmsdhsdio_set_sbaddr_window(bcmsdh, addr, FALSE)) {
+		bcmsdh->regfail = TRUE; // terence 20130621: prevent dhd_dpc in dead lock
 		return 0xFFFFFFFF;
+	}
 
 	addr &= SBSDIO_SB_OFT_ADDR_MASK;
 	if (size == 4)
@@ -464,8 +436,10 @@ bcmsdh_reg_write(void *sdh, uint32 addr, uint size, uint32 data)
 
 	ASSERT(bcmsdh->init_success);
 
-	if ((err = bcmsdhsdio_set_sbaddr_window(bcmsdh, addr, FALSE)))
+	if ((err = bcmsdhsdio_set_sbaddr_window(bcmsdh, addr, FALSE))) {
+		bcmsdh->regfail = TRUE; // terence 20130621:
 		return err;
+	}
 
 	addr &= SBSDIO_SB_OFT_ADDR_MASK;
 	if (size == 4)
@@ -612,8 +586,6 @@ int
 bcmsdh_waitlockfree(void *sdh)
 {
 	bcmsdh_info_t *bcmsdh = (bcmsdh_info_t *)sdh;
-	if (!bcmsdh)
-		bcmsdh = l_bcmsdh;
 
 	return sdioh_waitlockfree(bcmsdh->sdioh);
 }
