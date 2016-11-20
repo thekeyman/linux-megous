@@ -53,6 +53,7 @@
 
 	aliases {
 		serial0 = &uart0;
+		lcd0 = &lcd0;
 	};
 
 	chosen {
@@ -89,11 +90,23 @@
 	};
 };
 
+&de {
+	status = "okay";
+};
+
 &ehci0 {
 	status = "okay";
 };
 
 &ehci1 {
+	status = "okay";
+};
+
+&hdmi {
+	status = "okay";
+};
+
+&lcd0 {
 	status = "okay";
 };
 
