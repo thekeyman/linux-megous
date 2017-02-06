@@ -252,8 +252,22 @@
 				bias-pull-up;
 			};
 
+			mmc2_8bit_emmc_pins: mmc2-8bit-emmc-pins {
+				pins = "PC5", "PC6", "PC8", "PC9",
+				       "PC10", "PC11", "PC12", "PC13",
+				       "PC14", "PC15", "PC16";
+				function = "mmc2";
+				drive-strength = <30>;
+				bias-pull-up;
+			};
+
 			uart0_pins_a: uart0@0 {
 				pins = "PF2", "PF4";
+				function = "uart0";
+			};
+
+			uart0_pb_pins: uart0-pb-pins {
+				pins = "PB9", "PB10";
 				function = "uart0";
 			};
 
