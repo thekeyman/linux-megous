@@ -60,6 +60,7 @@
 
 	aliases {
 		serial0 = &uart0;
+		lcd0 = &lcd0;
 	};
 
 	chosen {
@@ -110,6 +111,10 @@
 	status = "okay";
 };
 
+&de {
+	status = "okay";
+};
+
 &ehci0 {
 	status = "okay";
 };
@@ -126,9 +131,17 @@
 	status = "okay";
 };
 
+&hdmi {
+	status = "okay";
+};
+
 &ir {
 	pinctrl-names = "default";
 	pinctrl-0 = <&ir_pins_a>;
+	status = "okay";
+};
+
+&lcd0 {
 	status = "okay";
 };
 
