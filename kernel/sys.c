@@ -2041,7 +2041,9 @@ int orderly_poweroff(bool force)
 
 	call_usermodehelper_setfns(info, NULL, argv_cleanup, NULL);
 
-	ret = call_usermodehelper_exec(info, UMH_NO_WAIT);
+	/* the parameters wait UMH_NO_WAIT change to UMH_WAIT_EXEC */
+	/* 20141008 by Ming Li to solve the problem android cannot shutdown*/
+	ret = call_usermodehelper_exec(info, UMH_WAIT_EXEC);
 
   out:
 	if (ret && force) {
