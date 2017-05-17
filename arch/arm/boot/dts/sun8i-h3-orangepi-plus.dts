@@ -74,6 +74,10 @@
 	};
 };
 
+&ehci0 {
+	status = "okay";
+};
+
 &ehci3 {
 	status = "okay";
 };
@@ -112,6 +116,10 @@
 	bias-pull-up;
 };
 
+&ohci0 {
+	status = "okay";
+};
+
 &pio {
 	usb3_vbus_pin_a: usb3_vbus_pin {
 		pins = "PG11";
@@ -119,6 +127,18 @@
 	};
 };
 
+&reg_usb0_vbus {
+	gpio = <&r_pio 0 2 GPIO_ACTIVE_HIGH>; /* PL2 */
+	status = "okay";
+};
+
+&usb_otg {
+	dr_mode = "peripheral";
+	status = "okay";
+};
+
 &usbphy {
 	usb3_vbus-supply = <&reg_usb3_vbus>;
+	usb0_id_det-gpios = <&pio 6 12 GPIO_ACTIVE_HIGH>; /* PG12 */
+	usb0_vbus-supply = <&reg_usb0_vbus>;
 };
