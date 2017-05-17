@@ -690,9 +690,9 @@
 			interrupts = <GIC_SPI 44 IRQ_TYPE_LEVEL_HIGH>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&r_i2c_pins_a>;
-			clocks = <&apb0_gates 6>;
+			clocks = <&r_ccu 9>; /* CLK_APB0_I2C */
 			clock-frequency = <100000>;
-			resets = <&apb0_reset 6>;
+			resets = <&r_ccu 5>; /* RST_APB0_I2C */
 			status = "disabled";
 			#address-cells = <1>;
 			#size-cells = <0>;
