@@ -127,11 +127,43 @@
 		gpio = <&pio 3 4 GPIO_ACTIVE_HIGH>; /* PD4 */
 	};
 
+	reg_vbat: reg-vbat {
+		compatible = "regulator-fixed";
+		regulator-name = "vbat";
+		regulator-min-microvolt = <3700000>;
+		regulator-max-microvolt = <3700000>;
+	};
+
+	reg_vmain: reg-vmain {
+		compatible = "regulator-fixed";
+		regulator-name = "vmain";
+		regulator-min-microvolt = <5000000>;
+		regulator-max-microvolt = <5000000>;
+		gpio = <&r_pio 0 9 GPIO_ACTIVE_HIGH>; /* PL9 */
+		enable-active-high;
+		//megi: See modem for comments
+		regulator-always-on;
+		vin-supply = <&reg_vbat>;
+	};
+
 	wifi_pwrseq: wifi_pwrseq {
 		compatible = "mmc-pwrseq-simple";
 		reset-gpios = <&r_pio 0 2 GPIO_ACTIVE_LOW>; /* PL2 WL-PMU-EN */
 		clocks = <&ac100_rtc 1>;
 		clock-names = "ext_clock";
+	};
+
+	modem {
+		compatible = "custom,power-manager";
+		//megi: switching Q5 MOSFET probably leads to brownouts on
+		//VBAT due to larger capacities on VMAIN. Only use PL8 to
+		//enable/disable the modem
+		//power-supply = <&reg_vmain>;
+		enable-gpios = <&r_pio 0 8 GPIO_ACTIVE_HIGH>; /* PL8 */
+		reset-gpios = <&r_pio 0 10 GPIO_ACTIVE_HIGH>; /* PL10 */
+		wakeup-gpios = <&r_pio 0 11 GPIO_ACTIVE_HIGH>; /* PL11 */
+		reset-duration-ms = <5>;
+		char-device-name = "pwr-modem";
 	};
 
 	gps {
