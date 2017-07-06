@@ -56,6 +56,15 @@
 	chosen {
 		stdout-path = "serial0:115200n8";
 	};
+
+	reg_bbpwren: reg-bbpwren {
+		compatible = "regulator-fixed";
+		regulator-name = "pwrseq-regulator";
+		regulator-min-microvolt = <5000000>;
+		regulator-max-microvolt = <5000000>;
+		gpio = <&r_pio 0 9 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+	};
 };
 
 &ehci0 {
@@ -64,6 +73,15 @@
 
 &ehci1 {
 	status = "okay";
+
+	modem@0 {
+		compatible = "zte,pwrseq-mg3732";
+		reg = <1>;
+		power-gpios = <&r_pio 0 8 GPIO_ACTIVE_HIGH>;
+		reset-gpios = <&r_pio 0 10 GPIO_ACTIVE_HIGH>;
+		reset-duration-us = <3000>;
+		vbus-supply = <&reg_bbpwren>;
+	};
 };
 
 &ohci0 {
