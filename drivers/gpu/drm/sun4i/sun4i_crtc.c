@@ -113,11 +113,22 @@ static void sun4i_crtc_enable(struct drm_crtc *crtc)
 	sun4i_tcon_set_status(scrtc->tcon, encoder, true);
 }
 
+static void sun4i_crtc_mode_set_nofb(struct drm_crtc *crtc)
+{
+	struct drm_display_mode *mode = &crtc->state->adjusted_mode;
+	struct drm_encoder *encoder = sun4i_crtc_get_encoder(crtc);
+	struct sun4i_crtc *scrtc = drm_crtc_to_sun4i_crtc(crtc);
+
+	sun4i_tcon_mode_set(scrtc->tcon, encoder, mode);
+}
+
+
 static const struct drm_crtc_helper_funcs sun4i_crtc_helper_funcs = {
 	.atomic_begin	= sun4i_crtc_atomic_begin,
 	.atomic_flush	= sun4i_crtc_atomic_flush,
 	.disable	= sun4i_crtc_disable,
 	.enable		= sun4i_crtc_enable,
+	.mode_set_nofb	= sun4i_crtc_mode_set_nofb,
 };
 
 static int sun4i_crtc_enable_vblank(struct drm_crtc *crtc)
