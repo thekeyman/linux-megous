@@ -106,29 +106,6 @@ void sun4i_tcon_enable_vblank(struct sun4i_tcon *tcon, bool enable)
 }
 EXPORT_SYMBOL(sun4i_tcon_enable_vblank);
 
-void sun4i_tcon_set_mux(struct sun4i_tcon *tcon, int channel,
-			struct drm_encoder *encoder)
-{
-	u32 val;
-
-	if (!tcon->quirks->has_unknown_mux)
-		return;
-
-	if (channel != 1)
-		return;
-
-	if (encoder->encoder_type == DRM_MODE_ENCODER_TVDAC)
-		val = 1;
-	else
-		val = 0;
-
-	/*
-	 * FIXME: Undocumented bits
-	 */
-	regmap_write(tcon->regs, SUN4I_TCON_MUX_CTRL_REG, val);
-}
-EXPORT_SYMBOL(sun4i_tcon_set_mux);
-
 static int sun4i_tcon_get_clk_delay(struct drm_display_mode *mode,
 				    int channel)
 {
@@ -147,8 +124,8 @@ static int sun4i_tcon_get_clk_delay(struct drm_display_mode *mode,
 	return delay;
 }
 
-void sun4i_tcon0_mode_set(struct sun4i_tcon *tcon,
-			  struct drm_display_mode *mode)
+static void sun4i_tcon0_mode_set(struct sun4i_tcon *tcon,
+				 struct drm_display_mode *mode)
 {
 	unsigned int bp, hsync, vsync;
 	u8 clk_delay;
@@ -221,10 +198,9 @@ void sun4i_tcon0_mode_set(struct sun4i_tcon *tcon,
 	/* Enable the output on the pins */
 	regmap_write(tcon->regs, SUN4I_TCON0_IO_TRI_REG, 0);
 }
-EXPORT_SYMBOL(sun4i_tcon0_mode_set);
 
-void sun4i_tcon1_mode_set(struct sun4i_tcon *tcon,
-			  struct drm_display_mode *mode)
+static void sun4i_tcon1_mode_set(struct sun4i_tcon *tcon,
+				 struct drm_display_mode *mode)
 {
 	unsigned int bp, hsync, vsync, vtotal;
 	u8 clk_delay;
@@ -312,7 +288,29 @@ void sun4i_tcon1_mode_set(struct sun4i_tcon *tcon,
 			   SUN4I_TCON_GCTL_IOMAP_MASK,
 			   SUN4I_TCON_GCTL_IOMAP_TCON1);
 }
-EXPORT_SYMBOL(sun4i_tcon1_mode_set);
+
+void sun4i_tcon_mode_set(struct sun4i_tcon *tcon, struct drm_encoder *encoder,
+			 struct drm_display_mode *mode)
+{
+	switch (encoder->encoder_type) {
+	case DRM_MODE_ENCODER_NONE:
+		sun4i_tcon0_mode_set(tcon, mode);
+		break;
+	case DRM_MODE_ENCODER_TVDAC:
+		/*
+		 * FIXME: Undocumented bits
+		 */
+		if (tcon->quirks->has_unknown_mux)
+			regmap_write(tcon->regs, SUN4I_TCON_MUX_CTRL_REG, 1);
+		/* Fallthrough */
+	case DRM_MODE_ENCODER_TMDS:
+		sun4i_tcon1_mode_set(tcon, mode);
+		break;
+	default:
+		DRM_DEBUG_DRIVER("Unknown encoder type, doing nothing...\n");
+	}
+}
+EXPORT_SYMBOL(sun4i_tcon_mode_set);
 
 static void sun4i_tcon_finish_page_flip(struct drm_device *dev,
 					struct sun4i_crtc *scrtc)
