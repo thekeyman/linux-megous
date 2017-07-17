@@ -57,13 +57,21 @@
 		stdout-path = "serial0:115200n8";
 	};
 
-	reg_bbpwren: reg-bbpwren {
+	reg_vbat: reg-vbat {
 		compatible = "regulator-fixed";
-		regulator-name = "pwrseq-regulator";
+		regulator-name = "vbat";
+		regulator-min-microvolt = <3700000>;
+		regulator-max-microvolt = <3700000>;
+	};
+
+	reg_vmain: reg-vmain {
+		compatible = "regulator-fixed";
+		regulator-name = "vmain";
 		regulator-min-microvolt = <5000000>;
 		regulator-max-microvolt = <5000000>;
 		gpio = <&r_pio 0 9 GPIO_ACTIVE_HIGH>;
 		enable-active-high;
+		vin-supply = <&reg_vbat>;
 	};
 
 	wifi_pwrseq: wifi_pwrseq {
@@ -87,7 +95,7 @@
 		power-gpios = <&r_pio 0 8 GPIO_ACTIVE_HIGH>;
 		reset-gpios = <&r_pio 0 10 GPIO_ACTIVE_HIGH>;
 		reset-duration-us = <3000>;
-		vbus-supply = <&reg_bbpwren>;
+		vbus-supply = <&reg_vmain>;
 	};
 };
 
