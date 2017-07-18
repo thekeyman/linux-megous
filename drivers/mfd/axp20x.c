@@ -878,7 +878,9 @@ static struct mfd_cell axp813_cells[] = {
 		.resources		= axp803_pek_resources,
 	}, {
 		.name			= "axp20x-regulator",
-	}
+	}, {
+		.name			= "axp813-adc",
+	},
 };
 
 static struct axp20x_dev *axp20x_pm_power_off;
