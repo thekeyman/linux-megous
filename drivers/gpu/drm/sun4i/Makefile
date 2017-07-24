@@ -17,6 +17,7 @@ sun4i-tcon-y			+= sun4i_crtc.o
 sun4i-tcon-y			+= sun4i_dotclock.o
 sun4i-tcon-y			+= sun4i_tcon.o
 sun4i-tcon-y			+= sun4i_rgb.o
+sun4i-tcon-y			+= sun4i_lvds.o
 
 obj-$(CONFIG_DRM_SUN4I)		+= sun4i-drm.o
 obj-$(CONFIG_DRM_SUN4I)		+= sun4i-tcon.o
