@@ -29,9 +29,51 @@
 #include "sun4i_crtc.h"
 #include "sun4i_dotclock.h"
 #include "sun4i_drv.h"
+#include "sun4i_lvds.h"
 #include "sun4i_rgb.h"
 #include "sun4i_tcon.h"
 #include "sunxi_engine.h"
+
+static struct drm_connector *sun4i_tcon_get_connector(struct drm_encoder *encoder)
+{
+	struct drm_connector *connector;
+	struct drm_connector_list_iter iter;
+
+	drm_connector_list_iter_begin(encoder->dev, &iter);
+	drm_for_each_connector_iter(connector, &iter)
+		if (connector->encoder == encoder) {
+			drm_connector_list_iter_end(&iter);
+			return connector;
+		}
+	drm_connector_list_iter_end(&iter);
+
+	return NULL;
+}
+
+static int sun4i_tcon_get_pixel_depth(struct drm_encoder *encoder)
+{
+	struct drm_connector *connector;
+	struct drm_display_info *info;
+
+	connector = sun4i_tcon_get_connector(encoder);
+	if (!connector)
+		return -EINVAL;
+
+	info = &connector->display_info;
+	if (info->num_bus_formats != 1)
+		return -EINVAL;
+
+	switch (info->bus_formats[0]) {
+	case MEDIA_BUS_FMT_RGB666_1X7X3_SPWG:
+		return 18;
+
+	case MEDIA_BUS_FMT_RGB888_1X7X4_JEIDA:
+	case MEDIA_BUS_FMT_RGB888_1X7X4_SPWG:
+		return 24;
+	}
+
+	return -EINVAL;
+}
 
 static void sun4i_tcon_channel_set_status(struct sun4i_tcon *tcon, int channel,
 					  bool enabled)
@@ -67,9 +109,13 @@ void sun4i_tcon_set_status(struct sun4i_tcon *tcon,
 			   struct drm_encoder *encoder,
 			   bool enabled)
 {
+	bool is_lvds = false;
 	int channel;
 
 	switch (encoder->encoder_type) {
+	case DRM_MODE_ENCODER_LVDS:
+		is_lvds = true;
+		/* Fallthrough */
 	case DRM_MODE_ENCODER_NONE:
 		channel = 0;
 		break;
@@ -84,9 +130,46 @@ void sun4i_tcon_set_status(struct sun4i_tcon *tcon,
 
 	sun4i_tcon_channel_set_status(tcon, channel, enabled);
 
+	if (is_lvds && !enabled)
+		regmap_update_bits(tcon->regs, SUN4I_TCON0_LVDS_IF_REG,
+				   SUN4I_TCON0_LVDS_IF_EN, 0);
+
 	regmap_update_bits(tcon->regs, SUN4I_TCON_GCTL_REG,
 			   SUN4I_TCON_GCTL_TCON_ENABLE,
 			   enabled ? SUN4I_TCON_GCTL_TCON_ENABLE : 0);
+
+	if (is_lvds && enabled) {
+		u8 val;
+
+		regmap_update_bits(tcon->regs, SUN4I_TCON0_LVDS_IF_REG,
+				   SUN4I_TCON0_LVDS_IF_EN,
+				   SUN4I_TCON0_LVDS_IF_EN);
+
+		regmap_write(tcon->regs, SUN4I_TCON0_LVDS_ANA0_REG,
+			     SUN4I_TCON0_LVDS_ANA0_C(2) |
+			     SUN4I_TCON0_LVDS_ANA0_V(3) |
+			     SUN4I_TCON0_LVDS_ANA0_PD(2) |
+			     SUN4I_TCON0_LVDS_ANA0_EN_LDO);
+		udelay(2);
+
+		regmap_update_bits(tcon->regs, SUN4I_TCON0_LVDS_ANA0_REG,
+				   SUN4I_TCON0_LVDS_ANA0_EN_MB,
+				   SUN4I_TCON0_LVDS_ANA0_EN_MB);
+		udelay(2);
+
+		regmap_update_bits(tcon->regs, SUN4I_TCON0_LVDS_ANA0_REG,
+				   SUN4I_TCON0_LVDS_ANA0_EN_DRVC,
+				   SUN4I_TCON0_LVDS_ANA0_EN_DRVC);
+
+		if (sun4i_tcon_get_pixel_depth(encoder) == 18)
+			val = 7;
+		else
+			val = 0xf;
+		
+		regmap_write_bits(tcon->regs, SUN4I_TCON0_LVDS_ANA0_REG,
+				  SUN4I_TCON0_LVDS_ANA0_EN_DRVD(0xf),
+				  SUN4I_TCON0_LVDS_ANA0_EN_DRVD(val));
+	}		
 }
 EXPORT_SYMBOL(sun4i_tcon_set_status);
 
@@ -134,6 +217,78 @@ static void sun4i_tcon0_mode_set_common(struct sun4i_tcon *tcon,
 	regmap_write(tcon->regs, SUN4I_TCON0_BASIC0_REG,
 		     SUN4I_TCON0_BASIC0_X(mode->crtc_hdisplay) |
 		     SUN4I_TCON0_BASIC0_Y(mode->crtc_vdisplay));
+}
+
+static void sun4i_tcon0_mode_set_lvds(struct sun4i_tcon *tcon,
+				      struct drm_encoder *encoder,
+				      struct drm_display_mode *mode)
+{
+	unsigned int bp;
+	u8 clk_delay;
+	u32 reg, val = 0;
+
+	tcon->dclk_min_div = 7;
+	tcon->dclk_max_div = 7;
+	sun4i_tcon0_mode_set_common(tcon, mode);
+
+	/* Adjust clock delay */
+	clk_delay = sun4i_tcon_get_clk_delay(mode, 0);
+	regmap_update_bits(tcon->regs, SUN4I_TCON0_CTL_REG,
+			   SUN4I_TCON0_CTL_CLK_DELAY_MASK,
+			   SUN4I_TCON0_CTL_CLK_DELAY(clk_delay));
+
+	/*
+	 * This is called a backporch in the register documentation,
+	 * but it really is the back porch + hsync
+	 */
+	bp = mode->crtc_htotal - mode->crtc_hsync_start;
+	DRM_DEBUG_DRIVER("Setting horizontal total %d, backporch %d\n",
+			 mode->crtc_htotal, bp);
+
+	/* Set horizontal display timings */
+	regmap_write(tcon->regs, SUN4I_TCON0_BASIC1_REG,
+		     SUN4I_TCON0_BASIC1_H_TOTAL(0x554) |
+		     SUN4I_TCON0_BASIC1_H_BACKPORCH(0xa0));
+
+	/*
+	 * This is called a backporch in the register documentation,
+	 * but it really is the back porch + hsync
+	 */
+	bp = mode->crtc_vtotal - mode->crtc_vsync_start;
+	DRM_DEBUG_DRIVER("Setting vertical total %d, backporch %d\n",
+			 mode->crtc_vtotal, bp);
+
+	/* Set vertical display timings */
+	regmap_write(tcon->regs, SUN4I_TCON0_BASIC2_REG,
+		     SUN4I_TCON0_BASIC2_V_TOTAL(mode->crtc_vtotal * 2) |
+		     SUN4I_TCON0_BASIC2_V_BACKPORCH(0x17));
+
+	reg = SUN4I_TCON0_LVDS_IF_CLK_SEL_TCON0 |
+		SUN4I_TCON0_LVDS_IF_DATA_POL_NORMAL |
+		SUN4I_TCON0_LVDS_IF_CLK_POL_NORMAL;
+	if (sun4i_tcon_get_pixel_depth(encoder) == 24)
+		reg |= SUN4I_TCON0_LVDS_IF_BITWIDTH_24BITS;
+	else
+		reg |= SUN4I_TCON0_LVDS_IF_BITWIDTH_18BITS;
+
+	regmap_write(tcon->regs, SUN4I_TCON0_LVDS_IF_REG, reg);
+
+	/* Setup the polarity of the various signals */
+	if (!(mode->flags & DRM_MODE_FLAG_PHSYNC))
+		val |= SUN4I_TCON0_IO_POL_HSYNC_POSITIVE;
+
+	if (!(mode->flags & DRM_MODE_FLAG_PVSYNC))
+		val |= SUN4I_TCON0_IO_POL_VSYNC_POSITIVE;
+
+	regmap_write(tcon->regs, SUN4I_TCON0_IO_POL_REG, 0);
+
+	/* Map output pins to channel 0 */
+	regmap_update_bits(tcon->regs, SUN4I_TCON_GCTL_REG,
+			   SUN4I_TCON_GCTL_IOMAP_MASK,
+			   SUN4I_TCON_GCTL_IOMAP_TCON0);
+
+	/* Enable the output on the pins */
+	regmap_write(tcon->regs, SUN4I_TCON0_IO_TRI_REG, 0xe0000000);
 }
 
 static void sun4i_tcon0_mode_set_rgb(struct sun4i_tcon *tcon,
@@ -301,6 +456,9 @@ void sun4i_tcon_mode_set(struct sun4i_tcon *tcon, struct drm_encoder *encoder,
 			 struct drm_display_mode *mode)
 {
 	switch (encoder->encoder_type) {
+	case DRM_MODE_ENCODER_LVDS:
+		sun4i_tcon0_mode_set_lvds(tcon, encoder, mode);
+		break;
 	case DRM_MODE_ENCODER_NONE:
 		sun4i_tcon0_mode_set_rgb(tcon, mode);
 		break;
@@ -508,6 +666,7 @@ static int sun4i_tcon_bind(struct device *dev, struct device *master,
 	struct drm_device *drm = data;
 	struct sun4i_drv *drv = drm->dev_private;
 	struct sunxi_engine *engine;
+	struct device_node *remote;
 	struct sun4i_tcon *tcon;
 	int ret;
 
@@ -537,6 +696,22 @@ static int sun4i_tcon_bind(struct device *dev, struct device *master,
 		reset_control_assert(tcon->lcd_rst);
 
 	ret = reset_control_deassert(tcon->lcd_rst);
+	if (ret) {
+		dev_err(dev, "Couldn't deassert our reset line\n");
+		return ret;
+	}
+
+	tcon->lvds_rst = devm_reset_control_get(dev, "lvds");
+	if (IS_ERR(tcon->lvds_rst)) {
+		dev_err(dev, "Couldn't get our reset line\n");
+		return PTR_ERR(tcon->lvds_rst);
+	}
+
+	/* Make sure our TCON is reset */
+	if (!reset_control_status(tcon->lvds_rst))
+		reset_control_assert(tcon->lvds_rst);
+
+	ret = reset_control_deassert(tcon->lvds_rst);
 	if (ret) {
 		dev_err(dev, "Couldn't deassert our reset line\n");
 		return ret;
@@ -573,7 +748,13 @@ static int sun4i_tcon_bind(struct device *dev, struct device *master,
 		goto err_free_clocks;
 	}
 
-	ret = sun4i_rgb_init(drm, tcon);
+	remote = of_graph_get_remote_node(dev->of_node, 1, 0);
+	if (of_device_is_compatible(remote, "panel-lvds"))
+		ret = sun4i_lvds_init(drm, tcon);
+	else
+		ret = sun4i_rgb_init(drm, tcon);
+	of_node_put(remote);
+
 	if (ret < 0)
 		goto err_free_clocks;
 
