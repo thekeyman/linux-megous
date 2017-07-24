@@ -385,7 +385,7 @@ static const struct sun8i_mixer_cfg sun8i_v3s_mixer_cfg = {
 
 static const struct of_device_id sun8i_mixer_of_table[] = {
 	{
-		.compatible = "allwinner,sun8i-v3s-de2-mixer",
+		.compatible = "allwinner,sun8i-a83t-de2-mixer",
 		.data = &sun8i_v3s_mixer_cfg,
 	},
 	{ }
