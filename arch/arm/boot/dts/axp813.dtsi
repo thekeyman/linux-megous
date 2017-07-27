@@ -55,6 +55,16 @@
 		compatible = "x-powers,axp813-pctl";
 		gpio-controller;
 		#gpio-cells = <2>;
+
+		gpio0_ldo: gpio0_ldo {
+			pin = "GPIO0";
+			function = "ldo";
+		};
+
+		gpio1_ldo: gpio1_ldo {
+			pin = "GPIO1";
+			function = "ldo";
+		};
 	};
 
 	battery_power_supply: battery-power-supply {
@@ -144,11 +154,15 @@
 
 		reg_ldo_io0: ldo-io0 {
 			regulator-name = "ldo-io0";
+			pinctrl-names = "default";
+			pinctrl-0 = <&gpio0_ldo>;
 			status = "disabled";
 		};
 
 		reg_ldo_io1: ldo-io1 {
 			regulator-name = "ldo-io1";
+			pinctrl-names = "default";
+			pinctrl-0 = <&gpio1_ldo>;
 			status = "disabled";
 		};
 
