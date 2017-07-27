@@ -556,6 +556,16 @@
 			#reset-cells = <1>;
 		};
 
+		cpucfg@01700000 {
+			compatible = "allwinner,sun8i-a83t-cpucfg";
+			reg = <0x01700000 0x100>;
+		};
+
+		r_cpucfg@1f01c00 {
+			compatible = "allwinner,sun8i-a83t-r-cpucfg";
+			reg = <0x1f01c00 0x100>;
+		};
+
 		pio: pinctrl@1c20800 {
 			compatible = "allwinner,sun8i-a83t-pinctrl";
 			interrupts = <GIC_SPI 15 IRQ_TYPE_LEVEL_HIGH>,
@@ -846,6 +856,11 @@
 			#interrupt-cells = <2>;
 			reg = <0x01f00c00 0x400>;
 			interrupts = <GIC_SPI 32 IRQ_TYPE_LEVEL_HIGH>;
+		};
+
+		prcm@1f01400 {
+			compatible = "allwinner,sun8i-a83t-prcm";
+			reg = <0x1f01400 0x200>;
 		};
 
 		r_ccu: clock@1f01400 {
