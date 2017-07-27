@@ -95,3 +95,5 @@ obj-$(CONFIG_VIDEO_QCOM_CAMSS)		+= qcom/camss-8x16/
 obj-$(CONFIG_VIDEO_QCOM_VENUS)		+= qcom/venus/
 
 obj-y					+= meson/
+
+obj-$(CONFIG_VIDEO_SUN6I_CSI)		+= sun6i-csi/
