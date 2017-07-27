@@ -89,6 +89,7 @@ struct axp20x_pctl {
 	unsigned int				ngroups;
 	struct axp20x_pinctrl_function		*functions;
 	unsigned int				nfunctions;
+	unsigned int				gpio_status_offset;
 };
 
 static const struct axp20x_desc_pin axp209_pins[] = {
@@ -127,7 +128,7 @@ static int axp20x_gpio_get(struct gpio_chip *chip, unsigned offset)
 	if (ret)
 		return ret;
 
-	return !!(val & BIT(offset + 4));
+	return !!(val & BIT(offset + pctl->gpio_status_offset));
 }
 
 static int axp20x_gpio_get_direction(struct gpio_chip *chip, unsigned offset)
@@ -510,6 +511,7 @@ static int axp20x_pctl_probe(struct platform_device *pdev)
 	pctl->regmap = axp20x->regmap;
 
 	pctl->desc = &axp20x_pinctrl_data;
+	pctl->gpio_status_offset = 4;
 	pctl->dev = &pdev->dev;
 
 	platform_set_drvdata(pdev, pctl);
