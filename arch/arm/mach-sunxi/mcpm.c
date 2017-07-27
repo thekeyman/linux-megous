@@ -43,17 +43,23 @@
 #define CPUCFG_CX_RST_CTRL_L2_RST	BIT(8)
 #define CPUCFG_CX_RST_CTRL_CX_RST(n)	BIT(4 + (n))
 #define CPUCFG_CX_RST_CTRL_CORE_RST(n)	BIT(n)
+#define CPUCFG_CX_RST_CTRL_CORE_RST_ALL	(0xf << 0)
 
 #define PRCM_CPU_PO_RST_CTRL(c)		(0x4 + 0x4 * (c))
 #define PRCM_CPU_PO_RST_CTRL_CORE(n)	BIT(n)
 #define PRCM_CPU_PO_RST_CTRL_CORE_ALL	0xf
+
+#define R_CPUCFG_CLUSTER_PO_RST_CTRL(c)	(0x30 + (c) * 0x4)
+#define R_CPUCFG_CLUSTER_PO_RST_CTRL_CORE(n)	BIT(n)
+#define R_CPUCFG_CPU_SOFT_ENTRY_REG	0x01a4
+
 #define PRCM_PWROFF_GATING_REG(c)	(0x100 + 0x4 * (c))
-#define PRCM_PWROFF_GATING_REG_CLUSTER	BIT(4)
+#define PRCM_PWROFF_GATING_REG_CLUSTER	BIT(0)
 #define PRCM_PWROFF_GATING_REG_CORE(n)	BIT(n)
 #define PRCM_PWR_SWITCH_REG(c, cpu)	(0x140 + 0x10 * (c) + 0x4 * (cpu))
-#define PRCM_CPU_SOFT_ENTRY_REG		0x164
 
 static void __iomem *cpucfg_base;
+static void __iomem *r_cpucfg_base;
 static void __iomem *prcm_base;
 
 static int sunxi_cpu_power_switch_set(unsigned int cpu, unsigned int cluster,
@@ -100,6 +106,11 @@ static int sunxi_cpu_powerup(unsigned int cpu, unsigned int cluster)
 	reg = readl(prcm_base + PRCM_CPU_PO_RST_CTRL(cluster));
 	reg &= ~PRCM_CPU_PO_RST_CTRL_CORE(cpu);
 	writel(reg, prcm_base + PRCM_CPU_PO_RST_CTRL(cluster));
+	/* assert cpu power-on reset FROM ALLWINNER */
+	reg  = readl(r_cpucfg_base + R_CPUCFG_CLUSTER_PO_RST_CTRL(cluster));
+	reg &= ~(R_CPUCFG_CLUSTER_PO_RST_CTRL_CORE(cpu));
+	writel(reg, r_cpucfg_base + R_CPUCFG_CLUSTER_PO_RST_CTRL(cluster));
+	udelay(10);
 
 	/* Cortex-A7: hold L1 reset disable signal low */
 	if (!(of_machine_is_compatible("allwinner,sun9i-a80") &&
@@ -126,16 +137,28 @@ static int sunxi_cpu_powerup(unsigned int cpu, unsigned int cluster)
 	/* open power switch */
 	sunxi_cpu_power_switch_set(cpu, cluster, true);
 
+	/* Added by ALLWINNER to handle A83T bit swap */
+	if (cpu == 0)
+		cpu = 4;
+
 	/* clear processor power gate */
 	reg = readl(prcm_base + PRCM_PWROFF_GATING_REG(cluster));
 	reg &= ~PRCM_PWROFF_GATING_REG_CORE(cpu);
 	writel(reg, prcm_base + PRCM_PWROFF_GATING_REG(cluster));
 	udelay(20);
 
+	if (cpu == 4)
+		cpu = 0;
+
 	/* de-assert processor power-on reset */
 	reg = readl(prcm_base + PRCM_CPU_PO_RST_CTRL(cluster));
 	reg |= PRCM_CPU_PO_RST_CTRL_CORE(cpu);
 	writel(reg, prcm_base + PRCM_CPU_PO_RST_CTRL(cluster));
+
+	reg  = readl(r_cpucfg_base + R_CPUCFG_CLUSTER_PO_RST_CTRL(cluster));
+	reg |= R_CPUCFG_CLUSTER_PO_RST_CTRL_CORE(cpu);
+	writel(reg, r_cpucfg_base + R_CPUCFG_CLUSTER_PO_RST_CTRL(cluster));
+	udelay(10);
 
 	/* de-assert all processor resets */
 	reg = readl(cpucfg_base + CPUCFG_CX_RST_CTRL(cluster));
@@ -160,6 +183,12 @@ static int sunxi_cluster_powerup(unsigned int cluster)
 	if (cluster >= SUNXI_NR_CLUSTERS)
 		return -EINVAL;
 
+	/* assert cluster cores resets */
+	reg = readl(cpucfg_base + CPUCFG_CX_RST_CTRL(cluster));
+	reg &= ~CPUCFG_CX_RST_CTRL_CORE_RST_ALL;   /* Core Reset    */
+	writel(reg, cpucfg_base + CPUCFG_CX_RST_CTRL(cluster));
+	udelay(10);
+
 	/* assert ACINACTM */
 	reg = readl(cpucfg_base + CPUCFG_CX_CTRL_REG1(cluster));
 	reg |= CPUCFG_CX_CTRL_REG1_ACINACTM;
@@ -169,6 +198,12 @@ static int sunxi_cluster_powerup(unsigned int cluster)
 	reg = readl(prcm_base + PRCM_CPU_PO_RST_CTRL(cluster));
 	reg &= ~PRCM_CPU_PO_RST_CTRL_CORE_ALL;
 	writel(reg, prcm_base + PRCM_CPU_PO_RST_CTRL(cluster));
+
+	/* assert cluster cores resets */
+	reg  = readl(r_cpucfg_base + R_CPUCFG_CLUSTER_PO_RST_CTRL(cluster));
+	reg &= ~CPUCFG_CX_RST_CTRL_CORE_RST_ALL;
+	writel(reg, r_cpucfg_base + R_CPUCFG_CLUSTER_PO_RST_CTRL(cluster));
+	udelay(10);
 
 	/* assert cluster resets */
 	reg = readl(cpucfg_base + CPUCFG_CX_RST_CTRL(cluster));
@@ -327,8 +362,8 @@ static void __naked sunxi_power_up_setup(unsigned int affinity_level)
 
 static void sunxi_mcpm_setup_entry_point(void)
 {
-	__raw_writel(virt_to_phys(mcpm_entry_point),
-		     prcm_base + PRCM_CPU_SOFT_ENTRY_REG);
+	__raw_writel(virt_to_phys(mcpm_entry_point), r_cpucfg_base +
+		     R_CPUCFG_CPU_SOFT_ENTRY_REG);
 }
 
 static int __init sunxi_mcpm_init(void)
@@ -336,14 +371,14 @@ static int __init sunxi_mcpm_init(void)
 	struct device_node *node;
 	int ret;
 
-	if (!of_machine_is_compatible("allwinner,sun9i-a80"))
+	if (!of_machine_is_compatible("allwinner,sun8i-a83t"))
 		return -ENODEV;
 
 	if (!cci_probed())
 		return -ENODEV;
 
 	node = of_find_compatible_node(NULL, NULL,
-			"allwinner,sun9i-a80-cpucfg");
+			"allwinner,sun8i-a83t-cpucfg");
 	if (!node)
 		return -ENODEV;
 
@@ -355,7 +390,18 @@ static int __init sunxi_mcpm_init(void)
 	}
 
 	node = of_find_compatible_node(NULL, NULL,
-			"allwinner,sun9i-a80-prcm");
+			"allwinner,sun8i-a83t-r-cpucfg");
+	if (!node)
+		return -ENODEV;
+	r_cpucfg_base = of_iomap(node, 0);
+
+	of_node_put(node);
+	if (!r_cpucfg_base) {
+		pr_err("%s: failed to map R-CPUCFG registers\n", __func__);
+		return -ENOMEM;
+	}
+
+	node = of_find_compatible_node(NULL, NULL, "allwinner,sun8i-a83t-prcm");
 	if (!node)
 		return -ENODEV;
 
