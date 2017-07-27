@@ -51,6 +51,12 @@
 	interrupt-controller;
 	#interrupt-cells = <1>;
 
+	axp_pctl: axp_pctl {
+		compatible = "x-powers,axp813-pctl";
+		gpio-controller;
+		#gpio-cells = <2>;
+	};
+
 	battery_power_supply: battery-power-supply {
 		compatible = "x-powers,axp813-battery-power-supply";
 	};
