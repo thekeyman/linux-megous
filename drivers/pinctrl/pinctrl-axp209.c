@@ -524,7 +524,6 @@ static int axp20x_pctl_probe(struct platform_device *pdev)
 	pctl->chip.set			= axp20x_gpio_set;
 	pctl->chip.direction_input	= axp20x_gpio_input;
 	pctl->chip.direction_output	= axp20x_gpio_output;
-	pctl->chip.ngpio		= 3;
 
 	pctl->regmap = axp20x->regmap;
 
@@ -536,6 +535,7 @@ static int axp20x_pctl_probe(struct platform_device *pdev)
 		pctl->gpio_status_offset = 0;
 	}
 	pctl->dev = &pdev->dev;
+	pctl->chip.ngpio = pctl->desc->npins;
 
 	platform_set_drvdata(pdev, pctl);
 
