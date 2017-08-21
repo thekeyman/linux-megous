@@ -14,7 +14,7 @@ sun4i-tcon-y += sun4i_crtc.o
 
 sun4i-backend-y += sun4i_backend.o sun4i_layer.o
 
-sun8i-mixer-y += sun8i_mixer.o sun8i_layer.o
+sun8i-mixer-y += sun8i_mixer.o sun8i_ui.o
 
 obj-$(CONFIG_DRM_SUN4I)		+= sun4i-drm.o sun4i-tcon.o
 obj-$(CONFIG_DRM_SUN4I)		+= sun6i_drc.o
