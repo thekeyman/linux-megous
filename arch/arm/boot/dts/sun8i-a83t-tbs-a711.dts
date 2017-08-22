@@ -324,7 +324,6 @@
 &reg_sw {
 	regulator-min-microvolt = <3100000>;
 	regulator-max-microvolt = <3100000>;
-	regulator-always-on;
 	regulator-name = "vcc-lcd";
 };
 
