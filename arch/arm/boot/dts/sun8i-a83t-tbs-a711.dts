@@ -161,6 +161,17 @@
 	pinctrl-0 = <&i2c0_pins>;
 	clock-frequency = <400000>;
 	status = "okay";
+
+	polytouch: edt-ft5x06@38 {
+		compatible = "edt,edt-ft5x06";
+		reg = <0x38>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&lcd0_pins>;
+		interrupt-parent = <&r_pio>;
+		interrupts = <0 7 IRQ_TYPE_EDGE_FALLING>;
+		reset-gpios = <&pio 3 5 GPIO_ACTIVE_LOW>;
+		power-supply = <&reg_ldo_io0>;
+	};
 };
 
 &mmc0 {
