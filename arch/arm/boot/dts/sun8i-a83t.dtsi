@@ -468,6 +468,11 @@
 			#interrupt-cells = <3>;
 			#gpio-cells = <3>;
 
+			i2c0_pins: i2c0-pins {
+				pins = "PH0", "PH1";
+				function = "i2c0";
+			};
+
 			lcd_lvds_pins: lcd-lvds-pins {
 				pins = "PD18", "PD19", "PD20", "PD21", "PD22",
 				       "PD23", "PD24", "PD25", "PD26", "PD27";
