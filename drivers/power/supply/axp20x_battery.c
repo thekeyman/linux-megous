@@ -47,6 +47,11 @@
 #define AXP20X_CHRG_CTRL1_TGT_4_36V	(3 << 5)
 
 #define AXP813_CHRG_CTRL1_TGT_4_35V	(3 << 5)
+/* TODO Check if that bit is present in other PMICs */
+#define AXP813_CHRG_CTRL1_CHRG_ENABLED	BIT(7)
+#define AXP813_OFF_CTRL_CHGLED_DIRECT_CONTROL	GENMASK(5, 4)
+#define AXP813_OFF_CTRL_CHGLED_CONTROL	BIT(3)
+#define AXP813_CHRG_CTRL2_CHGLED_TYPE	BIT(4)
 
 #define AXP22X_CHRG_CTRL1_TGT_4_22V	(1 << 5)
 #define AXP22X_CHRG_CTRL1_TGT_4_24V	(3 << 5)
@@ -489,6 +494,216 @@ static int axp20x_battery_prop_writeable(struct power_supply *psy,
 	       psp == POWER_SUPPLY_PROP_CONSTANT_CHARGE_CURRENT_MAX;
 }
 
+/* TODO Check if it is in more AXP variants */
+static ssize_t axp813_get_charger_enabled(struct device *dev,
+        struct device_attribute *attr,
+        char *buf)
+{
+	int reg, ret;
+
+	struct power_supply *psy = dev_get_drvdata(dev);
+	struct axp20x_batt_ps *axp20x_batt = power_supply_get_drvdata(psy);
+
+	ret = regmap_read(axp20x_batt->regmap, AXP20X_CHRG_CTRL1, &reg);
+	if (ret)
+		return ret;
+
+	return sprintf(buf, "%d\n",
+		!!(reg & AXP813_CHRG_CTRL1_CHRG_ENABLED));
+}
+
+static ssize_t axp813_set_charger_enabled(struct device *dev,
+	struct device_attribute *attr,
+	const char *buf,
+	size_t count)
+{
+	int ret;
+	u8 val;
+
+	struct power_supply *psy = dev_get_drvdata(dev);
+	struct axp20x_batt_ps *axp20x_batt = power_supply_get_drvdata(psy);
+
+	ret = kstrtou8(buf, 0, &val);
+	if (ret < 0)
+		return ret;
+
+	if ((val != 0) && (val != 1)) {
+		dev_err(dev, "mas to blbe\n");
+		return -EINVAL;
+	}
+
+	ret = regmap_update_bits(axp20x_batt->regmap, AXP20X_CHRG_CTRL1,
+				 AXP813_CHRG_CTRL1_CHRG_ENABLED,
+				 val ? AXP813_CHRG_CTRL1_CHRG_ENABLED : 0);
+	if (ret < 0)
+		return ret;
+
+	return count;
+}
+
+/* Charging led */
+static ssize_t axp813_get_chgled_control(struct device *dev,
+        struct device_attribute *attr,
+        char *buf)
+{
+	int reg, ret;
+
+	struct power_supply *psy = dev_get_drvdata(dev);
+	struct axp20x_batt_ps *axp20x_batt = power_supply_get_drvdata(psy);
+
+	ret = regmap_read(axp20x_batt->regmap, AXP20X_OFF_CTRL, &reg);
+	if (ret)
+		return ret;
+
+	return sprintf(buf, "%d\n",
+		!!(reg & AXP813_OFF_CTRL_CHGLED_CONTROL));
+}
+
+static ssize_t axp813_set_chgled_control(struct device *dev,
+	struct device_attribute *attr,
+	const char *buf,
+	size_t count)
+{
+	int ret;
+	u8 val;
+
+	struct power_supply *psy = dev_get_drvdata(dev);
+	struct axp20x_batt_ps *axp20x_batt = power_supply_get_drvdata(psy);
+
+	ret = kstrtou8(buf, 0, &val);
+	if (ret < 0)
+		return ret;
+
+	if ((val != 0) && (val != 1)) {
+		dev_err(dev, "mas to blbe\n");
+		return -EINVAL;
+	}
+
+	ret = regmap_update_bits(axp20x_batt->regmap, AXP20X_OFF_CTRL,
+				 AXP813_OFF_CTRL_CHGLED_CONTROL,
+				 val ? AXP813_OFF_CTRL_CHGLED_CONTROL : 0);
+	if (ret < 0)
+		return ret;
+
+	return count;
+}
+
+static ssize_t axp813_get_chgled_direct_control(struct device *dev,
+        struct device_attribute *attr,
+        char *buf)
+{
+	int reg, ret;
+
+	struct power_supply *psy = dev_get_drvdata(dev);
+	struct axp20x_batt_ps *axp20x_batt = power_supply_get_drvdata(psy);
+
+	ret = regmap_read(axp20x_batt->regmap, AXP20X_OFF_CTRL, &reg);
+	if (ret)
+		return ret;
+
+	return sprintf(buf, "%lu\n",
+		(reg & AXP813_OFF_CTRL_CHGLED_DIRECT_CONTROL) >> 4);
+}
+
+static ssize_t axp813_set_chgled_direct_control(struct device *dev,
+	struct device_attribute *attr,
+	const char *buf,
+	size_t count)
+{
+	int ret;
+	u8 val;
+
+	struct power_supply *psy = dev_get_drvdata(dev);
+	struct axp20x_batt_ps *axp20x_batt = power_supply_get_drvdata(psy);
+
+	ret = kstrtou8(buf, 0, &val);
+	if (ret < 0)
+		return ret;
+
+	if (val > 4) {
+		dev_err(dev, "mas to blbe\n");
+		return -EINVAL;
+	}
+
+	ret = regmap_update_bits(axp20x_batt->regmap, AXP20X_OFF_CTRL,
+				 AXP813_OFF_CTRL_CHGLED_DIRECT_CONTROL,
+				 val << 4);
+	if (ret < 0)
+		return ret;
+
+	return count;
+}
+
+/*
+#define AXP813_CHRG_CTRL2_CHGLED_TYPE	BIT(4)
+*/
+static ssize_t axp813_get_chgled_type(struct device *dev,
+        struct device_attribute *attr,
+        char *buf)
+{
+	int reg, ret;
+
+	struct power_supply *psy = dev_get_drvdata(dev);
+	struct axp20x_batt_ps *axp20x_batt = power_supply_get_drvdata(psy);
+
+	ret = regmap_read(axp20x_batt->regmap, AXP20X_CHRG_CTRL2, &reg);
+	if (ret)
+		return ret;
+
+	return sprintf(buf, "%d\n",
+		!!(reg & AXP813_CHRG_CTRL2_CHGLED_TYPE));
+}
+
+static ssize_t axp813_set_chgled_type(struct device *dev,
+	struct device_attribute *attr,
+	const char *buf,
+	size_t count)
+{
+	int ret;
+	u8 val;
+
+	struct power_supply *psy = dev_get_drvdata(dev);
+	struct axp20x_batt_ps *axp20x_batt = power_supply_get_drvdata(psy);
+
+	ret = kstrtou8(buf, 0, &val);
+	if (ret < 0)
+		return ret;
+
+	if ((val != 0) && (val != 1)) {
+		dev_err(dev, "mas to blbe\n");
+		return -EINVAL;
+	}
+
+	ret = regmap_update_bits(axp20x_batt->regmap, AXP20X_CHRG_CTRL2,
+				 AXP813_CHRG_CTRL2_CHGLED_TYPE,
+				 val ? AXP813_CHRG_CTRL2_CHGLED_TYPE : 0);
+	if (ret < 0)
+		return ret;
+
+	return count;
+}
+
+static DEVICE_ATTR(charger_enabled, S_IRUGO | S_IWUSR, axp813_get_charger_enabled,
+	axp813_set_charger_enabled);
+static DEVICE_ATTR(chgled_control, S_IRUGO | S_IWUSR, axp813_get_chgled_control,
+	axp813_set_chgled_control);
+static DEVICE_ATTR(chgled_type, S_IRUGO | S_IWUSR, axp813_get_chgled_type,
+	axp813_set_chgled_type);
+static DEVICE_ATTR(chgled_direct_control, S_IRUGO | S_IWUSR,
+	axp813_get_chgled_direct_control, axp813_set_chgled_direct_control);
+
+static struct attribute *axp20x_attributes[] = {
+	&dev_attr_charger_enabled.attr,
+	&dev_attr_chgled_control.attr,
+	&dev_attr_chgled_type.attr,
+	&dev_attr_chgled_direct_control.attr,
+	NULL
+};
+
+static const struct attribute_group axp20x_attr_group = {
+	.attrs = axp20x_attributes,
+};
+
 static const struct power_supply_desc axp20x_batt_ps_desc = {
 	.name = "axp20x-battery",
 	.type = POWER_SUPPLY_TYPE_BATTERY,
@@ -518,6 +733,7 @@ static int axp20x_power_probe(struct platform_device *pdev)
 	struct axp20x_batt_ps *axp20x_batt;
 	struct power_supply_config psy_cfg = {};
 	struct power_supply_battery_info info;
+	int ret;
 
 	if (!of_device_is_available(pdev->dev.of_node))
 		return -ENODEV;
@@ -567,6 +783,13 @@ static int axp20x_power_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "failed to register power supply: %ld\n",
 			PTR_ERR(axp20x_batt->batt));
 		return PTR_ERR(axp20x_batt->batt);
+	}
+
+	/* FIXME This is never freed and ret code is almost ignored */
+	ret = sysfs_create_group(&axp20x_batt->batt->dev.kobj,
+		&axp20x_attr_group);
+	if (ret) {
+		dev_err(&pdev->dev, "failed to create sysfs group\n");
 	}
 
 	if (!power_supply_get_battery_info(axp20x_batt->batt, &info)) {
