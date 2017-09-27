@@ -178,6 +178,24 @@
 	pinctrl-0 = <&i2c1_pins>;
 	clock-frequency = <400000>;
 	status = "okay";
+
+	bma250@18 {
+		compatible = "bosch,bma250";
+		reg = <0x18>;
+		/* TODO configure interrupt */
+	};
+
+	ltr501@23 {
+		compatible = "liteon,ltr501";
+		reg = <0x23>;
+		/* TODO configure interrupt */
+	};
+
+	ak8963@0d {
+		compatible = "asahi-kasei,ak8963";
+		reg = <0x0d>;
+		/* TODO configure interrupt */
+	};
 };
 
 &mmc0 {
