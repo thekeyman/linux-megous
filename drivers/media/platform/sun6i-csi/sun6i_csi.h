@@ -58,6 +58,7 @@ struct sun6i_csi {
 	struct list_head		entities;
 	unsigned int			num_subdevs;
 	struct v4l2_async_notifier	notifier;
+	bool 				notifier_registered;
 
 	/* video port settings */
 	struct v4l2_fwnode_endpoint	v4l2_ep;

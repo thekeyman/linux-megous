@@ -413,7 +413,10 @@ static void sun6i_graph_cleanup(struct sun6i_csi *csi)
 	struct sun6i_graph_entity *entityp;
 	struct sun6i_graph_entity *entity;
 
-	v4l2_async_notifier_unregister(&csi->notifier);
+	if (csi->notifier_registered) {
+		v4l2_async_notifier_unregister(&csi->notifier);
+		csi->notifier_registered = false;
+	}
 
 	list_for_each_entry_safe(entity, entityp, &csi->entities, list) {
 		of_node_put(entity->node);
@@ -464,6 +467,8 @@ static int sun6i_graph_init(struct sun6i_csi *csi)
 		dev_err(csi->dev, "notifier registration failed\n");
 		goto done;
 	}
+
+	csi->notifier_registered = true;
 
 	ret = 0;
 
