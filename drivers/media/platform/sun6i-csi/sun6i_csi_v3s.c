@@ -23,6 +23,7 @@
 #include <linux/ioctl.h>
 #include <linux/module.h>
 #include <linux/of.h>
+#include <linux/of_device.h>
 #include <linux/platform_device.h>
 #include <linux/pm_runtime.h>
 #include <linux/regmap.h>
@@ -36,9 +37,15 @@
 
 #define MODULE_NAME	"sun6i-csi"
 
+struct sun6i_csi_cfg {
+	bool has_bt1120_if;
+	bool has_16bit_yuv422_if;
+};
+
 struct sun6i_csi_dev {
 	struct sun6i_csi		csi;
 	struct device			*dev;
+	const struct sun6i_csi_cfg	*cfg;
 
 	struct regmap			*regmap;
 	struct clk			*clk_ahb;
@@ -781,6 +788,7 @@ static int sun6i_csi_probe(struct platform_device *pdev)
 		return -ENOMEM;
 
 	sdev->dev = &pdev->dev;
+	sdev->cfg = of_device_get_match_data(&pdev->dev);
 
 	ret = sun6i_csi_resource_request(sdev, pdev);
 	if (ret)
@@ -806,8 +814,19 @@ static int sun6i_csi_remove(struct platform_device *pdev)
 	return 0;
 }
 
+static const struct sun6i_csi_cfg sun8i_v3s_cfg = {
+	.has_bt1120_if = true,
+	.has_16bit_yuv422_if = true,
+};
+
+static const struct sun6i_csi_cfg sun8i_a83t_cfg = {
+	.has_bt1120_if = false,
+	.has_16bit_yuv422_if = false,
+};
+
 static const struct of_device_id sun6i_csi_of_match[] = {
-	{ .compatible = "allwinner,sun8i-v3s-csi", },
+	{ .compatible = "allwinner,sun8i-v3s-csi", .data = &sun8i_v3s_cfg },
+	{ .compatible = "allwinner,sun8i-a83t-csi", .data = &sun8i_a83t_cfg },
 	{},
 };
 MODULE_DEVICE_TABLE(of, sun6i_csi_of_match);
