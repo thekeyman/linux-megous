@@ -67,6 +67,15 @@
 		default-brightness-level = <9>;
 	};
 
+	i2c_gpio: i2c-gpio {
+		compatible = "i2c-gpio";
+		gpios = <&pio 4 15 GPIO_ACTIVE_HIGH>, /* PE15, sda */
+			<&pio 4 14 GPIO_ACTIVE_HIGH>; /* PE14, scl */
+		i2c-gpio,delay-us = <1>;	/* ~100 kHz */
+		#address-cells = <1>;
+		#size-cells = <0>;
+	};
+
 	panel {
 		compatible = "tbs,a711-panel", "panel-lvds";
 		backlight = <&backlight>;
