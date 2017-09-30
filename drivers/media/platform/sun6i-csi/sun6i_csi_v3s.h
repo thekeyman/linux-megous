@@ -38,6 +38,7 @@
 #define CSI_IF_CFG_CLK_POL_MASK			BIT(16)
 #define CSI_IF_CFG_CLK_POL_RISING_EDGE		((0 << 16) & CSI_IF_CFG_CLK_POL_MASK)
 #define CSI_IF_CFG_CLK_POL_FALLING_EDGE		((1 << 16) & CSI_IF_CFG_CLK_POL_MASK)
+//megi: A83T does haveg GENMASK(9, 8) and fewer options, though it is compatible
 #define CSI_IF_CFG_IF_DATA_WIDTH_MASK		GENMASK(10, 8)
 #define CSI_IF_CFG_IF_DATA_WIDTH_8BIT		((0 << 8) & CSI_IF_CFG_IF_DATA_WIDTH_MASK)
 #define CSI_IF_CFG_IF_DATA_WIDTH_10BIT		((1 << 8) & CSI_IF_CFG_IF_DATA_WIDTH_MASK)
@@ -47,8 +48,10 @@
 #define CSI_IF_CFG_MIPI_IF_MIPI			(1 << 7)
 #define CSI_IF_CFG_CSI_IF_MASK			GENMASK(4, 0)
 #define CSI_IF_CFG_CSI_IF_YUV422_INTLV		((0 << 0) & CSI_IF_CFG_CSI_IF_MASK)
+//megi: not supported by A83T:
 #define CSI_IF_CFG_CSI_IF_YUV422_16BIT		((1 << 0) & CSI_IF_CFG_CSI_IF_MASK)
 #define CSI_IF_CFG_CSI_IF_BT656			((4 << 0) & CSI_IF_CFG_CSI_IF_MASK)
+//megi: not supported by A83T:
 #define CSI_IF_CFG_CSI_IF_BT1120		((5 << 0) & CSI_IF_CFG_CSI_IF_MASK)
 
 #define CSI_CAP_REG			0x8
@@ -59,11 +62,13 @@
 
 #define CSI_SYNC_CNT_REG		0xc
 #define CSI_FIFO_THRS_REG		0x10
+//megi: missing from A83T docs: (BT656 muti-channel mode not supported?)
 #define CSI_BT656_HEAD_CFG_REG		0x14
 #define CSI_PTN_LEN_REG			0x30
 #define CSI_PTN_ADDR_REG		0x34
 #define CSI_VER_REG			0x3c
 
+//megi: called CSI0_C0_* in A83T
 #define CSI_CH_CFG_REG			0x44
 #define CSI_CH_CFG_INPUT_FMT_MASK		GENMASK(23, 20)
 #define CSI_CH_CFG_INPUT_FMT(fmt)		((fmt << 20) & CSI_CH_CFG_INPUT_FMT_MASK)
@@ -87,6 +92,7 @@
 
 #define CSI_CH_F2_BUFA_REG		0x60
 
+//megi: called CAP_STA register in A83T manual
 #define CSI_CH_STA_REG			0x6c
 #define CSI_CH_STA_FIELD_STA_MASK		BIT(2)
 #define CSI_CH_STA_FIELD_STA_FIELD0		((0 << 2) & CSI_CH_STA_FIELD_STA_MASK)
@@ -167,6 +173,10 @@ enum csi_output_fmt
 	CSI_FIELD_RGB565		= 4,
 	CSI_FIELD_RGB888		= 5,
 	CSI_FIELD_PRGB888		= 6,
+
+	//megi: A83T only
+	CSI_FIELD_UV_COMBINED		= 7,
+
 	CSI_FRAME_RAW_8			= 8,
 	CSI_FRAME_RAW_10		= 9,
 	CSI_FRAME_RAW_12		= 10,
@@ -174,7 +184,12 @@ enum csi_output_fmt
 	CSI_FRAME_RGB888		= 13,
 	CSI_FRAME_PRGB888		= 14,
 
+	//megi: A83T only
+	CSI_FRAME_UV_COMBINED		= 15,
+
 	/* only when input format is YUV422/YUV420 */
+	//megi: when input format is 420, only 420 output formats are available
+	//from below
 	CSI_FIELD_PLANAR_YUV422		= 0,
 	CSI_FIELD_PLANAR_YUV420		= 1,
 	CSI_FRAME_PLANAR_YUV420		= 2,
