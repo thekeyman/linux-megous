@@ -46,17 +46,20 @@ struct sun6i_csi_ops {
 };
 
 struct sun6i_csi {
-	struct device			*dev;
 	struct v4l2_device		v4l2_dev;
-	struct media_device		media_dev;
 	struct v4l2_async_notifier	notifier;
 	struct video_device		vdev;
+	struct media_device		media_dev;
 	struct media_pad		pad;
+	struct device			*dev;
 
 	struct v4l2_subdev *subdev; // XXX:???
 
 	/* video port settings */
-	struct v4l2_fwnode_endpoint	v4l2_ep;
+	u32 bus_type;
+	u32 bus_width;
+	u32 bus_flags;
+
 	struct sun6i_csi_ops		*ops;
 
 	struct mutex			lock;

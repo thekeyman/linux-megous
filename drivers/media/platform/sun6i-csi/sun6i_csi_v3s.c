@@ -97,10 +97,12 @@ static bool __is_format_support(struct sun6i_csi_dev *sdev,
 	 * Some video receiver have capability both 8bit and 16bit.
 	 * Identify the media bus format from device tree.
 	 */
-	if (((sdev->csi.v4l2_ep.bus_type == V4L2_MBUS_PARALLEL
-	      || sdev->csi.v4l2_ep.bus_type == V4L2_MBUS_BT656)
-	     && sdev->csi.v4l2_ep.bus.parallel.bus_width == 16)
-	    || sdev->csi.v4l2_ep.bus_type == V4L2_MBUS_CSI2) {
+	if (((sdev->csi.bus_type == V4L2_MBUS_PARALLEL
+	      || sdev->csi.bus_type == V4L2_MBUS_BT656)
+	     && sdev->csi.bus_width == 16)) {
+#if 0
+	    || sdev->csi.bus_type == V4L2_MBUS_CSI2) {
+#endif
 		switch (fourcc) {
 		case V4L2_PIX_FMT_HM12:
 		case V4L2_PIX_FMT_NV12:
@@ -390,12 +392,9 @@ static void sun6i_csi_dump_regs(struct sun6i_csi_dev *sdev)
 
 static void sun6i_csi_setup_bus(struct sun6i_csi_dev *sdev)
 {
-	struct v4l2_fwnode_endpoint *endpoint = &sdev->csi.v4l2_ep;
-	unsigned char bus_width;
-	u32 flags;
+	unsigned char bus_width = sdev->csi.bus_width;
+	u32 flags = sdev->csi.bus_flags;
 	u32 cfg;
-
-	bus_width = endpoint->bus.parallel.bus_width;
 
 	regmap_read(sdev->regmap, CSI_IF_CFG_REG, &cfg);
 
@@ -404,14 +403,14 @@ static void sun6i_csi_setup_bus(struct sun6i_csi_dev *sdev)
 		 CSI_IF_CFG_CLK_POL_MASK | CSI_IF_CFG_VREF_POL_MASK |
 		 CSI_IF_CFG_HREF_POL_MASK | CSI_IF_CFG_FIELD_MASK);
 
-	switch (endpoint->bus_type) {
+	switch (sdev->csi.bus_type) {
+#if 0
 	case V4L2_MBUS_CSI2:
 		cfg |= CSI_IF_CFG_MIPI_IF_MIPI;
 		break;
+#endif
 	case V4L2_MBUS_PARALLEL:
 		cfg |= CSI_IF_CFG_MIPI_IF_CSI;
-
-		flags = endpoint->bus.parallel.flags;
 
 		cfg |= (bus_width == 16) ? CSI_IF_CFG_CSI_IF_YUV422_16BIT :
 					   CSI_IF_CFG_CSI_IF_YUV422_INTLV;
@@ -429,8 +428,6 @@ static void sun6i_csi_setup_bus(struct sun6i_csi_dev *sdev)
 		break;
 	case V4L2_MBUS_BT656:
 		cfg |= CSI_IF_CFG_MIPI_IF_CSI;
-
-		flags = endpoint->bus.parallel.flags;
 
 		cfg |= (bus_width == 16) ? CSI_IF_CFG_CSI_IF_BT1120 :
 					   CSI_IF_CFG_CSI_IF_BT656;

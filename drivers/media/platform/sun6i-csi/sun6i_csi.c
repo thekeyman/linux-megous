@@ -741,9 +741,10 @@ static int sun6i_csi_parse_subdev_endpoint(struct device *dev,
 	switch (vep->bus_type) {
 	case V4L2_MBUS_PARALLEL:
 		dev_dbg(csi->dev, "Found PARALLEL media bus endpoint\n");
-		//XXX: not entirely cosher (see link_frequencies, dynamically
-		//allocated, but we are not using this)
-		csi->v4l2_ep = *vep;
+
+		csi->bus_type = vep->bus_type;
+		csi->bus_width = vep->bus.parallel.bus_width;
+		csi->bus_flags = vep->bus.parallel.flags;
 		return 0;
 	default:
 		dev_err(csi->dev, "Unsupported media bus type\n");
