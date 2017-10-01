@@ -13,6 +13,8 @@
  * GNU General Public License for more details.
  */
 
+#define DEBUG
+
 #include <linux/clk.h>
 #include <linux/delay.h>
 #include <linux/dma-mapping.h>
@@ -32,7 +34,7 @@
 #include <linux/sizes.h>
 #include <linux/slab.h>
 
-#include "sun6i_csi.h"
+#include "sun6i_video.h"
 #include "sun6i_csi_v3s.h"
 
 #define MODULE_NAME	"sun6i-csi"
@@ -775,6 +777,7 @@ static int sun6i_csi_resource_request(struct sun6i_csi_dev *sdev,
 		dev_err(&pdev->dev, "Cannot request csi IRQ\n");
 		return ret;
 	}
+
 	return 0;
 }
 
@@ -782,6 +785,8 @@ static int sun6i_csi_probe(struct platform_device *pdev)
 {
 	struct sun6i_csi_dev *sdev;
 	int ret;
+
+	return -EINVAL;
 
 	sdev = devm_kzalloc(&pdev->dev, sizeof(*sdev), GFP_KERNEL);
 	if (!sdev)
@@ -794,13 +799,13 @@ static int sun6i_csi_probe(struct platform_device *pdev)
 	if (ret)
 		return ret;
 
+	platform_set_drvdata(pdev, sdev);
+
 	sdev->csi.dev = &pdev->dev;
 	sdev->csi.ops = &csi_ops;
 	ret = sun6i_csi_init(&sdev->csi);
 	if (ret)
 		return ret;
-
-	platform_set_drvdata(pdev, sdev);
 
 	return 0;
 }

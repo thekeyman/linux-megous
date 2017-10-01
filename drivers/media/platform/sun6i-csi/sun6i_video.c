@@ -13,6 +13,8 @@
  * GNU General Public License for more details.
  */
 
+#define DEBUG
+
 #include <linux/of.h>
 
 #include <media/v4l2-device.h>
@@ -21,7 +23,6 @@
 #include <media/videobuf2-dma-contig.h>
 #include <media/videobuf2-v4l2.h>
 
-#include "sun6i_csi.h"
 #include "sun6i_video.h"
 
 struct sun6i_csi_buffer {
