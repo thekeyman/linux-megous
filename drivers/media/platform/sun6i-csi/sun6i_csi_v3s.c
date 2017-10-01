@@ -618,7 +618,7 @@ static int set_power(struct sun6i_csi *csi, bool enable)
 	return 0;
 }
 
-static int update_config(struct sun6i_csi *csi)
+static int apply_config(struct sun6i_csi *csi)
 {
 	struct sun6i_csi_dev *sdev = sun6i_csi_to_dev(csi);
 
@@ -677,7 +677,7 @@ static struct sun6i_csi_ops csi_ops = {
 	.get_supported_pixformats	= get_supported_pixformats,
 	.is_format_support		= is_format_support,
 	.s_power			= set_power,
-	.update_config			= update_config,
+	.apply_config			= apply_config,
 	.update_buf_addr		= update_buf_addr,
 	.s_stream			= set_stream,
 };

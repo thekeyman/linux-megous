@@ -40,7 +40,7 @@ struct sun6i_csi_ops {
 	bool (*is_format_support)(struct sun6i_csi *csi, u32 pixformat,
 				  u32 mbus_code);
 	int (*s_power)(struct sun6i_csi *csi, bool enable);
-	int (*update_config)(struct sun6i_csi *csi);
+	int (*apply_config)(struct sun6i_csi *csi);
 	int (*update_buf_addr)(struct sun6i_csi *csi, dma_addr_t addr);
 	int (*s_stream)(struct sun6i_csi *csi, bool enable);
 };
@@ -125,14 +125,14 @@ static inline int sun6i_csi_set_power(struct sun6i_csi *csi, bool enable)
 }
 
 /**
- * sun6i_csi_update_config() - update the csi register setttings
+ * sun6i_csi_apply_config() - apply the csi register setttings
  * @csi: 	pointer to the csi
  */
 static inline int
-sun6i_csi_update_config(struct sun6i_csi *csi)
+sun6i_csi_apply_config(struct sun6i_csi *csi)
 {
-	if (csi->ops != NULL && csi->ops->update_config != NULL)
-		return csi->ops->update_config(csi);
+	if (csi->ops != NULL && csi->ops->apply_config != NULL)
+		return csi->ops->apply_config(csi);
 
 	return -ENOIOCTLCMD;
 }

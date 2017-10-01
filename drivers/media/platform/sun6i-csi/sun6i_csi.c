@@ -152,9 +152,9 @@ static int sun6i_video_start_streaming(struct vb2_queue *vq, unsigned int count)
 	if (ret < 0)
 		goto err_start_stream;
 
-	ret = sun6i_csi_update_config(csi);
+	ret = sun6i_csi_apply_config(csi);
 	if (ret < 0)
-		goto err_update_config;
+		goto err_apply_config;
 
 	spin_lock_irqsave(&csi->dma_queue_lock, flags);
 	csi->cur_frm = list_first_entry(&csi->dma_queue,
@@ -174,7 +174,7 @@ static int sun6i_video_start_streaming(struct vb2_queue *vq, unsigned int count)
 
 err_csi_stream:
 err_update_addr:
-err_update_config:
+err_apply_config:
 	sun6i_pipeline_set_stream(csi, false);
 err_start_stream:
 	media_pipeline_stop(&csi->vdev.entity);
