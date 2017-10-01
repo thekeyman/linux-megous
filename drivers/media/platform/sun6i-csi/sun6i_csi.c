@@ -139,7 +139,6 @@ static int sun6i_video_start_streaming(struct vb2_queue *vq, unsigned int count)
 {
 	struct sun6i_csi *csi = vb2_get_drv_priv(vq);
 	struct sun6i_csi_buffer *buf;
-	struct sun6i_csi_config config;
 	unsigned long flags;
 	int ret;
 
@@ -153,13 +152,7 @@ static int sun6i_video_start_streaming(struct vb2_queue *vq, unsigned int count)
 	if (ret < 0)
 		goto err_start_stream;
 
-	config.pixelformat = csi->fmt.fmt.pix.pixelformat;
-	config.code = csi->current_fmt->mbus_code;
-	config.field = csi->fmt.fmt.pix.field;
-	config.width = csi->fmt.fmt.pix.width;
-	config.height = csi->fmt.fmt.pix.height;
-
-	ret = sun6i_csi_update_config(csi, &config);
+	ret = sun6i_csi_update_config(csi);
 	if (ret < 0)
 		goto err_update_config;
 

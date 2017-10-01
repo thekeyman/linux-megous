@@ -477,18 +477,18 @@ static void sun6i_csi_set_format(struct sun6i_csi_dev *sdev)
 		 CSI_CH_CFG_HFLIP_EN | CSI_CH_CFG_FIELD_SEL_MASK |
 		 CSI_CH_CFG_INPUT_SEQ_MASK);
 
-	val = get_csi_input_format(csi->config.code, csi->config.pixelformat);
+	val = get_csi_input_format(csi->current_fmt->mbus_code, csi->fmt.fmt.pix.pixelformat);
 	cfg |= CSI_CH_CFG_INPUT_FMT(val);
 
-	val = get_csi_output_format(csi->config.code, csi->config.field);
+	val = get_csi_output_format(csi->current_fmt->mbus_code, csi->fmt.fmt.pix.field);
 	cfg |= CSI_CH_CFG_OUTPUT_FMT(val);
 
-	val = get_csi_input_seq(csi->config.code, csi->config.pixelformat);
+	val = get_csi_input_seq(csi->current_fmt->mbus_code, csi->fmt.fmt.pix.pixelformat);
 	cfg |= CSI_CH_CFG_INPUT_SEQ(val);
 
-	if (csi->config.field == V4L2_FIELD_TOP)
+	if (csi->fmt.fmt.pix.field == V4L2_FIELD_TOP)
 		cfg |= CSI_CH_CFG_FIELD_SEL_FIELD0;
-	else if (csi->config.field == V4L2_FIELD_BOTTOM)
+	else if (csi->fmt.fmt.pix.field == V4L2_FIELD_BOTTOM)
 		cfg |= CSI_CH_CFG_FIELD_SEL_FIELD1;
 	else
 		cfg |= CSI_CH_CFG_FIELD_SEL_BOTH;
@@ -498,48 +498,51 @@ static void sun6i_csi_set_format(struct sun6i_csi_dev *sdev)
 
 static void sun6i_csi_set_window(struct sun6i_csi_dev *sdev)
 {
-	struct sun6i_csi_config *config = &sdev->csi.config;
+	struct sun6i_csi *csi = &sdev->csi;
 	u32 bytesperline_y;
 	u32 bytesperline_c;
 	int *planar_offset = sdev->planar_offset;
+	u32 width = csi->fmt.fmt.pix.width;
+	u32 height = csi->fmt.fmt.pix.height;
 
 	regmap_write(sdev->regmap, CSI_CH_HSIZE_REG,
-		     CSI_CH_HSIZE_HOR_LEN(config->width) |
+		     CSI_CH_HSIZE_HOR_LEN(width) |
 		     CSI_CH_HSIZE_HOR_START(0));
 	regmap_write(sdev->regmap, CSI_CH_VSIZE_REG,
-		     CSI_CH_VSIZE_VER_LEN(config->height) |
+		     CSI_CH_VSIZE_VER_LEN(height) |
 		     CSI_CH_VSIZE_VER_START(0));
 
 	planar_offset[0] = 0;
-	switch(config->pixelformat) {
+
+	switch(csi->fmt.fmt.pix.pixelformat) {
 	case V4L2_PIX_FMT_HM12:
 	case V4L2_PIX_FMT_NV12:
 	case V4L2_PIX_FMT_NV21:
 	case V4L2_PIX_FMT_NV16:
 	case V4L2_PIX_FMT_NV61:
-		bytesperline_y = config->width;
-		bytesperline_c = config->width;
-		planar_offset[1] = bytesperline_y * config->height;
+		bytesperline_y = width;
+		bytesperline_c = width;
+		planar_offset[1] = bytesperline_y * height;
 		planar_offset[2] = -1;
 		break;
 	case V4L2_PIX_FMT_YUV420:
 	case V4L2_PIX_FMT_YVU420:
-		bytesperline_y = config->width;
-		bytesperline_c = config->width / 2;
-		planar_offset[1] = bytesperline_y * config->height;
+		bytesperline_y = width;
+		bytesperline_c = width / 2;
+		planar_offset[1] = bytesperline_y * height;
 		planar_offset[2] = planar_offset[1] +
-				bytesperline_c * config->height / 2;
+				bytesperline_c * height / 2;
 		break;
 	case V4L2_PIX_FMT_YUV422P:
-		bytesperline_y = config->width;
-		bytesperline_c = config->width / 2;
-		planar_offset[1] = bytesperline_y * config->height;
+		bytesperline_y = width;
+		bytesperline_c = width / 2;
+		planar_offset[1] = bytesperline_y * height;
 		planar_offset[2] = planar_offset[1] +
-				bytesperline_c * config->height;
+				bytesperline_c * height;
 		break;
 	default: /* raw */
-		bytesperline_y = (v4l2_pixformat_get_bpp(config->pixelformat) *
-				  config->width) / 8;
+		bytesperline_y = (v4l2_pixformat_get_bpp(csi->fmt.fmt.pix.pixelformat) *
+				  width) / 8;
 		bytesperline_c = 0;
 		planar_offset[1] = -1;
 		planar_offset[2] = -1;
@@ -615,15 +618,9 @@ static int set_power(struct sun6i_csi *csi, bool enable)
 	return 0;
 }
 
-static int update_config(struct sun6i_csi *csi,
-			 struct sun6i_csi_config *config)
+static int update_config(struct sun6i_csi *csi)
 {
 	struct sun6i_csi_dev *sdev = sun6i_csi_to_dev(csi);
-
-	if (config == NULL)
-		return -EINVAL;
-
-	memcpy(&csi->config, config, sizeof(csi->config));
 
 	sun6i_csi_setup_bus(sdev);
 	sun6i_csi_set_format(sdev);

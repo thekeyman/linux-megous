@@ -32,22 +32,6 @@ struct sun6i_csi_format {
 	u8				bpp;
 };
 
-/**
- * struct sun6i_csi_config - configs for sun6i csi
- * @pixelformat: v4l2 pixel format (V4L2_PIX_FMT_*)
- * @code:	media bus format code (MEDIA_BUS_FMT_*)
- * @field:	used interlacing type (enum v4l2_field)
- * @width:	frame width
- * @height:	frame height
- */
-struct sun6i_csi_config {
-	u32		pixelformat;
-	u32		code;
-	u32		field;
-	u32		width;
-	u32		height;
-};
-
 struct sun6i_csi;
 
 struct sun6i_csi_ops {
@@ -56,8 +40,7 @@ struct sun6i_csi_ops {
 	bool (*is_format_support)(struct sun6i_csi *csi, u32 pixformat,
 				  u32 mbus_code);
 	int (*s_power)(struct sun6i_csi *csi, bool enable);
-	int (*update_config)(struct sun6i_csi *csi,
-			     struct sun6i_csi_config *config);
+	int (*update_config)(struct sun6i_csi *csi);
 	int (*update_buf_addr)(struct sun6i_csi *csi, dma_addr_t addr);
 	int (*s_stream)(struct sun6i_csi *csi, bool enable);
 };
@@ -74,7 +57,6 @@ struct sun6i_csi {
 
 	/* video port settings */
 	struct v4l2_fwnode_endpoint	v4l2_ep;
-	struct sun6i_csi_config		config;
 	struct sun6i_csi_ops		*ops;
 
 	struct mutex			lock;
@@ -145,13 +127,12 @@ static inline int sun6i_csi_set_power(struct sun6i_csi *csi, bool enable)
 /**
  * sun6i_csi_update_config() - update the csi register setttings
  * @csi: 	pointer to the csi
- * @config:	see struct sun6i_csi_config
  */
 static inline int
-sun6i_csi_update_config(struct sun6i_csi *csi, struct sun6i_csi_config *config)
+sun6i_csi_update_config(struct sun6i_csi *csi)
 {
 	if (csi->ops != NULL && csi->ops->update_config != NULL)
-		return csi->ops->update_config(csi, config);
+		return csi->ops->update_config(csi);
 
 	return -ENOIOCTLCMD;
 }
