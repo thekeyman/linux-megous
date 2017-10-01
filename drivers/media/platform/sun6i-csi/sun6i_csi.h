@@ -62,10 +62,20 @@ struct sun6i_csi_ops {
 	int (*s_stream)(struct sun6i_csi *csi, bool enable);
 };
 
-struct sun6i_video {
+struct sun6i_csi {
+	struct device			*dev;
+	struct v4l2_device		v4l2_dev;
+	struct media_device		media_dev;
+	struct v4l2_async_notifier	notifier;
 	struct video_device		vdev;
 	struct media_pad		pad;
-	struct sun6i_csi		*csi;
+
+	struct v4l2_subdev *subdev; // XXX:???
+
+	/* video port settings */
+	struct v4l2_fwnode_endpoint	v4l2_ep;
+	struct sun6i_csi_config		config;
+	struct sun6i_csi_ops		*ops;
 
 	struct mutex			lock;
 
@@ -82,25 +92,7 @@ struct sun6i_video {
 	struct v4l2_format		fmt;
 };
 
-struct sun6i_csi {
-	struct device			*dev;
-	struct v4l2_device		v4l2_dev;
-	struct media_device		media_dev;
-	struct v4l2_async_notifier	notifier;
-
-	struct v4l2_subdev *subdev;
-
-	/* video port settings */
-	struct v4l2_fwnode_endpoint	v4l2_ep;
-	struct sun6i_csi_config		config;
-	struct sun6i_video		video;
-	struct sun6i_csi_ops		*ops;
-};
-
-int sun6i_video_init(struct sun6i_video *video, struct sun6i_csi *csi,
-		     const char *name);
-void sun6i_video_cleanup(struct sun6i_video *video);
-void sun6i_video_frame_done(struct sun6i_video *video);
+void sun6i_video_frame_done(struct sun6i_csi *video);
 
 int sun6i_csi_init(struct sun6i_csi *csi);
 int sun6i_csi_cleanup(struct sun6i_csi *csi);

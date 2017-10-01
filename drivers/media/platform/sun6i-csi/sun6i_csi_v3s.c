@@ -34,7 +34,7 @@
 #include <linux/sizes.h>
 #include <linux/slab.h>
 
-#include "sun6i_video.h"
+#include "sun6i_csi.h"
 #include "sun6i_csi_v3s.h"
 
 #define MODULE_NAME	"sun6i-csi"
@@ -705,7 +705,7 @@ static irqreturn_t sun6i_csi_isr(int irq, void *dev_id)
 	}
 
 	if (status & CSI_CH_INT_STA_FD_PD) {
-		sun6i_video_frame_done(&sdev->csi.video);
+		sun6i_video_frame_done(&sdev->csi);
 	}
 
 	regmap_write(regmap, CSI_CH_INT_STA_REG, status);
