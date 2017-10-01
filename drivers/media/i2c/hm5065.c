@@ -12,6 +12,8 @@
  * (at your option) any later version.
  */
 
+#define DEBUG
+
 #include <linux/clk.h>
 #include <linux/clk-provider.h>
 #include <linux/clkdev.h>
@@ -496,6 +498,8 @@ static int hm5065_write_regs(struct hm5065_dev *sensor, u16 start_index, u8 *dat
 	msg.buf = buf;
 	msg.len = data_size + 2;
 
+	v4l2_info(&sensor->sd, "wr: %04x <= %*ph\n", (u32)start_index, data_size, data);
+
 	ret = i2c_transfer(client->adapter, &msg, 1);
 	if (ret < 0) {
 		v4l2_err(&sensor->sd, "%s: error %d: start_index=%x, data=%*ph\n",
@@ -532,6 +536,8 @@ static int hm5065_read_regs(struct hm5065_dev *sensor, u16 start_index, u8 *data
 			__func__, ret, (u32)start_index, data_size);
 		return ret;
 	}
+
+	v4l2_info(&sensor->sd, "rd: %04x => %*ph\n", (u32)start_index, data_size, data);
 
 	return 0;
 }
@@ -667,6 +673,8 @@ static u16 hm5065_mili_to_fp16(s32 val)
 static int hm5065_set_ctrl_test_pattern(struct hm5065_dev *sensor, int value)
 {
 	int ret;
+
+	dev_info(&sensor->i2c_client->dev, "set test pattern\n");
 
 	ret = hm5065_write_reg8(sensor, HM5065_REG_ENABLE_TEST_PATTERN, value == 0 ? 0 : 1);
 	if (ret)
@@ -891,17 +899,25 @@ static int hm5065_setup_mode(struct hm5065_dev *sensor)
 	int ret;
 	const struct hm5065_pixfmt* pix_fmt;
 
+	dev_info(&sensor->i2c_client->dev, "set mode\n");
+
 	ret = hm5065_write_reg8(sensor, HM5065_REG_P0_SENSOR_MODE, HM5065_REG_SENSOR_MODE_FULLSIZE);
 	if (ret)
 		return ret;
+
+	dev_info(&sensor->i2c_client->dev, "set img size manual\n");
 
 	ret = hm5065_write_reg8(sensor, HM5065_REG_P0_IMAGE_SIZE, HM5065_REG_IMAGE_SIZE_MANUAL);
 	if (ret)
 		return ret;
 
+	dev_info(&sensor->i2c_client->dev, "set img width\n");
+
 	ret = hm5065_write_reg16(sensor, HM5065_REG_P0_MANUAL_HSIZE, sensor->fmt.width);
 	if (ret)
 		return ret;
+
+	dev_info(&sensor->i2c_client->dev, "set img height\n");
 
 	ret = hm5065_write_reg16(sensor, HM5065_REG_P0_MANUAL_VSIZE, sensor->fmt.height);
 	if (ret)
@@ -914,15 +930,21 @@ static int hm5065_setup_mode(struct hm5065_dev *sensor)
 		return -EINVAL;
 	}
 
+	dev_info(&sensor->i2c_client->dev, "set P0 data fmt\n");
+
 	ret = hm5065_write_reg8(sensor, HM5065_REG_P0_DATA_FORMAT, pix_fmt->data_fmt);
 	if (ret)
 		return ret;
 
 	if (pix_fmt->needs_ycbcr_setup) {
+		dev_info(&sensor->i2c_client->dev, "set P0 ycbcr order\n");
+
 		ret = hm5065_write_reg8(sensor, HM5065_REG_YCRCB_ORDER, pix_fmt->ycbcr_order);
 		if (ret)
 			return ret;
 	}
+
+	dev_info(&sensor->i2c_client->dev, "set frame rate\n");
 
 	ret = hm5065_write_reg16(sensor, HM5065_REG_DESIRED_FRAME_RATE_NUM,
 			         sensor->frame_interval.denominator);
@@ -934,6 +956,8 @@ static int hm5065_setup_mode(struct hm5065_dev *sensor)
 
 static int hm5065_set_stream(struct hm5065_dev *sensor, int enable)
 {
+	dev_info(&sensor->i2c_client->dev, "stream cmd\n");
+
 	return hm5065_write_reg8(sensor, HM5065_REG_USER_COMMAND, enable ? HM5065_REG_USER_COMMAND_RUN : HM5065_REG_USER_COMMAND_STOP);
 }
 
@@ -1080,6 +1104,8 @@ static int hm5065_set_fmt(struct v4l2_subdev *sd,
 
 	mf->field = V4L2_FIELD_NONE;
 
+	v4l2_info(sd, "search for %ux%u\n", mf->width, mf->height);
+
 	mutex_lock(&sensor->lock);
 
 	/* find highest resolution that matches the mode for the currently used frame rate */
@@ -1166,11 +1192,14 @@ static void hm5065_reset(struct hm5065_dev *sensor)
 {
 	/* if reset pin is not used, we will use CE for reset */
 	if (sensor->reset_gpio) {
+		dev_dbg(&sensor->i2c_client->dev, "%s: nrst based reset\n", __func__);
 
 		gpiod_set_value(sensor->reset_gpio, 1);
 		usleep_range(1000, 2000);
 		gpiod_set_value(sensor->reset_gpio, 0);
 	} else {
+		dev_dbg(&sensor->i2c_client->dev, "%s: ce reset\n", __func__);
+
 		gpiod_set_value(sensor->chipenable_gpio, 0);
 		usleep_range(1000, 2000);
 		gpiod_set_value(sensor->chipenable_gpio, 1);
@@ -1186,9 +1215,13 @@ static int hm5065_configure(struct hm5065_dev *sensor)
 	const struct hm5065_clk_lut *lut;
 	unsigned long xclk_freq;
 
+	dev_dbg(&sensor->i2c_client->dev, "%s: read device id\n", __func__);
+
 	ret = hm5065_read_reg16(sensor, HM5065_REG_DEVICE_ID, &device_id);
 	if (ret)
 		return ret;
+
+	dev_dbg(&sensor->i2c_client->dev, "%s: got device id 0x%04x\n", __func__, (unsigned int)device_id);
 
 	if (device_id != HM5065_REG_DEVICE_ID_VALUE) {
 		dev_err(&sensor->i2c_client->dev, "unsupported device id: 0x%04x\n",
@@ -1205,6 +1238,8 @@ static int hm5065_configure(struct hm5065_dev *sensor)
 		return -EINVAL;
 	}
 
+	dev_info(&sensor->i2c_client->dev, "set exclklut\n");
+
 	ret = hm5065_write_reg8(sensor, HM5065_REG_EXCLOCKLUT, lut->lut_id);
 	if (ret)
 		return ret;
@@ -1220,6 +1255,8 @@ static int hm5065_configure(struct hm5065_dev *sensor)
 static int hm5065_set_power(struct hm5065_dev *sensor, bool on)
 {
 	int ret = 0;
+
+	dev_dbg(&sensor->i2c_client->dev, "%s: on=%u\n", __func__, on);
 
 	if (on) {
 		ret = regulator_bulk_enable(HM5065_NUM_SUPPLIES,
@@ -1467,6 +1504,8 @@ static int hm5065_probe(struct i2c_client *client,
 	ret = v4l2_async_register_subdev(&sensor->sd);
 	if (ret)
 		goto free_ctrls;
+
+	dev_err(dev, "sensor regsitered\n");
 
 	return 0;
 
