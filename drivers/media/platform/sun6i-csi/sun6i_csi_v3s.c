@@ -46,7 +46,6 @@ struct sun6i_csi_cfg {
 
 struct sun6i_csi_dev {
 	struct sun6i_csi		csi;
-	struct device			*dev;
 	const struct sun6i_csi_cfg	*cfg;
 
 	struct regmap			*regmap;
@@ -589,26 +588,26 @@ static int set_power(struct sun6i_csi *csi, bool enable)
 
 	ret = clk_prepare_enable(sdev->clk_ahb);
 	if (ret) {
-		dev_err(sdev->dev, "Enable ahb clk err %d\n", ret);
+		dev_err(csi->dev, "Enable ahb clk err %d\n", ret);
 		return ret;
 	}
 
 	ret = clk_prepare_enable(sdev->clk_mod);
 	if (ret) {
-		dev_err(sdev->dev, "Enable csi clk err %d\n", ret);
+		dev_err(csi->dev, "Enable csi clk err %d\n", ret);
 		return ret;
 	}
 
 	ret = clk_prepare_enable(sdev->clk_ram);
 	if (ret) {
-		dev_err(sdev->dev, "Enable clk_dram_csi clk err %d\n", ret);
+		dev_err(csi->dev, "Enable clk_dram_csi clk err %d\n", ret);
 		return ret;
 	}
 
 	if (!IS_ERR_OR_NULL(sdev->rstc_ahb)) {
 		ret = reset_control_deassert(sdev->rstc_ahb);
 		if (ret) {
-			dev_err(sdev->dev, "reset err %d\n", ret);
+			dev_err(csi->dev, "reset err %d\n", ret);
 			return ret;
 		}
 	}
@@ -789,7 +788,6 @@ static int sun6i_csi_probe(struct platform_device *pdev)
 	if (!sdev)
 		return -ENOMEM;
 
-	sdev->dev = &pdev->dev;
 	sdev->cfg = of_device_get_match_data(&pdev->dev);
 
 	ret = sun6i_csi_resource_request(sdev, pdev);
