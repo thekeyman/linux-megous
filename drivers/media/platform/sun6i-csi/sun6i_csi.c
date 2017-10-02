@@ -670,26 +670,17 @@ static int sun6i_csi_notify_bound(struct v4l2_async_notifier *notifier,
 {
 	struct sun6i_csi *csi = notifier_to_csi(notifier);
 	struct sun6i_csi_async_subdev *csi_asd = asd_to_csi_asd(asd);
-	unsigned int pad;
-	int ret;
+	//int ret;
 
 	dev_dbg(csi->dev, "bound subdev %s\n", subdev->name);
 
-	if (subdev->entity.function != MEDIA_ENT_F_CAM_SENSOR)
+	if (subdev->entity.function != MEDIA_ENT_F_CAM_SENSOR) {
+		dev_err(csi->dev, "bound subdev %s - not a camera sensor\n", subdev->name);
 		return -EINVAL;
-
-	for (pad = 0; pad < subdev->entity.num_pads; pad++) {
-		if (subdev->entity.pads[pad].flags & MEDIA_PAD_FL_SOURCE) {
-			ret = media_create_pad_link(&subdev->entity, pad, &csi->vdev.entity, 0, MEDIA_LNK_FL_ENABLED | MEDIA_LNK_FL_IMMUTABLE);
-			if (ret)
-				return -EINVAL;
-
-			csi->subdev = subdev;
-			return 0;
-		}
 	}
 
-	//v4l2_set_subdev_hostdata(subdev, csi);
+	csi->sensor_subdev = subdev;
+	v4l2_set_subdev_hostdata(subdev, csi);
 
 	return 0;
 }
@@ -701,20 +692,40 @@ static void sun6i_csi_notify_unbind(struct v4l2_async_notifier *notifier,
 	struct sun6i_csi *csi = notifier_to_csi(notifier);
 	struct sun6i_csi_async_subdev *csi_asd = asd_to_csi_asd(asd);
 
-	if (csi->subdev == subdev) {
-		csi->subdev = NULL;
-	}
-
 	dev_err(csi->dev, "unbind subdev %s\n", subdev->name);
+
+	if (csi->sensor_subdev == subdev) {
+		csi->sensor_subdev = NULL;
+	}
 }
 
 static int sun6i_csi_notify_complete(struct v4l2_async_notifier *notifier)
 {
 	struct sun6i_csi *csi = notifier_to_csi(notifier);
+	struct v4l2_subdev *subdev;
+	unsigned int pad;
 	int ret;
 
 	dev_dbg(csi->dev, "notify complete, all subdevs bound\n");
 
+        subdev = csi->sensor_subdev;
+	if (subdev) {
+		for (pad = 0; pad < subdev->entity.num_pads; pad++) {
+			if (subdev->entity.pads[pad].flags & MEDIA_PAD_FL_SOURCE) {
+				ret = media_create_pad_link(&subdev->entity, pad, &csi->vdev.entity, 0, MEDIA_LNK_FL_ENABLED | MEDIA_LNK_FL_IMMUTABLE);
+				if (ret)
+					return -EINVAL;
+
+				dev_dbg(csi->dev, "created pad link %s:%u -> %s:0\n", subdev->name, pad, csi->vdev.name);
+				goto register_subdevs;
+			}
+		}
+
+		dev_err(csi->dev, "bound subdev %s - no source pad found\n", subdev->name);
+		return -EINVAL;
+	}
+
+register_subdevs:
 	ret = v4l2_device_register_subdev_nodes(&csi->v4l2_dev);
 	if (ret < 0) {
 		dev_err(csi->dev, "failed to register subdev nodes\n");
@@ -759,7 +770,6 @@ int sun6i_csi_init(struct sun6i_csi *csi)
 	csi->media_dev.dev = csi->dev;
 	strlcpy(csi->media_dev.model, "Allwinner Video Capture Device",
 		sizeof(csi->media_dev.model));
-	csi->media_dev.hw_revision = 0;
 	media_device_init(&csi->media_dev);
 
 	csi->v4l2_dev.mdev = &csi->media_dev;

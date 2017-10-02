@@ -779,11 +779,14 @@ static int sun6i_csi_probe(struct platform_device *pdev)
 	struct sun6i_csi_dev *sdev;
 	int ret;
 
-	return -EINVAL;
+	//return -EINVAL;
 
 	sdev = devm_kzalloc(&pdev->dev, sizeof(*sdev), GFP_KERNEL);
 	if (!sdev)
 		return -ENOMEM;
+
+	sdev->csi.dev = &pdev->dev;
+	platform_set_drvdata(pdev, sdev);
 
 	sdev->cfg = of_device_get_match_data(&pdev->dev);
 
@@ -791,9 +794,6 @@ static int sun6i_csi_probe(struct platform_device *pdev)
 	if (ret)
 		return ret;
 
-	platform_set_drvdata(pdev, sdev);
-
-	sdev->csi.dev = &pdev->dev;
 	sdev->csi.ops = &csi_ops;
 	ret = sun6i_csi_init(&sdev->csi);
 	if (ret)

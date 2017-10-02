@@ -53,7 +53,7 @@ struct sun6i_csi {
 	struct media_pad		pad;
 	struct device			*dev;
 
-	struct v4l2_subdev *subdev; // XXX:???
+	struct v4l2_subdev*		sensor_subdev;
 
 	/* video port settings */
 	u32 bus_type;
