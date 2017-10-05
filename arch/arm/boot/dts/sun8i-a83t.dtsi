@@ -576,7 +576,7 @@
 			#size-cells = <0>;
 			interrupts = <GIC_SPI 84 IRQ_TYPE_LEVEL_HIGH>;
 			clocks = <&ccu CLK_BUS_CSI>,
-			         <&ccu CLK_CSI_MCLK>,
+			         <&ccu CLK_CSI_SCLK>,
 			         <&ccu CLK_DRAM_CSI>;
 			clock-names = "ahb", "mod", "ram";
 			resets = <&ccu RST_BUS_CSI>;
