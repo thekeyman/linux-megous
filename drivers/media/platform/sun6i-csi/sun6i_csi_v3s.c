@@ -57,6 +57,11 @@ struct sun6i_csi_dev {
 	int				planar_offset[3];
 };
 
+static inline struct sun6i_csi_dev *sun6i_csi_to_dev(struct sun6i_csi *csi)
+{
+	return container_of(csi, struct sun6i_csi_dev, csi);
+}
+
 static const u32 supported_pixformats[] = {
 	V4L2_PIX_FMT_SBGGR8,
 	V4L2_PIX_FMT_SGBRG8,
@@ -84,15 +89,21 @@ static const u32 supported_pixformats[] = {
 	V4L2_PIX_FMT_YUV422P,
 };
 
-static inline struct sun6i_csi_dev *sun6i_csi_to_dev(struct sun6i_csi *csi)
+static int get_supported_pixformats(struct sun6i_csi *csi,
+				    const u32 **pixformats)
 {
-	return container_of(csi, struct sun6i_csi_dev, csi);
+	if (pixformats != NULL)
+		*pixformats = supported_pixformats;
+
+	return ARRAY_SIZE(supported_pixformats);
 }
 
 /* TODO add 10&12 bit YUV, RGB support */
-static bool __is_format_support(struct sun6i_csi_dev *sdev,
-			      u32 fourcc, u32 mbus_code)
+static bool is_format_support(struct sun6i_csi *csi, u32 pixformat,
+			      u32 mbus_code)
 {
+	struct sun6i_csi_dev *sdev = sun6i_csi_to_dev(csi);
+
 	/*
 	 * Some video receiver have capability both 8bit and 16bit.
 	 * Identify the media bus format from device tree.
@@ -103,7 +114,7 @@ static bool __is_format_support(struct sun6i_csi_dev *sdev,
 #if 0
 	    || sdev->csi.bus_type == V4L2_MBUS_CSI2) {
 #endif
-		switch (fourcc) {
+		switch (pixformat) {
 		case V4L2_PIX_FMT_HM12:
 		case V4L2_PIX_FMT_NV12:
 		case V4L2_PIX_FMT_NV21:
@@ -124,7 +135,7 @@ static bool __is_format_support(struct sun6i_csi_dev *sdev,
 		return false;
 	}
 
-	switch (fourcc) {
+	switch (pixformat) {
 	case V4L2_PIX_FMT_SBGGR8:
 		if (mbus_code == MEDIA_BUS_FMT_SBGGR8_1X8)
 			return true;
@@ -331,65 +342,6 @@ static enum csi_input_seq get_csi_input_seq(u32 mbus_code, u32 pixformat)
 	return CSI_INPUT_SEQ_YUYV;
 }
 
-#ifdef DEBUG
-static void sun6i_csi_dump_regs(struct sun6i_csi_dev *sdev)
-{
-	struct regmap *regmap = sdev->regmap;
-	u32 val;
-
-	regmap_read(regmap, CSI_EN_REG, &val);
-	printk("CSI_EN_REG=0x%x\n",		val);
-	regmap_read(regmap, CSI_IF_CFG_REG, &val);
-	printk("CSI_IF_CFG_REG=0x%x\n",		val);
-	regmap_read(regmap, CSI_CAP_REG, &val);
-	printk("CSI_CAP_REG=0x%x\n",		val);
-	regmap_read(regmap, CSI_SYNC_CNT_REG, &val);
-	printk("CSI_SYNC_CNT_REG=0x%x\n",	val);
-	regmap_read(regmap, CSI_FIFO_THRS_REG, &val);
-	printk("CSI_FIFO_THRS_REG=0x%x\n",	val);
-	regmap_read(regmap, CSI_PTN_LEN_REG, &val);
-	printk("CSI_PTN_LEN_REG=0x%x\n",	val);
-	regmap_read(regmap, CSI_PTN_ADDR_REG, &val);
-	printk("CSI_PTN_ADDR_REG=0x%x\n",	val);
-	regmap_read(regmap, CSI_VER_REG, &val);
-	printk("CSI_VER_REG=0x%x\n",		val);
-	regmap_read(regmap, CSI_CH_CFG_REG, &val);
-	printk("CSI_CH_CFG_REG=0x%x\n",		val);
-	regmap_read(regmap, CSI_CH_SCALE_REG, &val);
-	printk("CSI_CH_SCALE_REG=0x%x\n",	val);
-	regmap_read(regmap, CSI_CH_F0_BUFA_REG, &val);
-	printk("CSI_CH_F0_BUFA_REG=0x%x\n",	val);
-	regmap_read(regmap, CSI_CH_F1_BUFA_REG, &val);
-	printk("CSI_CH_F1_BUFA_REG=0x%x\n",	val);
-	regmap_read(regmap, CSI_CH_F2_BUFA_REG, &val);
-	printk("CSI_CH_F2_BUFA_REG=0x%x\n",	val);
-	regmap_read(regmap, CSI_CH_STA_REG, &val);
-	printk("CSI_CH_STA_REG=0x%x\n",		val);
-	regmap_read(regmap, CSI_CH_INT_EN_REG, &val);
-	printk("CSI_CH_INT_EN_REG=0x%x\n",	val);
-	regmap_read(regmap, CSI_CH_INT_STA_REG, &val);
-	printk("CSI_CH_INT_STA_REG=0x%x\n",	val);
-	regmap_read(regmap, CSI_CH_FLD1_VSIZE_REG, &val);
-	printk("CSI_CH_FLD1_VSIZE_REG=0x%x\n",	val);
-	regmap_read(regmap, CSI_CH_HSIZE_REG, &val);
-	printk("CSI_CH_HSIZE_REG=0x%x\n",	val);
-	regmap_read(regmap, CSI_CH_VSIZE_REG, &val);
-	printk("CSI_CH_VSIZE_REG=0x%x\n",	val);
-	regmap_read(regmap, CSI_CH_BUF_LEN_REG, &val);
-	printk("CSI_CH_BUF_LEN_REG=0x%x\n",	val);
-	regmap_read(regmap, CSI_CH_FLIP_SIZE_REG, &val);
-	printk("CSI_CH_FLIP_SIZE_REG=0x%x\n",	val);
-	regmap_read(regmap, CSI_CH_FRM_CLK_CNT_REG, &val);
-	printk("CSI_CH_FRM_CLK_CNT_REG=0x%x\n",	val);
-	regmap_read(regmap, CSI_CH_ACC_ITNL_CLK_CNT_REG, &val);
-	printk("CSI_CH_ACC_ITNL_CLK_CNT_REG=0x%x\n",	val);
-	regmap_read(regmap, CSI_CH_FIFO_STAT_REG, &val);
-	printk("CSI_CH_FIFO_STAT_REG=0x%x\n",	val);
-	regmap_read(regmap, CSI_CH_PCLK_STAT_REG, &val);
-	printk("CSI_CH_PCLK_STAT_REG=0x%x\n",	val);
-}
-#endif
-
 static void sun6i_csi_setup_bus(struct sun6i_csi_dev *sdev)
 {
 	unsigned char bus_width = sdev->csi.bus_width;
@@ -550,28 +502,13 @@ static void sun6i_csi_set_window(struct sun6i_csi_dev *sdev)
 		     CSI_CH_BUF_LEN_BUF_LEN_Y(bytesperline_y));
 }
 
-static int get_supported_pixformats(struct sun6i_csi *csi,
-				    const u32 **pixformats)
-{
-	if (pixformats != NULL)
-		*pixformats = supported_pixformats;
-
-	return ARRAY_SIZE(supported_pixformats);
-}
-
-static bool is_format_support(struct sun6i_csi *csi, u32 pixformat,
-			      u32 mbus_code)
-{
-	struct sun6i_csi_dev *sdev = sun6i_csi_to_dev(csi);
-
-	return __is_format_support(sdev, pixformat, mbus_code);
-}
-
 static int set_power(struct sun6i_csi *csi, bool enable)
 {
 	struct sun6i_csi_dev *sdev = sun6i_csi_to_dev(csi);
 	struct regmap *regmap = sdev->regmap;
 	int ret;
+
+	dev_dbg(csi->dev, "Setting csi power %d\n", enable);
 
 	if (!enable) {
 		regmap_update_bits(regmap, CSI_EN_REG, CSI_EN_CSI_EN, 0);
@@ -798,6 +735,8 @@ static int sun6i_csi_probe(struct platform_device *pdev)
 	ret = sun6i_csi_init(&sdev->csi);
 	if (ret)
 		return ret;
+
+	dev_dbg(sdev->csi.dev, "driver registered perfectly 1!\n");
 
 	return 0;
 }
