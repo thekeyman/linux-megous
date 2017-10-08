@@ -46,6 +46,7 @@
 #define CONTINUE_TIME_SEL(x)	((x) << 16) /* 4 bits */
 #define KEY_MODE_SEL(x)		((x) << 12) /* 2 bits */
 #define LEVELA_B_CNT(x)		((x) << 8)  /* 4 bits */
+#define HOLD_KEY_EN(x)		((x) << 7)
 #define HOLD_EN(x)		((x) << 6)
 #define LEVELB_VOL(x)		((x) << 4)  /* 2 bits */
 #define SAMPLE_RATE(x)		((x) << 2)  /* 2 bits */
@@ -129,7 +130,7 @@ static int sun4i_lradc_open(struct input_dev *dev)
 		return error;
 
 	/* lradc Vref internally is divided by 2/3 */
-	lradc->vref = regulator_get_voltage(lradc->vref_supply) * 2 / 3;
+	lradc->vref = regulator_get_voltage(lradc->vref_supply) * 3 / 4;
 
 	/*
 	 * Set sample time to 4 ms / 250 Hz. Wait 2 * 4 ms for key to
@@ -222,7 +223,7 @@ static int sun4i_lradc_probe(struct platform_device *pdev)
 	if (error)
 		return error;
 
-	lradc->vref_supply = devm_regulator_get(dev, "vref");
+	lradc->vref_supply = devm_regulator_get(dev, "vcc-1.8");
 	if (IS_ERR(lradc->vref_supply))
 		return PTR_ERR(lradc->vref_supply);
 
@@ -253,7 +254,7 @@ static int sun4i_lradc_probe(struct platform_device *pdev)
 
 	error = devm_request_irq(dev, platform_get_irq(pdev, 0),
 				 sun4i_lradc_irq, 0,
-				 "sun4i-a10-lradc-keys", lradc);
+				 "lradc-keys", lradc);
 	if (error)
 		return error;
 
@@ -265,17 +266,19 @@ static int sun4i_lradc_probe(struct platform_device *pdev)
 }
 
 static const struct of_device_id sun4i_lradc_of_match[] = {
-	{ .compatible = "allwinner,sun4i-a10-lradc-keys", },
-	{ /* sentinel */ }
-};
+    {
+	.compatible = "allwinner,sun8i-a83t-r-lradc-keys",
+    },
+    {/* sentinel */}};
+ 
 MODULE_DEVICE_TABLE(of, sun4i_lradc_of_match);
 
 static struct platform_driver sun4i_lradc_driver = {
-	.driver = {
-		.name	= "sun4i-a10-lradc-keys",
-		.of_match_table = of_match_ptr(sun4i_lradc_of_match),
-	},
-	.probe	= sun4i_lradc_probe,
+    .driver = {
+	.name = "sun8i-a83t-r-lradc-keys",
+	.of_match_table = of_match_ptr(sun4i_lradc_of_match),
+    },
+    .probe = sun4i_lradc_probe,
 };
 
 module_platform_driver(sun4i_lradc_driver);
