@@ -44,6 +44,7 @@
 /dts-v1/;
 #include "sun8i-a83t.dtsi"
 #include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/input/input.h>
 #include <dt-bindings/pwm/pwm.h>
 
 / {
@@ -121,6 +122,27 @@
 		reset-gpios = <&r_pio 0 2 GPIO_ACTIVE_LOW>; /* PL2 WL-PMU-EN */
 		clocks = <&ac100_rtc 1>;
 		clock-names = "ext_clock";
+	};
+
+	r_lradc: lradc@01f03c00 {
+		compatible = "allwinner,sun8i-a83t-r-lradc-keys";
+		reg = <0x01f03c00 0x100>;
+		interrupts = <GIC_SPI 42 IRQ_TYPE_LEVEL_HIGH>;
+		status = "okay";
+
+		button@191 {
+			label = "Volume Up";
+			linux,code = <KEY_VOLUMEUP>;
+			channel = <0>;
+			voltage = <210000>;
+		};
+
+		button@392 {
+			label = "Volume Down";
+			linux,code = <KEY_VOLUMEDOWN>;
+			channel = <0>;
+			voltage = <410000>;
+		};
 	};
 };
 
