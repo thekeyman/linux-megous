@@ -587,7 +587,9 @@ static int sun6i_video_formats_init(struct sun6i_csi *csi)
 	if (!num_fmts)
 		return -ENXIO;
 
-	//XXX: memory leak
+	if (csi->formats)
+		devm_kfree(csi->dev, csi->formats);
+
 	csi->num_formats = num_fmts;
 	csi->formats = devm_kcalloc(csi->dev, num_fmts,
 			sizeof(struct sun6i_csi_format), GFP_KERNEL);
