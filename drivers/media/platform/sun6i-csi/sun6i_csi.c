@@ -761,6 +761,7 @@ static int sun6i_csi_notify_complete(struct v4l2_async_notifier *notifier)
 {
 	struct sun6i_csi *csi = notifier_to_csi(notifier);
 	struct v4l2_subdev *subdev;
+	struct media_entity *sink = &csi->vdev.entity;
 	unsigned int pad;
 	int ret;
 
@@ -770,11 +771,16 @@ static int sun6i_csi_notify_complete(struct v4l2_async_notifier *notifier)
 	if (subdev) {
 		for (pad = 0; pad < subdev->entity.num_pads; pad++) {
 			if (subdev->entity.pads[pad].flags & MEDIA_PAD_FL_SOURCE) {
-				ret = media_create_pad_link(&subdev->entity, pad, &csi->vdev.entity, 0, MEDIA_LNK_FL_ENABLED | MEDIA_LNK_FL_IMMUTABLE);
+				ret = media_create_pad_link(&subdev->entity, pad, sink, 0, MEDIA_LNK_FL_ENABLED | MEDIA_LNK_FL_IMMUTABLE);
 				if (ret)
-					return -EINVAL;
+					return ret;
 
 				dev_dbg(csi->dev, "created pad link %s:%u -> %s:0\n", subdev->name, pad, csi->vdev.name);
+
+				ret = media_entity_call(sink, link_setup, &sink->pads[0], &subdev->entity.pads[pad], 0);
+				if (ret)
+					return ret;
+
 				goto register_subdevs;
 			}
 		}
