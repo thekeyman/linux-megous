@@ -258,83 +258,51 @@ sun6i_video_remote_subdev(struct sun6i_csi *csi, u32 *pad)
 	return media_entity_to_v4l2_subdev(remote->entity);
 }
 
-static struct sun6i_csi_format *
-find_format_by_fourcc(struct sun6i_csi *csi, unsigned int fourcc)
+static int sun6i_video_set_fmt(struct sun6i_csi *csi, struct v4l2_format *f, bool try_only)
 {
-	unsigned int num_formats = csi->num_formats;
-	struct sun6i_csi_format *fmt;
-	unsigned int i;
-
-	for (i = 0; i < num_formats; i++) {
-		fmt = &csi->formats[i];
-		if (fmt->fourcc == fourcc)
-			return fmt;
-	}
-
-	return NULL;
-}
-
-static int sun6i_video_try_fmt(struct sun6i_csi *csi, struct v4l2_format *f,
-			       struct sun6i_csi_format **current_fmt)
-{
-	struct sun6i_csi_format *csi_fmt;
+	struct v4l2_subdev_format sd_fmt;
+	struct v4l2_subdev_pad_config padconf;
 	struct v4l2_pix_format *pixfmt = &f->fmt.pix;
-	struct v4l2_subdev_format format;
-	struct v4l2_subdev *subdev;
-	u32 pad;
+	struct sun6i_csi_format *csi_fmt = NULL;
+	unsigned int i, num_formats = csi->num_formats;
+	struct v4l2_subdev *sd;
+	u32 sd_pad;
 	int ret;
 
-	subdev = sun6i_video_remote_subdev(csi, &pad);
-	if (subdev == NULL)
-		return -ENXIO;
-
-	csi_fmt = find_format_by_fourcc(csi, pixfmt->pixelformat);
-	if (csi_fmt == NULL)
+	if (num_formats == 0)
 		return -EINVAL;
 
-	format.pad = pad;
-	format.which = V4L2_SUBDEV_FORMAT_TRY;
-	v4l2_fill_mbus_format(&format.format, pixfmt, csi_fmt->mbus_code);
-	ret = v4l2_subdev_call(subdev, pad, get_fmt, NULL, &format);
-	if (ret)
-		return ret;
+	for (i = 0; i < num_formats; i++)
+		if (csi->formats[i].fourcc == pixfmt->pixelformat)
+			csi_fmt = &csi->formats[i];
+	if (csi_fmt == NULL)
+		csi_fmt = &csi->formats[0];
+	pixfmt->pixelformat = csi_fmt->fourcc;
 
-	v4l2_fill_pix_format(pixfmt, &format.format);
-
-	pixfmt->bytesperline = (pixfmt->width * csi_fmt->bpp) >> 3;
-	pixfmt->sizeimage = (pixfmt->width * csi_fmt->bpp * pixfmt->height) / 8;
-
-	if (current_fmt)
-		*current_fmt = csi_fmt;
-
-	return 0;
-}
-
-static int sun6i_video_set_fmt(struct sun6i_csi *csi, struct v4l2_format *f)
-{
-	struct v4l2_subdev_format format;
-	struct sun6i_csi_format *current_fmt;
-	struct v4l2_subdev *subdev;
-	u32 pad;
-	int ret;
-
-	subdev = sun6i_video_remote_subdev(csi, &pad);
-	if (subdev == NULL)
+	sd = sun6i_video_remote_subdev(csi, &sd_pad);
+	if (sd == NULL)
 		return -ENXIO;
 
-	ret = sun6i_video_try_fmt(csi, f, &current_fmt);
+	sd_fmt.pad = sd_pad;
+	sd_fmt.which = V4L2_SUBDEV_FORMAT_TRY;
+	v4l2_fill_mbus_format(&sd_fmt.format, pixfmt, csi_fmt->mbus_code);
+	ret = v4l2_subdev_call(sd, pad, set_fmt, &padconf, &sd_fmt);
 	if (ret)
 		return ret;
 
-	format.which = V4L2_SUBDEV_FORMAT_ACTIVE;
-	v4l2_fill_mbus_format(&format.format, &f->fmt.pix,
-			      current_fmt->mbus_code);
-	ret = v4l2_subdev_call(subdev, pad, set_fmt, NULL, &format);
-	if (ret < 0)
-		return ret;
+	v4l2_fill_pix_format(pixfmt, &sd_fmt.format);
+	pixfmt->bytesperline = (pixfmt->width * csi_fmt->bpp) / 8;
+	pixfmt->sizeimage = pixfmt->bytesperline * pixfmt->height;
 
-	csi->fmt = *f;
-	csi->current_fmt = current_fmt;
+	if (!try_only) {
+		sd_fmt.which = V4L2_SUBDEV_FORMAT_ACTIVE;
+		ret = v4l2_subdev_call(sd, pad, set_fmt, NULL, &sd_fmt);
+		if (ret)
+			return ret;
+
+		csi->fmt = *f;
+		csi->current_fmt = csi_fmt;
+	}
 
 	return 0;
 }
@@ -357,7 +325,7 @@ static int sun6i_try_fmt_vid_cap(struct file *file, void *priv,
 {
 	struct sun6i_csi *csi = video_drvdata(file);
 
-	return sun6i_video_try_fmt(csi, f, NULL);
+	return sun6i_video_set_fmt(csi, f, true);
 }
 
 static int sun6i_g_fmt_vid_cap(struct file *file, void *priv,
@@ -378,19 +346,18 @@ static int sun6i_s_fmt_vid_cap(struct file *file, void *priv,
 	if (vb2_is_streaming(&csi->vb2_vidq))
 		return -EBUSY;
 
-	return sun6i_video_set_fmt(csi, f);
+	return sun6i_video_set_fmt(csi, f, false);
 }
 
 static int sun6i_enum_fmt_vid_cap(struct file *file, void *priv,
 				   struct v4l2_fmtdesc *f)
 {
 	struct sun6i_csi *csi = video_drvdata(file);
-	u32 index = f->index;
 
-	if (index >= csi->num_formats)
+	if (f->index >= csi->num_formats)
 		return -EINVAL;
 
-	f->pixelformat = csi->formats[index].fourcc;
+	f->pixelformat = csi->formats[f->index].fourcc;
 
 	return 0;
 }
@@ -478,7 +445,7 @@ static int sun6i_video_open(struct file *file)
 		goto fh_release;
 
 	if (!v4l2_fh_is_singular_file(file))
-		goto fh_release;
+		goto unlock;
 
 	ret = sun6i_csi_set_power(csi, true);
 	if (ret < 0)
@@ -490,7 +457,7 @@ static int sun6i_video_open(struct file *file)
 		format.fmt.pix.width = 1280;
 		format.fmt.pix.height = 720;
 		format.fmt.pix.pixelformat = csi->formats[0].fourcc;
-		sun6i_video_set_fmt(csi, &format);
+		sun6i_video_set_fmt(csi, &format, false);
 	}
 
 	mutex_unlock(&csi->lock);
