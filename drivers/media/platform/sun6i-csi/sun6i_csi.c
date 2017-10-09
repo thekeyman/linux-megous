@@ -546,7 +546,7 @@ static int sun6i_video_formats_init(struct sun6i_csi *csi)
 	u32 pad;
 	const u32 *pixformats;
 	int pixformat_count = 0;
-	u32 subdev_codes[32]; /*XXX: subdev format codes, 32 should be enough (overflow) */
+	u32 subdev_codes[32];
 	int codes_count = 0;
 	int num_fmts = 0;
 	int i, j;
@@ -563,8 +563,8 @@ static int sun6i_video_formats_init(struct sun6i_csi *csi)
 	/* Get subdev formats codes */
 	mbus_code.pad = pad;
 	mbus_code.which = V4L2_SUBDEV_FORMAT_ACTIVE;
-	while (!v4l2_subdev_call(subdev, pad, enum_mbus_code, NULL,
-			&mbus_code)) {
+	while (codes_count < ARRAY_SIZE(subdev_codes) &&
+	       !v4l2_subdev_call(subdev, pad, enum_mbus_code, NULL, &mbus_code)) {
 		subdev_codes[codes_count] = mbus_code.code;
 		codes_count++;
 		mbus_code.index++;
