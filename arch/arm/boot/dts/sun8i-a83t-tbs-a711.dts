@@ -344,6 +344,7 @@
 	regulator-name = "vdd-sys";
 };
 
+/* 2.8V ??? */
 &reg_dldo1 {
 	regulator-min-microvolt = <3100000>;
 	regulator-max-microvolt = <3100000>;
@@ -410,6 +411,7 @@
 	regulator-name = "vdd-cpus";
 };
 
+/* 3.1V ??? */
 &reg_ldo_io0 {
 	regulator-min-microvolt = <3100000>;
 	regulator-max-microvolt = <3100000>;
@@ -417,6 +419,7 @@
 	status = "okay";
 };
 
+/* 3.1V ??? */
 &reg_ldo_io1 {
 	regulator-min-microvolt = <3100000>;
 	regulator-max-microvolt = <3100000>;
@@ -424,6 +427,7 @@
 	status = "okay";
 };
 
+/* 3.1V ??? */
 &reg_sw {
 	regulator-min-microvolt = <3100000>;
 	regulator-max-microvolt = <3100000>;
