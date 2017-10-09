@@ -716,8 +716,6 @@ static int sun6i_csi_probe(struct platform_device *pdev)
 	struct sun6i_csi_dev *sdev;
 	int ret;
 
-	//return -EINVAL;
-
 	sdev = devm_kzalloc(&pdev->dev, sizeof(*sdev), GFP_KERNEL);
 	if (!sdev)
 		return -ENOMEM;
