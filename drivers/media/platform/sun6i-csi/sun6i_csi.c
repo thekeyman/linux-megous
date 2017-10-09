@@ -577,9 +577,8 @@ static int sun6i_video_formats_init(struct sun6i_csi *csi)
 	for (i = 0; i < codes_count; i++) {
 		for (j = 0; j < pixformat_count; j++) {
 			if (!sun6i_csi_is_format_support(csi, pixformats[j],
-					mbus_code.code)) {
+					subdev_codes[i]))
 				continue;
-			}
 			num_fmts++;
 		}
 	}
@@ -603,13 +602,11 @@ static int sun6i_video_formats_init(struct sun6i_csi *csi)
 	for (i = 0; i < codes_count; i++) {
 		for (j = 0; j < pixformat_count; j++) {
 			if (!sun6i_csi_is_format_support(csi, pixformats[j],
-					mbus_code.code)) {
+					subdev_codes[i]))
 				continue;
-			}
 
 			csi->formats[num_fmts].fourcc = pixformats[j];
-			csi->formats[num_fmts].mbus_code =
-					mbus_code.code;
+			csi->formats[num_fmts].mbus_code = subdev_codes[i];
 			csi->formats[num_fmts].bpp =
 					v4l2_pixformat_get_bpp(pixformats[j]);
 			num_fmts++;
