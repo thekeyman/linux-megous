@@ -574,12 +574,13 @@ static int sun6i_video_formats_init(struct sun6i_csi *csi)
 		return -ENXIO;
 
 	/* Get supported formats count */
-	for (i = 0; i < codes_count; i++) {
-		for (j = 0; j < pixformat_count; j++) {
+	for (j = 0; j < pixformat_count; j++) {
+		for (i = 0; i < codes_count; i++) {
 			if (!sun6i_csi_is_format_support(csi, pixformats[j],
 					subdev_codes[i]))
 				continue;
 			num_fmts++;
+			break;
 		}
 	}
 
@@ -599,8 +600,8 @@ static int sun6i_video_formats_init(struct sun6i_csi *csi)
 
 	/* Get supported formats */
 	num_fmts = 0;
-	for (i = 0; i < codes_count; i++) {
-		for (j = 0; j < pixformat_count; j++) {
+	for (j = 0; j < pixformat_count; j++) {
+		for (i = 0; i < codes_count; i++) {
 			if (!sun6i_csi_is_format_support(csi, pixformats[j],
 					subdev_codes[i]))
 				continue;
@@ -610,6 +611,7 @@ static int sun6i_video_formats_init(struct sun6i_csi *csi)
 			csi->formats[num_fmts].bpp =
 					v4l2_pixformat_get_bpp(pixformats[j]);
 			num_fmts++;
+			break;
 		}
 	}
 
