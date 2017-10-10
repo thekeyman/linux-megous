@@ -45,6 +45,7 @@
 #include "sun8i-a83t.dtsi"
 #include <dt-bindings/gpio/gpio.h>
 #include <dt-bindings/pwm/pwm.h>
+//#define GC2145_SENSOR
 
 / {
 	model = "TBS A711 Tablet";
@@ -152,6 +153,7 @@
 			pclk-sample = <1>;
 		};
 
+#ifdef GC2145_SENSOR
 		csi0_gc2145_ep: endpoint {
 			remote-endpoint = <&gc2145_ep>;
 			bus-width = <8>;
@@ -160,6 +162,7 @@
 			data-active = <1>;
 			pclk-sample = <1>;
 		};
+#endif
 	};
 };
 
@@ -229,6 +232,7 @@
 		};
 	};
 
+#ifdef GC2145_SENSOR
 	gc2145: camera@3c {
 		compatible = "galaxycore,gc2145";
 		reg = <0x3c>;
@@ -252,6 +256,7 @@
 			};
 		};
 	};
+#endif
 };
 
 &mmc0 {
