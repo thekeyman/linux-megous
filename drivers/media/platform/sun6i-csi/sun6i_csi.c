@@ -23,7 +23,6 @@
 #include <media/v4l2-device.h>
 #include <media/v4l2-ioctl.h>
 #include <media/v4l2-mc.h>
-#include <media/v4l2-ctrls.h>
 #include <media/videobuf2-dma-contig.h>
 #include <media/videobuf2-v4l2.h>
 
@@ -808,12 +807,20 @@ int sun6i_csi_init(struct sun6i_csi *csi)
 
 	dev_dbg(csi->dev, "step 0\n");
 
+	ret = v4l2_ctrl_handler_init(&csi->ctrl_handler, 0);
+	if (ret) {
+		dev_err(csi->dev, "V4L2 controls handler init failed (%d)\n",
+			ret);
+		goto media_clean;
+	}
+
 	csi->v4l2_dev.mdev = &csi->media_dev;
+	csi->v4l2_dev.ctrl_handler = &csi->ctrl_handler;
 	ret = v4l2_device_register(csi->dev, &csi->v4l2_dev);
 	if (ret < 0) {
 		dev_err(csi->dev, "V4L2 device registration failed (%d)\n",
 			ret);
-		goto media_clean;
+		goto ctrls_clean;
 	}
 
 	dev_dbg(csi->dev, "step 1\n");
@@ -861,6 +868,8 @@ video_clean:
 v4l2_clean:
 	v4l2_device_unregister(&csi->v4l2_dev);
 	media_device_unregister(&csi->media_dev);
+ctrls_clean:
+	v4l2_ctrl_handler_free(&csi->ctrl_handler);
 media_clean:
 	media_device_cleanup(&csi->media_dev);
 	return ret;
@@ -872,6 +881,7 @@ int sun6i_csi_cleanup(struct sun6i_csi *csi)
 	v4l2_async_notifier_cleanup(&csi->notifier);
 	sun6i_video_cleanup(csi);
 	v4l2_device_unregister(&csi->v4l2_dev);
+	v4l2_ctrl_handler_free(&csi->ctrl_handler);
 	media_device_unregister(&csi->media_dev);
 	media_device_cleanup(&csi->media_dev);
 

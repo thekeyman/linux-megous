@@ -19,6 +19,7 @@
 #include <media/videobuf2-core.h>
 #include <media/v4l2-device.h>
 #include <media/v4l2-fwnode.h>
+#include <media/v4l2-ctrls.h>
 
 /*
  * struct sun6i_csi_format - CSI media bus format information
@@ -47,6 +48,7 @@ struct sun6i_csi_ops {
 
 struct sun6i_csi {
 	struct v4l2_device		v4l2_dev;
+	struct v4l2_ctrl_handler 	ctrl_handler;
 	struct v4l2_async_notifier	notifier;
 	struct video_device		vdev;
 	struct media_device		media_dev;
