@@ -45,6 +45,7 @@
 #include "sun8i-a83t.dtsi"
 #include <dt-bindings/gpio/gpio.h>
 #include <dt-bindings/pwm/pwm.h>
+//#define SENSOR_TEST
 //#define GC2145_SENSOR
 
 / {
@@ -138,6 +139,7 @@
 	cpu-supply = <&reg_dcdc3>;
 };
 
+#ifndef SENSOR_TEST
 &csi0 {
 	status = "okay";
 	pinctrl-names = "default";
@@ -165,6 +167,7 @@
 #endif
 	};
 };
+#endif
 
 &de {
 	status = "okay";
@@ -208,6 +211,28 @@
 };
 
 &i2c_gpio {
+#ifdef SENSOR_TEST
+	hm5065: camera@1f {
+		compatible = "allwinner,a83t-test";
+		reg = <0x1f>;
+		clocks = <&ccu CLK_BUS_CSI>,
+			 <&ccu CLK_CSI_MCLK>,
+			 <&ccu CLK_CSI_SCLK>,
+			 <&ccu CLK_DRAM_CSI>;
+		clock-names = "csi-bus", "csi-mclk", "csi-sclk", "csi-dram";
+		resets = <&ccu RST_BUS_CSI>;
+		IOVDD-supply = <&reg_dldo3>;
+		AVDD-supply = <&reg_dldo4>;
+		DVDD-supply = <&reg_eldo3>;
+		AFVDD-supply = <&reg_dldo3>;
+		nrst-gpios = <&pio 4 18 GPIO_ACTIVE_HIGH>; /* PE18 */
+		pwdn-gpios = <&pio 4 19 GPIO_ACTIVE_HIGH>; /* PE19 */
+		nrst2-gpios = <&pio 4 16 GPIO_ACTIVE_HIGH>; /* PE16 */
+		pwdn2-gpios = <&pio 4 17 GPIO_ACTIVE_HIGH>; /* PE17 */
+		pinctrl-names = "default";
+		pinctrl-0 = <&csi0_pins>;
+	};
+#else
 	hm5065: camera@1f {
 		compatible = "himax,hm5065";
 		reg = <0x1f>;
@@ -231,6 +256,7 @@
 			};
 		};
 	};
+#endif
 
 #ifdef GC2145_SENSOR
 	gc2145: camera@3c {
