@@ -151,6 +151,15 @@
 			data-active = <1>;
 			pclk-sample = <1>;
 		};
+
+		csi0_gc2145_ep: endpoint {
+			remote-endpoint = <&gc2145_ep>;
+			bus-width = <8>;
+			hsync-active = <1>;
+			vsync-active = <1>;
+			data-active = <1>;
+			pclk-sample = <1>;
+		};
 	};
 };
 
@@ -211,6 +220,30 @@
 		port {
 			hm5065_ep: endpoint {
 				remote-endpoint = <&csi0_hm5065_ep>;
+				bus-width = <8>;
+				hsync-active = <1>;
+				vsync-active = <1>;
+				data-active = <1>;
+				pclk-sample = <1>;
+			};
+		};
+	};
+
+	gc2145: camera@3c {
+		compatible = "galaxycore,gc2145";
+		reg = <0x3c>;
+		clocks = <&ccu CLK_CSI_MCLK>;
+		clock-names = "xclk";
+		IOVDD-supply = <&reg_dldo3>;
+		AVDD-supply = <&reg_dldo4>;
+		DVDD-supply = <&reg_eldo3>;
+		AFVDD-supply = <&reg_dldo3>;
+		reset-gpios = <&pio 4 16 GPIO_ACTIVE_LOW>;
+		powerdown-gpios = <&pio 4 17 GPIO_ACTIVE_HIGH>;
+
+		port {
+			gc2145_ep: endpoint {
+				remote-endpoint = <&csi0_gc2145_ep>;
 				bus-width = <8>;
 				hsync-active = <1>;
 				vsync-active = <1>;
