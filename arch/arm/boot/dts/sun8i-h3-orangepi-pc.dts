@@ -55,6 +55,7 @@
 	aliases {
 		ethernet0 = &emac;
 		serial0 = &uart0;
+		lcd0 = &lcd0;
 	};
 
 	chosen {
@@ -96,6 +97,10 @@
 		"Line Out", "LINEOUT",
 		"MIC1", "Mic",
 		"Mic",  "MBIAS";
+	status = "okay";
+};
+
+&de {
 	status = "okay";
 };
 
@@ -188,9 +193,17 @@
 	status = "okay";
 };
 
+&hdmi {
+	status = "okay";
+};
+
 &ir {
 	pinctrl-names = "default";
 	pinctrl-0 = <&ir_pins_a>;
+	status = "okay";
+};
+
+&lcd0 {
 	status = "okay";
 };
 
