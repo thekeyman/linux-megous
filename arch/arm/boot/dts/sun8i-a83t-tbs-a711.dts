@@ -150,9 +150,8 @@
 		csi0_hm5065_ep: endpoint {
 			remote-endpoint = <&hm5065_ep>;
 			bus-width = <8>;
-			hsync-active = <1>;
-			vsync-active = <1>;
 			data-active = <1>;
+			data-shift = <2>;
 			pclk-sample = <1>;
 		};
 
@@ -249,11 +248,6 @@
 		port {
 			hm5065_ep: endpoint {
 				remote-endpoint = <&csi0_hm5065_ep>;
-				bus-width = <8>;
-				hsync-active = <1>;
-				vsync-active = <1>;
-				data-active = <1>;
-				pclk-sample = <1>;
 			};
 		};
 	};
