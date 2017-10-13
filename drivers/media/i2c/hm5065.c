@@ -1458,8 +1458,9 @@ static int hm5065_probe(struct i2c_client *client,
 		return ret;
 	}
 
-	if (sensor->ep.bus_type != V4L2_MBUS_PARALLEL) {
-		dev_err(dev, "invalid bus type, must be PARALLEL\n");
+	/* we don't know how to configure the camera for PARALLEL mode */
+	if (sensor->ep.bus_type != V4L2_MBUS_BT656) {
+		dev_err(dev, "invalid bus type, must be BT.656\n");
 		return -EINVAL;
 	}
 
