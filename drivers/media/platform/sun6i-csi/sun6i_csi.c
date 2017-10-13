@@ -28,6 +28,23 @@
 
 #include "sun6i_csi.h"
 
+// {{{ utils
+
+static struct sun6i_csi_subdev *
+sun6i_get_enabled_subdev(struct sun6i_csi *csi)
+{
+	struct media_pad *remote;
+
+	remote = media_entity_remote_pad(&csi->pad);
+
+	if (!remote || !is_media_entity_v4l2_subdev(remote->entity))
+		return NULL;
+
+	return v4l2_get_subdev_hostdata(
+		media_entity_to_v4l2_subdev(remote->entity));
+}
+
+// }}}
 // {{{ vb2
 
 struct sun6i_csi_buffer {
@@ -103,6 +120,20 @@ static int sun6i_pipeline_set_stream(struct sun6i_csi *csi, bool enable)
 	}
 
 	return 0;
+}
+
+static int sun6i_csi_apply_config(struct sun6i_csi *csi)
+{
+	struct sun6i_csi_subdev *csi_sd;
+
+	csi_sd = sun6i_get_enabled_subdev(csi);
+	if (csi_sd == NULL)
+		return -ENXIO;
+
+	if (csi->ops != NULL && csi->ops->apply_config != NULL)
+		return csi->ops->apply_config(csi, csi_sd);
+
+	return -ENOIOCTLCMD;
 }
 
 static int sun6i_video_start_streaming(struct vb2_queue *vq, unsigned int count)
@@ -241,22 +272,6 @@ static struct vb2_ops sun6i_csi_vb2_ops = {
 // }}}
 // {{{ videodev ioctl
 
-static struct v4l2_subdev *
-sun6i_video_remote_subdev(struct sun6i_csi *csi, u32 *pad)
-{
-	struct media_pad *remote;
-
-	remote = media_entity_remote_pad(&csi->pad);
-
-	if (!remote || !is_media_entity_v4l2_subdev(remote->entity))
-		return NULL;
-
-	if (pad)
-		*pad = remote->index;
-
-	return media_entity_to_v4l2_subdev(remote->entity);
-}
-
 static int sun6i_video_set_fmt(struct sun6i_csi *csi, struct v4l2_format *f, bool try_only)
 {
 	struct v4l2_subdev_format sd_fmt;
@@ -264,8 +279,7 @@ static int sun6i_video_set_fmt(struct sun6i_csi *csi, struct v4l2_format *f, boo
 	struct v4l2_pix_format *pixfmt = &f->fmt.pix;
 	struct sun6i_csi_format *csi_fmt = NULL;
 	unsigned int i, num_formats = csi->num_formats;
-	struct v4l2_subdev *sd;
-	u32 sd_pad;
+	struct sun6i_csi_subdev *csi_sd;
 	int ret;
 
 	if (num_formats == 0)
@@ -278,14 +292,14 @@ static int sun6i_video_set_fmt(struct sun6i_csi *csi, struct v4l2_format *f, boo
 		csi_fmt = &csi->formats[0];
 	pixfmt->pixelformat = csi_fmt->fourcc;
 
-	sd = sun6i_video_remote_subdev(csi, &sd_pad);
-	if (sd == NULL)
+	csi_sd = sun6i_get_enabled_subdev(csi);
+	if (csi_sd == NULL)
 		return -ENXIO;
 
-	sd_fmt.pad = sd_pad;
+	sd_fmt.pad = csi_sd->pad;
 	sd_fmt.which = V4L2_SUBDEV_FORMAT_TRY;
 	v4l2_fill_mbus_format(&sd_fmt.format, pixfmt, csi_fmt->mbus_code);
-	ret = v4l2_subdev_call(sd, pad, set_fmt, &padconf, &sd_fmt);
+	ret = v4l2_subdev_call(csi_sd->sd, pad, set_fmt, &padconf, &sd_fmt);
 	if (ret)
 		return ret;
 
@@ -295,7 +309,7 @@ static int sun6i_video_set_fmt(struct sun6i_csi *csi, struct v4l2_format *f, boo
 
 	if (!try_only) {
 		sd_fmt.which = V4L2_SUBDEV_FORMAT_ACTIVE;
-		ret = v4l2_subdev_call(sd, pad, set_fmt, NULL, &sd_fmt);
+		ret = v4l2_subdev_call(csi_sd->sd, pad, set_fmt, NULL, &sd_fmt);
 		if (ret)
 			return ret;
 
@@ -365,24 +379,35 @@ static int sun6i_enum_input(struct file *file, void *priv,
 			   struct v4l2_input *i)
 {
 	struct sun6i_csi *csi = video_drvdata(file);
-	int ret;
+	struct v4l2_subdev *subdev;
+	int ret, s, idx;
 
-	if (i->index != 0 || !csi->sensor_subdev)
-		return -EINVAL;
+	idx = 0;
+	for (s = 0; s < SUN6I_CSI_NUM_SENSORS; s++) {
+		subdev = csi->sensors[s].sd;
+		if (!subdev)
+			continue;
 
-	ret = v4l2_subdev_call(csi->sensor_subdev, video, g_input_status, &i->status);
-	if (ret < 0 && ret != -ENOIOCTLCMD && ret != -ENODEV)
-		return ret;
+		if (idx == i->index) {
+			ret = v4l2_subdev_call(subdev, video, g_input_status, &i->status);
+			if (ret < 0 && ret != -ENOIOCTLCMD && ret != -ENODEV)
+				return ret;
 
-	i->type = V4L2_INPUT_TYPE_CAMERA;
+			i->type = V4L2_INPUT_TYPE_CAMERA;
+			strlcpy(i->name, "Camera", sizeof(i->name));
+			return 0;
+		}
 
-	strlcpy(i->name, "Camera", sizeof(i->name));
+		idx++;
+	}
 
-	return 0;
+	return -EINVAL;
 }
 
 static int sun6i_g_input(struct file *file, void *priv, unsigned int *i)
 {
+	//XXX: get index of the enabled input
+
 	*i = 0;
 
 	return 0;
@@ -390,6 +415,8 @@ static int sun6i_g_input(struct file *file, void *priv, unsigned int *i)
 
 static int sun6i_s_input(struct file *file, void *priv, unsigned int i)
 {
+	//XXX: enable link
+
 	if (i > 0)
 		return -EINVAL;
 
@@ -505,11 +532,22 @@ static const struct v4l2_file_operations sun6i_video_fops = {
 /* -----------------------------------------------------------------------------
  * Media Operations
  */
+
+static bool
+sun6i_csi_is_format_support(struct sun6i_csi *csi, u32 pixformat, u32 mbus_code,
+		struct sun6i_csi_subdev* csi_sd)
+{
+	if (csi->ops != NULL && csi->ops->is_format_support != NULL)
+		return csi->ops->is_format_support(csi, pixformat, mbus_code,
+						   csi_sd);
+
+	return -ENOIOCTLCMD;
+}
+
 static int sun6i_video_formats_init(struct sun6i_csi *csi)
 {
 	struct v4l2_subdev_mbus_code_enum mbus_code = { 0 };
-	struct v4l2_subdev *subdev;
-	u32 pad;
+	struct sun6i_csi_subdev *csi_sd;
 	const u32 *pixformats;
 	int pixformat_count = 0;
 	u32 subdev_codes[32];
@@ -517,8 +555,8 @@ static int sun6i_video_formats_init(struct sun6i_csi *csi)
 	int num_fmts = 0;
 	int i, j;
 
-	subdev = sun6i_video_remote_subdev(csi, &pad);
-	if (subdev == NULL)
+	csi_sd = sun6i_get_enabled_subdev(csi);
+	if (csi_sd == NULL)
 		return -ENXIO;
 
 	/* Get supported pixformats of CSI */
@@ -527,10 +565,10 @@ static int sun6i_video_formats_init(struct sun6i_csi *csi)
 		return -ENXIO;
 
 	/* Get subdev formats codes */
-	mbus_code.pad = pad;
+	mbus_code.pad = csi_sd->pad;
 	mbus_code.which = V4L2_SUBDEV_FORMAT_ACTIVE;
 	while (codes_count < ARRAY_SIZE(subdev_codes) &&
-	       !v4l2_subdev_call(subdev, pad, enum_mbus_code, NULL, &mbus_code)) {
+	       !v4l2_subdev_call(csi_sd->sd, pad, enum_mbus_code, NULL, &mbus_code)) {
 		subdev_codes[codes_count] = mbus_code.code;
 		codes_count++;
 		mbus_code.index++;
@@ -543,7 +581,7 @@ static int sun6i_video_formats_init(struct sun6i_csi *csi)
 	for (j = 0; j < pixformat_count; j++) {
 		for (i = 0; i < codes_count; i++) {
 			if (!sun6i_csi_is_format_support(csi, pixformats[j],
-					subdev_codes[i]))
+					subdev_codes[i], csi_sd))
 				continue;
 			num_fmts++;
 			break;
@@ -569,7 +607,7 @@ static int sun6i_video_formats_init(struct sun6i_csi *csi)
 	for (j = 0; j < pixformat_count; j++) {
 		for (i = 0; i < codes_count; i++) {
 			if (!sun6i_csi_is_format_support(csi, pixformats[j],
-					subdev_codes[i]))
+					subdev_codes[i], csi_sd))
 				continue;
 
 			csi->formats[num_fmts].fourcc = pixformats[j];
@@ -684,6 +722,9 @@ error:
 
 struct sun6i_csi_async_subdev {
 	struct v4l2_async_subdev asd; /* must be first */
+	unsigned int ep_id;
+	enum v4l2_mbus_type bus_type;
+	struct v4l2_fwnode_bus_parallel parallel;
 };
 
 #define notifier_to_csi(n) container_of(n, struct sun6i_csi, notifier)
@@ -695,19 +736,28 @@ static int sun6i_csi_notify_bound(struct v4l2_async_notifier *notifier,
 {
 	struct sun6i_csi *csi = notifier_to_csi(notifier);
 	struct sun6i_csi_async_subdev *csi_asd = asd_to_csi_asd(asd);
-	//int ret;
+	unsigned int i;
 
 	dev_dbg(csi->dev, "bound subdev %s\n", subdev->name);
 
 	if (subdev->entity.function != MEDIA_ENT_F_CAM_SENSOR) {
-		dev_err(csi->dev, "bound subdev %s - not a camera sensor\n", subdev->name);
+		dev_err(csi->dev, "subdev %s not bound, must be a camera sensor\n", subdev->name);
 		return -EINVAL;
 	}
 
-	csi->sensor_subdev = subdev;
-	v4l2_set_subdev_hostdata(subdev, csi);
+	for (i = 0; i < SUN6I_CSI_NUM_SENSORS; i++) {
+		if (csi->sensors[i].sd == NULL) {
+			csi->sensors[i].sd = subdev;
+			csi->sensors[i].ep_id = csi_asd->ep_id;
+			csi->sensors[i].bus_type = csi_asd->bus_type;
+			csi->sensors[i].parallel = csi_asd->parallel;
+			v4l2_set_subdev_hostdata(subdev, &csi->sensors[i]);
+			return 0;
+		}
+	}
 
-	return 0;
+	dev_err(csi->dev, "subdev %s not bound, not enough sensor slots\n");
+	return -ENOMEM;
 }
 
 static void sun6i_csi_notify_unbind(struct v4l2_async_notifier *notifier,
@@ -716,11 +766,16 @@ static void sun6i_csi_notify_unbind(struct v4l2_async_notifier *notifier,
 {
 	struct sun6i_csi *csi = notifier_to_csi(notifier);
 	struct sun6i_csi_async_subdev *csi_asd = asd_to_csi_asd(asd);
+	unsigned int i;
 
 	dev_err(csi->dev, "unbind subdev %s\n", subdev->name);
 
-	if (csi->sensor_subdev == subdev) {
-		csi->sensor_subdev = NULL;
+	for (i = 0; i < SUN6I_CSI_NUM_SENSORS; i++) {
+		if (csi->sensors[i].sd == subdev) {
+			csi->sensors[i].sd = NULL;
+			v4l2_set_subdev_hostdata(subdev, NULL);
+			return;
+		}
 	}
 }
 
@@ -730,33 +785,43 @@ static int sun6i_csi_notify_complete(struct v4l2_async_notifier *notifier)
 	struct v4l2_subdev *subdev;
 	struct media_entity *sink = &csi->vdev.entity;
 	unsigned int pad;
+	unsigned int i;
 	int ret;
+	bool first_sensor = true;
 
 	dev_dbg(csi->dev, "notify complete, all subdevs bound\n");
 
-        subdev = csi->sensor_subdev;
-	if (subdev) {
+	for (i = 0; i < SUN6I_CSI_NUM_SENSORS; i++) {
+		subdev = csi->sensors[i].sd;
+		if (subdev == NULL)
+			continue;
+
 		for (pad = 0; pad < subdev->entity.num_pads; pad++) {
 			if (subdev->entity.pads[pad].flags & MEDIA_PAD_FL_SOURCE) {
-				ret = media_create_pad_link(&subdev->entity, pad, sink, 0, MEDIA_LNK_FL_ENABLED | MEDIA_LNK_FL_IMMUTABLE);
+                                csi->sensors[i].pad = pad;
+
+				ret = media_create_pad_link(&subdev->entity, pad, sink, 0, first_sensor ? MEDIA_LNK_FL_ENABLED : 0);
 				if (ret)
 					return ret;
 
 				dev_dbg(csi->dev, "created pad link %s:%u -> %s:0\n", subdev->name, pad, csi->vdev.name);
 
-				ret = media_entity_call(sink, link_setup, &sink->pads[0], &subdev->entity.pads[pad], 0);
-				if (ret)
-					return ret;
+				if (first_sensor) {
+					ret = media_entity_call(sink, link_setup, &sink->pads[0], &subdev->entity.pads[pad], 0);
+					if (ret)
+						return ret;
+				}
 
-				goto register_subdevs;
+				first_sensor = false;
+				goto next_sensor;
 			}
 		}
 
-		dev_err(csi->dev, "bound subdev %s - no source pad found\n", subdev->name);
+		dev_err(csi->dev, "subdev %s - no source pad found\n", subdev->name);
 		return -EINVAL;
+next_sensor:;
 	}
 
-register_subdevs:
 	ret = v4l2_device_register_subdev_nodes(&csi->v4l2_dev);
 	if (ret < 0) {
 		dev_err(csi->dev, "failed to register subdev nodes\n");
@@ -774,25 +839,23 @@ static int sun6i_csi_parse_subdev_endpoint(struct device *dev,
 				   struct v4l2_async_subdev *asd)
 {
 	struct sun6i_csi *csi = dev_get_drvdata(dev); // this is really a struct sun6i_csi_dev, struct sun6i_csi is its first member
-	//struct sun6i_csi_async_subdev *csi_asd = asd_to_csi_asd(asd);
+	struct sun6i_csi_async_subdev *csi_asd = asd_to_csi_asd(asd);
 
-	// ony one endpoint is supported
-	//XXX: we will need to support multiple switchable endpoints (or can
-	//this be done by some multiplexer code?)
-	if (vep->base.port || vep->base.id)
+	if (vep->base.port) {
+		dev_err(csi->dev, "CSI has only one port\n");
 		return -ENOTCONN;
+	}
 
 	switch (vep->bus_type) {
 	case V4L2_MBUS_PARALLEL:
-		dev_dbg(csi->dev, "Found PARALLEL media bus endpoint\n");
-
-		csi->bus_type = vep->bus_type;
-		csi->bus_width = vep->bus.parallel.bus_width;
-		csi->bus_flags = vep->bus.parallel.flags;
+	case V4L2_MBUS_BT656:
+		csi_asd->ep_id = vep->base.id;
+		csi_asd->bus_type = vep->bus_type;
+		csi_asd->parallel = vep->bus.parallel;
 		return 0;
 	default:
 		dev_err(csi->dev, "Unsupported media bus type\n");
-		return -EINVAL;
+		return -ENOTCONN;
 	}
 }
 

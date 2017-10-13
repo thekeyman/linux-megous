@@ -100,20 +100,18 @@ static int get_supported_pixformats(struct sun6i_csi *csi,
 
 /* TODO add 10&12 bit YUV, RGB support */
 static bool is_format_support(struct sun6i_csi *csi, u32 pixformat,
-			      u32 mbus_code)
+			      u32 mbus_code, struct sun6i_csi_subdev *csi_sd)
 {
 	struct sun6i_csi_dev *sdev = sun6i_csi_to_dev(csi);
+	enum v4l2_mbus_type bus_type = csi_sd->bus_type;
+	bool is_parallel = bus_type == V4L2_MBUS_PARALLEL || bus_type == V4L2_MBUS_BT656;
 
 	/*
 	 * Some video receiver have capability both 8bit and 16bit.
 	 * Identify the media bus format from device tree.
 	 */
-	if (((sdev->csi.bus_type == V4L2_MBUS_PARALLEL
-	      || sdev->csi.bus_type == V4L2_MBUS_BT656)
-	     && sdev->csi.bus_width == 16)) {
-#if 0
-	    || sdev->csi.bus_type == V4L2_MBUS_CSI2) {
-#endif
+	if ((is_parallel && csi_sd->parallel.bus_width == 16) ||
+			bus_type == V4L2_MBUS_CSI2) {
 		switch (pixformat) {
 		case V4L2_PIX_FMT_HM12:
 		case V4L2_PIX_FMT_NV12:
@@ -342,10 +340,11 @@ static enum csi_input_seq get_csi_input_seq(u32 mbus_code, u32 pixformat)
 	return CSI_INPUT_SEQ_YUYV;
 }
 
-static void sun6i_csi_setup_bus(struct sun6i_csi_dev *sdev)
+static void sun6i_csi_setup_bus(struct sun6i_csi_dev *sdev, struct sun6i_csi_subdev *csi_sd)
 {
-	unsigned char bus_width = sdev->csi.bus_width;
-	u32 flags = sdev->csi.bus_flags;
+	unsigned char bus_width = csi_sd->parallel.bus_width;
+	unsigned char data_shift = csi_sd->parallel.data_shift;
+	u32 flags = csi_sd->parallel.flags;
 	u32 cfg;
 
 	regmap_read(sdev->regmap, CSI_IF_CFG_REG, &cfg);
@@ -355,7 +354,7 @@ static void sun6i_csi_setup_bus(struct sun6i_csi_dev *sdev)
 		 CSI_IF_CFG_CLK_POL_MASK | CSI_IF_CFG_VREF_POL_MASK |
 		 CSI_IF_CFG_HREF_POL_MASK | CSI_IF_CFG_FIELD_MASK);
 
-	switch (sdev->csi.bus_type) {
+	switch (csi_sd->bus_type) {
 #if 0
 	case V4L2_MBUS_CSI2:
 		cfg |= CSI_IF_CFG_MIPI_IF_MIPI;
@@ -551,11 +550,11 @@ static int set_power(struct sun6i_csi *csi, bool enable)
 	return 0;
 }
 
-static int apply_config(struct sun6i_csi *csi)
+static int apply_config(struct sun6i_csi *csi, struct sun6i_csi_subdev *csi_sd)
 {
 	struct sun6i_csi_dev *sdev = sun6i_csi_to_dev(csi);
 
-	sun6i_csi_setup_bus(sdev);
+	sun6i_csi_setup_bus(sdev, csi_sd);
 	sun6i_csi_set_format(sdev);
 	sun6i_csi_set_window(sdev);
 
