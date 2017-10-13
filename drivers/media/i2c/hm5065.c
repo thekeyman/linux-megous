@@ -385,6 +385,7 @@ struct hm5065_pixfmt {
 	bool needs_ycbcr_setup;
 };
 
+//XXX: identify colrorspace correctly, see datasheet page 40
 static const struct hm5065_pixfmt hm5065_formats[] = {
 	{ MEDIA_BUS_FMT_UYVY8_2X8, V4L2_COLORSPACE_SRGB,
 	  HM5065_REG_DATA_FORMAT_YCBCR_JFIF, HM5065_REG_YCRCB_ORDER_CB_Y_CR_Y, true },
