@@ -356,26 +356,28 @@ static const struct hm5065_clk_lut* hm5065_find_clk_lut(unsigned long freq)
 struct hm5065_frame_size {
 	u32 width;
 	u32 height;
-	u8 reg_opt;
+	u8 reg_size;
 };
 
 /* must be sorted by frame area */
 static const struct hm5065_frame_size hm5065_frame_sizes[] = {
-	{ .width = 2592, .height = 1944, .reg_opt = HM5065_REG_IMAGE_SIZE_5MP },
-	{ .width = 1920, .height = 1080, .reg_opt = 0 },
-	{ .width = 1600, .height = 1200, .reg_opt = HM5065_REG_IMAGE_SIZE_UXGA },
-	{ .width = 1280, .height = 1024, .reg_opt = HM5065_REG_IMAGE_SIZE_SXGA },
-	{ .width = 1280, .height = 720, .reg_opt = 0 },
-	{ .width = 800, .height = 600, .reg_opt = HM5065_REG_IMAGE_SIZE_SVGA },
-	{ .width = 640, .height = 480, .reg_opt = HM5065_REG_IMAGE_SIZE_VGA },
-	{ .width = 352, .height = 288, .reg_opt = HM5065_REG_IMAGE_SIZE_CIF },
-	{ .width = 320, .height = 240, .reg_opt = HM5065_REG_IMAGE_SIZE_QVGA },
-	{ .width = 176, .height = 144, .reg_opt = HM5065_REG_IMAGE_SIZE_QCIF },
-	{ .width = 160, .height = 120, .reg_opt = HM5065_REG_IMAGE_SIZE_QQVGA },
-	{ .width = 88, .height = 72, .reg_opt = HM5065_REG_IMAGE_SIZE_QQCIF },
+	{ .width = 2592, .height = 1944, .reg_size = HM5065_REG_IMAGE_SIZE_5MP },
+	{ .width = 1920, .height = 1080, .reg_size = HM5065_REG_IMAGE_SIZE_MANUAL },
+	{ .width = 1600, .height = 1200, .reg_size = HM5065_REG_IMAGE_SIZE_UXGA },
+	{ .width = 1280, .height = 1024, .reg_size = HM5065_REG_IMAGE_SIZE_SXGA },
+	{ .width = 1280, .height = 720, .reg_size = HM5065_REG_IMAGE_SIZE_MANUAL },
+	{ .width = 1024, .height = 600, .reg_size = HM5065_REG_IMAGE_SIZE_MANUAL },
+	{ .width = 800, .height = 600, .reg_size = HM5065_REG_IMAGE_SIZE_SVGA },
+	{ .width = 640, .height = 480, .reg_size = HM5065_REG_IMAGE_SIZE_VGA },
+	{ .width = 352, .height = 288, .reg_size = HM5065_REG_IMAGE_SIZE_CIF },
+	{ .width = 320, .height = 240, .reg_size = HM5065_REG_IMAGE_SIZE_QVGA },
+	{ .width = 176, .height = 144, .reg_size = HM5065_REG_IMAGE_SIZE_QCIF },
+	{ .width = 160, .height = 120, .reg_size = HM5065_REG_IMAGE_SIZE_QQVGA },
+	{ .width = 88, .height = 72, .reg_size = HM5065_REG_IMAGE_SIZE_QQCIF },
 };
 
 #define HM5065_NUM_FRAME_SIZES ARRAY_SIZE(hm5065_frame_sizes)
+#define HM5065_DEFAULT_FRAME_SIZE 6
 
 struct hm5065_pixfmt {
 	u32 code;
@@ -461,9 +463,10 @@ struct hm5065_dev {
 	/* lock to protect all members below */
 	struct mutex lock;
 
-	struct hm5065_ctrls ctrls;
 	struct v4l2_mbus_framefmt fmt;
+	const struct hm5065_frame_size* fsize;
 	struct v4l2_fract frame_interval;
+	struct hm5065_ctrls ctrls;
 
 	bool pending_mode_change;
 	bool powered;
@@ -906,21 +909,23 @@ static int hm5065_setup_mode(struct hm5065_dev *sensor)
 	if (ret)
 		return ret;
 
-	dev_info(&sensor->i2c_client->dev, "set img size manual\n");
+	if (sensor->fsize->reg_size == HM5065_REG_IMAGE_SIZE_MANUAL) {
+		dev_info(&sensor->i2c_client->dev, "set img width\n");
 
-	ret = hm5065_write_reg8(sensor, HM5065_REG_P0_IMAGE_SIZE, HM5065_REG_IMAGE_SIZE_MANUAL);
-	if (ret)
-		return ret;
+		ret = hm5065_write_reg16(sensor, HM5065_REG_P0_MANUAL_HSIZE, sensor->fmt.width);
+		if (ret)
+			return ret;
 
-	dev_info(&sensor->i2c_client->dev, "set img width\n");
+		dev_info(&sensor->i2c_client->dev, "set img height\n");
 
-	ret = hm5065_write_reg16(sensor, HM5065_REG_P0_MANUAL_HSIZE, sensor->fmt.width);
-	if (ret)
-		return ret;
+		ret = hm5065_write_reg16(sensor, HM5065_REG_P0_MANUAL_VSIZE, sensor->fmt.height);
+		if (ret)
+			return ret;
+	}
 
-	dev_info(&sensor->i2c_client->dev, "set img height\n");
+	dev_info(&sensor->i2c_client->dev, "set img size %02x\n", (unsigned int)sensor->fsize->reg_size);
 
-	ret = hm5065_write_reg16(sensor, HM5065_REG_P0_MANUAL_VSIZE, sensor->fmt.height);
+	ret = hm5065_write_reg8(sensor, HM5065_REG_P0_IMAGE_SIZE, sensor->fsize->reg_size);
 	if (ret)
 		return ret;
 
@@ -1143,6 +1148,7 @@ static int hm5065_set_fmt(struct v4l2_subdev *sd,
 		goto out;
 	}
 
+	sensor->fsize = &hm5065_frame_sizes[i];
 	sensor->fmt = *mf;
 	sensor->pending_mode_change = true;
 out:
@@ -1437,12 +1443,13 @@ static int hm5065_probe(struct i2c_client *client,
 
 	sensor->i2c_client = client;
 
+	sensor->fsize = &hm5065_frame_sizes[HM5065_DEFAULT_FRAME_SIZE];
 	sensor->fmt.code = hm5065_formats[0].code;
-	sensor->fmt.width = 640;
-	sensor->fmt.height = 480;
+	sensor->fmt.width = hm5065_frame_sizes[HM5065_DEFAULT_FRAME_SIZE].width;
+	sensor->fmt.height = hm5065_frame_sizes[HM5065_DEFAULT_FRAME_SIZE].height;
 	sensor->fmt.field = V4L2_FIELD_NONE;
 	sensor->frame_interval.numerator = 1;
-	sensor->frame_interval.denominator = 30;
+	sensor->frame_interval.denominator = 15;
 	sensor->pending_mode_change = true;
 
 	endpoint = fwnode_graph_get_next_endpoint(
