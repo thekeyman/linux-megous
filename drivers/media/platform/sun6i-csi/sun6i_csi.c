@@ -306,6 +306,7 @@ static int sun6i_video_set_fmt(struct sun6i_csi *csi, struct v4l2_format *f, boo
 	v4l2_fill_pix_format(pixfmt, &sd_fmt.format);
 	pixfmt->bytesperline = (pixfmt->width * csi_fmt->bpp) / 8;
 	pixfmt->sizeimage = pixfmt->bytesperline * pixfmt->height;
+	pixfmt->flags = 0;
 
 	if (!try_only) {
 		sd_fmt.which = V4L2_SUBDEV_FORMAT_ACTIVE;
@@ -370,6 +371,8 @@ static int sun6i_enum_fmt_vid_cap(struct file *file, void *priv,
 	if (f->index >= csi->num_formats)
 		return -EINVAL;
 
+	f->flags = 0;
+	f->description[0] = '\0';
 	f->pixelformat = csi->formats[f->index].fourcc;
 
 	return 0;
