@@ -759,7 +759,7 @@ static int sun6i_csi_notify_bound(struct v4l2_async_notifier *notifier,
 		}
 	}
 
-	dev_err(csi->dev, "subdev %s not bound, not enough sensor slots\n");
+	dev_err(csi->dev, "subdev %s not bound, not enough sensor slots\n", subdev->name);
 	return -ENOMEM;
 }
 
