@@ -343,7 +343,6 @@ static enum csi_input_seq get_csi_input_seq(u32 mbus_code, u32 pixformat)
 static void sun6i_csi_setup_bus(struct sun6i_csi_dev *sdev, struct sun6i_csi_subdev *csi_sd)
 {
 	unsigned char bus_width = csi_sd->parallel.bus_width;
-	unsigned char data_shift = csi_sd->parallel.data_shift;
 	u32 flags = csi_sd->parallel.flags;
 	u32 cfg;
 
