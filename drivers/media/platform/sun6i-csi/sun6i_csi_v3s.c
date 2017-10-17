@@ -102,7 +102,7 @@ static int get_supported_pixformats(struct sun6i_csi *csi,
 static bool is_format_support(struct sun6i_csi *csi, u32 pixformat,
 			      u32 mbus_code, struct sun6i_csi_subdev *csi_sd)
 {
-	struct sun6i_csi_dev *sdev = sun6i_csi_to_dev(csi);
+	//struct sun6i_csi_dev *sdev = sun6i_csi_to_dev(csi);
 	enum v4l2_mbus_type bus_type = csi_sd->bus_type;
 	bool is_parallel = bus_type == V4L2_MBUS_PARALLEL || bus_type == V4L2_MBUS_BT656;
 

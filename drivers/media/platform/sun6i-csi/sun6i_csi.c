@@ -768,7 +768,7 @@ static void sun6i_csi_notify_unbind(struct v4l2_async_notifier *notifier,
 				       struct v4l2_async_subdev *asd)
 {
 	struct sun6i_csi *csi = notifier_to_csi(notifier);
-	struct sun6i_csi_async_subdev *csi_asd = asd_to_csi_asd(asd);
+	//struct sun6i_csi_async_subdev *csi_asd = asd_to_csi_asd(asd);
 	unsigned int i;
 
 	dev_err(csi->dev, "unbind subdev %s\n", subdev->name);
