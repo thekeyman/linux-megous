@@ -613,6 +613,7 @@ static int sun6i_video_formats_init(struct sun6i_csi *csi)
 					subdev_codes[i], csi_sd))
 				continue;
 
+			dev_dbg(csi->dev, "supported format: pix=%d:bus=%d\n", pixformats[j], subdev_codes[i]);
 			csi->formats[num_fmts].fourcc = pixformats[j];
 			csi->formats[num_fmts].mbus_code = subdev_codes[i];
 			csi->formats[num_fmts].bpp =
