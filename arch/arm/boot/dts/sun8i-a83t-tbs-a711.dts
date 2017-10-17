@@ -151,7 +151,6 @@
 			remote-endpoint = <&hm5065_ep>;
 			bus-width = <8>;
 			data-active = <1>;
-			data-shift = <2>;
 			pclk-sample = <1>;
 		};
 
