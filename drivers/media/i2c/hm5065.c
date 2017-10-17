@@ -604,6 +604,7 @@ static int hm5065_write_reg32(struct hm5065_dev *sensor, u16 reg, u32 val)
 	return hm5065_write_regs(sensor, reg, buf, sizeof(buf));
 }
 
+#if 0
 /*
  * Sensor controller uses ST Float900 format to represent floating point numbers.
  * Binary floating point number: * (s ? -1 : 0) * 1.mmmmmmmmm * 2^eeeeee
@@ -670,6 +671,7 @@ static u16 hm5065_mili_to_fp16(s32 val)
 
 	return s | (m & 0x1ff) | (e << 9);
 }
+#endif
 
 /* }}} */
 /* {{{ Controls */
@@ -1195,6 +1197,7 @@ static void hm5065_chip_enable(struct hm5065_dev *sensor, bool enable)
 	gpiod_set_value(sensor->reset_gpio, enable ? 0 : 1);
 }
 
+#if 0
 static void hm5065_reset(struct hm5065_dev *sensor)
 {
 	/* if reset pin is not used, we will use CE for reset */
@@ -1214,6 +1217,7 @@ static void hm5065_reset(struct hm5065_dev *sensor)
 
 	usleep_range(30000, 40000);
 }
+#endif
 
 static int hm5065_configure(struct hm5065_dev *sensor)
 {
