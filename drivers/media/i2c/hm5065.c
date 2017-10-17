@@ -1109,6 +1109,9 @@ static int hm5065_set_fmt(struct v4l2_subdev *sd,
 
 	mf->code = pixfmt->code;
 	mf->colorspace = pixfmt->colorspace;
+	mf->xfer_func = V4L2_XFER_FUNC_DEFAULT;
+	mf->ycbcr_enc = V4L2_YCBCR_ENC_DEFAULT;
+	mf->quantization = V4L2_QUANTIZATION_DEFAULT;
 
 	mf->field = V4L2_FIELD_NONE;
 
