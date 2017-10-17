@@ -488,8 +488,7 @@ static void sun6i_csi_set_window(struct sun6i_csi_dev *sdev)
 				bytesperline_c * height;
 		break;
 	default: /* raw */
-		bytesperline_y = (v4l2_pixformat_get_bpp(csi->fmt.fmt.pix.pixelformat) *
-				  width) / 8;
+		bytesperline_y = (csi->current_fmt->bpp * width) / 8;
 		bytesperline_c = 0;
 		planar_offset[1] = -1;
 		planar_offset[2] = -1;
