@@ -743,7 +743,7 @@ static int sun6i_csi_probe(struct platform_device *pdev)
 	if (ret)
 		return ret;
 
-	dev_dbg(sdev->csi.dev, "driver registered perfectly 1!\n");
+	dev_dbg(sdev->csi.dev, "driver registered\n");
 
 	return 0;
 }

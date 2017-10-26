@@ -908,13 +908,9 @@ int sun6i_csi_init(struct sun6i_csi *csi)
 		goto ctrls_clean;
 	}
 
-	dev_dbg(csi->dev, "step 1\n");
-
 	ret = sun6i_video_init(csi, "sun6i-csi");
 	if (ret < 0)
 		goto v4l2_clean;
-
-	dev_dbg(csi->dev, "step 2\n");
 
 	// Parse DT and build notifier.subdevs (struct v4l2_async_subdev) list
 	// that will be used to match and bind/unbind subdevices (sensors) to
@@ -929,8 +925,6 @@ int sun6i_csi_init(struct sun6i_csi *csi)
 	if (ret)
 		goto video_clean;
 
-	dev_dbg(csi->dev, "step 3\n");
-
 	csi->notifier.bound = sun6i_csi_notify_bound;
 	csi->notifier.unbind = sun6i_csi_notify_unbind;
 	csi->notifier.complete = sun6i_csi_notify_complete;
@@ -939,10 +933,6 @@ int sun6i_csi_init(struct sun6i_csi *csi)
 		dev_err(csi->dev, "Notifier registration failed\n");
 		goto notifier_clean;
 	}
-
-	dev_dbg(csi->dev, "step 4\n");
-
-	dev_dbg(csi->dev, "driver registered perfectly 0!\n");
 
 	return 0;
 
