@@ -453,7 +453,7 @@ static void sun6i_csi_set_window(struct sun6i_csi_dev *sdev)
 	u32 height = csi->fmt.fmt.pix.height;
 
 	regmap_write(sdev->regmap, CSI_CH_HSIZE_REG,
-		     CSI_CH_HSIZE_HOR_LEN(width) |
+		     CSI_CH_HSIZE_HOR_LEN(width * 2) |
 		     CSI_CH_HSIZE_HOR_START(0));
 	regmap_write(sdev->regmap, CSI_CH_VSIZE_REG,
 		     CSI_CH_VSIZE_VER_LEN(height) |
