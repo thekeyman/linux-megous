@@ -23,41 +23,54 @@
 #define CSI_EN_CSI_EN				BIT(0)
 
 #define CSI_IF_CFG_REG			0x4
+
 #define CSI_IF_CFG_SRC_TYPE_MASK		BIT(21)
-#define CSI_IF_CFG_SRC_TYPE_PROGRESSED		((0 << 21) & CSI_IF_CFG_SRC_TYPE_MASK)
-#define CSI_IF_CFG_SRC_TYPE_INTERLACED		((1 << 21) & CSI_IF_CFG_SRC_TYPE_MASK)
+#define CSI_IF_CFG_SRC_TYPE_PROGRESSED		0
+#define CSI_IF_CFG_SRC_TYPE_INTERLACED		BIT(21)
+
 #define CSI_IF_CFG_FPS_DS_EN			BIT(20)
+
 #define CSI_IF_CFG_FIELD_MASK			BIT(19)
-#define CSI_IF_CFG_FIELD_NEGATIVE		((0 << 19) & CSI_IF_CFG_FIELD_MASK)
-#define CSI_IF_CFG_FIELD_POSITIVE		((1 << 19) & CSI_IF_CFG_FIELD_MASK)
+#define CSI_IF_CFG_FIELD_NEGATIVE		0
+#define CSI_IF_CFG_FIELD_POSITIVE		BIT(19)
+
 #define CSI_IF_CFG_VREF_POL_MASK		BIT(18)
-#define CSI_IF_CFG_VREF_POL_NEGATIVE		((0 << 18) & CSI_IF_CFG_VREF_POL_MASK)
-#define CSI_IF_CFG_VREF_POL_POSITIVE		((1 << 18) & CSI_IF_CFG_VREF_POL_MASK)
+#define CSI_IF_CFG_VREF_POL_NEGATIVE		0
+#define CSI_IF_CFG_VREF_POL_POSITIVE		BIT(18)
+
 #define CSI_IF_CFG_HREF_POL_MASK		BIT(17)
-#define CSI_IF_CFG_HREF_POL_NEGATIVE		((0 << 17) & CSI_IF_CFG_HREF_POL_MASK)
-#define CSI_IF_CFG_HREF_POL_POSITIVE		((1 << 17) & CSI_IF_CFG_HREF_POL_MASK)
+#define CSI_IF_CFG_HREF_POL_NEGATIVE		0
+#define CSI_IF_CFG_HREF_POL_POSITIVE		BIT(17)
+
 #define CSI_IF_CFG_CLK_POL_MASK			BIT(16)
-#define CSI_IF_CFG_CLK_POL_RISING_EDGE		((0 << 16) & CSI_IF_CFG_CLK_POL_MASK)
-#define CSI_IF_CFG_CLK_POL_FALLING_EDGE		((1 << 16) & CSI_IF_CFG_CLK_POL_MASK)
+#define CSI_IF_CFG_CLK_POL_RISING_EDGE		0
+#define CSI_IF_CFG_CLK_POL_FALLING_EDGE		BIT(16)
+
 //megi: A83T does haveg GENMASK(9, 8) and fewer options, though it is compatible
-#define CSI_IF_CFG_IF_DATA_WIDTH_MASK		GENMASK(10, 8)
-#define CSI_IF_CFG_IF_DATA_WIDTH_8BIT		((0 << 8) & CSI_IF_CFG_IF_DATA_WIDTH_MASK)
-#define CSI_IF_CFG_IF_DATA_WIDTH_10BIT		((1 << 8) & CSI_IF_CFG_IF_DATA_WIDTH_MASK)
-#define CSI_IF_CFG_IF_DATA_WIDTH_12BIT		((2 << 8) & CSI_IF_CFG_IF_DATA_WIDTH_MASK)
+//#define CSI_IF_CFG_IF_DATA_WIDTH_MASK		GENMASK(10, 8)
+#define CSI_IF_CFG_IF_DATA_WIDTH_MASK		GENMASK(9, 8)
+#define CSI_IF_CFG_IF_DATA_WIDTH_8BIT		(0 << 8)
+#define CSI_IF_CFG_IF_DATA_WIDTH_10BIT		(1 << 8)
+#define CSI_IF_CFG_IF_DATA_WIDTH_12BIT		(2 << 8)
+//megi: A83T only
+#define CSI_IF_CFG_IF_DATA_WIDTH_8P2BIT		(3 << 8)
+
 #define CSI_IF_CFG_MIPI_IF_MASK			BIT(7)
-#define CSI_IF_CFG_MIPI_IF_CSI			(0 << 7)
-#define CSI_IF_CFG_MIPI_IF_MIPI			(1 << 7)
+#define CSI_IF_CFG_MIPI_IF_CSI			0
+#define CSI_IF_CFG_MIPI_IF_MIPI			BIT(7)
+
 #define CSI_IF_CFG_CSI_IF_MASK			GENMASK(4, 0)
-#define CSI_IF_CFG_CSI_IF_YUV422_INTLV		((0 << 0) & CSI_IF_CFG_CSI_IF_MASK)
+#define CSI_IF_CFG_CSI_IF_YUV422_INTLV		0
 //megi: not supported by A83T:
-#define CSI_IF_CFG_CSI_IF_YUV422_16BIT		((1 << 0) & CSI_IF_CFG_CSI_IF_MASK)
-#define CSI_IF_CFG_CSI_IF_BT656			((4 << 0) & CSI_IF_CFG_CSI_IF_MASK)
+#define CSI_IF_CFG_CSI_IF_YUV422_16BIT		1
+#define CSI_IF_CFG_CSI_IF_BT656			4
 //megi: not supported by A83T:
-#define CSI_IF_CFG_CSI_IF_BT1120		((5 << 0) & CSI_IF_CFG_CSI_IF_MASK)
+#define CSI_IF_CFG_CSI_IF_BT1120		5
 
 #define CSI_CAP_REG			0x8
 #define CSI_CAP_CH0_CAP_MASK_MASK		GENMASK(5, 2)
-#define CSI_CAP_CH0_CAP_MASK(count)		((count << 2) & CSI_CAP_CH0_CAP_MASK_MASK)
+#define CSI_CAP_CH0_CAP_MASK(count)		((count << 2) & \
+						 CSI_CAP_CH0_CAP_MASK_MASK)
 #define CSI_CAP_CH0_VCAP_ON			BIT(1)
 #define CSI_CAP_CH0_SCAP_ON			BIT(0)
 
@@ -72,17 +85,20 @@
 //megi: called CSI0_C0_* in A83T
 #define CSI_CH_CFG_REG			0x44
 #define CSI_CH_CFG_INPUT_FMT_MASK		GENMASK(23, 20)
-#define CSI_CH_CFG_INPUT_FMT(fmt)		((fmt << 20) & CSI_CH_CFG_INPUT_FMT_MASK)
+#define CSI_CH_CFG_INPUT_FMT(fmt)		((fmt << 20) & \
+						 CSI_CH_CFG_INPUT_FMT_MASK)
 #define CSI_CH_CFG_OUTPUT_FMT_MASK		GENMASK(19, 16)
-#define CSI_CH_CFG_OUTPUT_FMT(fmt)		((fmt << 16) & CSI_CH_CFG_OUTPUT_FMT_MASK)
+#define CSI_CH_CFG_OUTPUT_FMT(fmt)		((fmt << 16) & \
+						 CSI_CH_CFG_OUTPUT_FMT_MASK)
 #define CSI_CH_CFG_VFLIP_EN			BIT(13)
 #define CSI_CH_CFG_HFLIP_EN			BIT(12)
 #define CSI_CH_CFG_FIELD_SEL_MASK		GENMASK(11, 10)
-#define CSI_CH_CFG_FIELD_SEL_FIELD0		((0 << 10) & CSI_CH_CFG_FIELD_SEL_MASK)
-#define CSI_CH_CFG_FIELD_SEL_FIELD1		((1 << 10) & CSI_CH_CFG_FIELD_SEL_MASK)
-#define CSI_CH_CFG_FIELD_SEL_BOTH		((2 << 10) & CSI_CH_CFG_FIELD_SEL_MASK)
+#define CSI_CH_CFG_FIELD_SEL_FIELD0		(0 << 10)
+#define CSI_CH_CFG_FIELD_SEL_FIELD1		(1 << 10)
+#define CSI_CH_CFG_FIELD_SEL_BOTH		(2 << 10)
 #define CSI_CH_CFG_INPUT_SEQ_MASK		GENMASK(9, 8)
-#define CSI_CH_CFG_INPUT_SEQ(seq)		((seq << 8) & CSI_CH_CFG_INPUT_SEQ_MASK)
+#define CSI_CH_CFG_INPUT_SEQ(seq)		((seq << 8) & \
+						 CSI_CH_CFG_INPUT_SEQ_MASK)
 
 #define CSI_CH_SCALE_REG		0x4c
 #define CSI_CH_SCALE_QUART_EN			BIT(0)
@@ -96,8 +112,8 @@
 //megi: called CAP_STA register in A83T manual
 #define CSI_CH_STA_REG			0x6c
 #define CSI_CH_STA_FIELD_STA_MASK		BIT(2)
-#define CSI_CH_STA_FIELD_STA_FIELD0		((0 << 2) & CSI_CH_STA_FIELD_STA_MASK)
-#define CSI_CH_STA_FIELD_STA_FIELD1		((1 << 2) & CSI_CH_STA_FIELD_STA_MASK)
+#define CSI_CH_STA_FIELD_STA_FIELD0		0
+#define CSI_CH_STA_FIELD_STA_FIELD1		BIT(2)
 #define CSI_CH_STA_VCAP_STA			BIT(1)
 #define CSI_CH_STA_SCAP_STA			BIT(0)
 
@@ -125,27 +141,35 @@
 
 #define CSI_CH_HSIZE_REG		0x80
 #define CSI_CH_HSIZE_HOR_LEN_MASK		GENMASK(28, 16)
-#define CSI_CH_HSIZE_HOR_LEN(len)		((len << 16) & CSI_CH_HSIZE_HOR_LEN_MASK)
+#define CSI_CH_HSIZE_HOR_LEN(len)		((len << 16) & \
+						 CSI_CH_HSIZE_HOR_LEN_MASK)
 #define CSI_CH_HSIZE_HOR_START_MASK		GENMASK(12, 0)
-#define CSI_CH_HSIZE_HOR_START(start)		((start << 0) & CSI_CH_HSIZE_HOR_START_MASK)
+#define CSI_CH_HSIZE_HOR_START(start)		((start << 0) & \
+						 CSI_CH_HSIZE_HOR_START_MASK)
 
 #define CSI_CH_VSIZE_REG		0x84
 #define CSI_CH_VSIZE_VER_LEN_MASK		GENMASK(28, 16)
-#define CSI_CH_VSIZE_VER_LEN(len)		((len << 16) & CSI_CH_VSIZE_VER_LEN_MASK)
+#define CSI_CH_VSIZE_VER_LEN(len)		((len << 16) & \
+						 CSI_CH_VSIZE_VER_LEN_MASK)
 #define CSI_CH_VSIZE_VER_START_MASK		GENMASK(12, 0)
-#define CSI_CH_VSIZE_VER_START(start)		((start << 0) & CSI_CH_VSIZE_VER_START_MASK)
+#define CSI_CH_VSIZE_VER_START(start)		((start << 0) & \
+						 CSI_CH_VSIZE_VER_START_MASK)
 
 #define CSI_CH_BUF_LEN_REG		0x88
 #define CSI_CH_BUF_LEN_BUF_LEN_C_MASK		GENMASK(29, 16)
-#define CSI_CH_BUF_LEN_BUF_LEN_C(len)		((len << 16) & CSI_CH_BUF_LEN_BUF_LEN_C_MASK)
+#define CSI_CH_BUF_LEN_BUF_LEN_C(len)		((len << 16) & \
+						 CSI_CH_BUF_LEN_BUF_LEN_C_MASK)
 #define CSI_CH_BUF_LEN_BUF_LEN_Y_MASK		GENMASK(13, 0)
-#define CSI_CH_BUF_LEN_BUF_LEN_Y(len)		((len << 0) & CSI_CH_BUF_LEN_BUF_LEN_Y_MASK)
+#define CSI_CH_BUF_LEN_BUF_LEN_Y(len)		((len << 0) & \
+						 CSI_CH_BUF_LEN_BUF_LEN_Y_MASK)
 
 #define CSI_CH_FLIP_SIZE_REG		0x8c
 #define CSI_CH_FLIP_SIZE_VER_LEN_MASK		GENMASK(28, 16)
-#define CSI_CH_FLIP_SIZE_VER_LEN(len)		((len << 16) & CSI_CH_FLIP_SIZE_VER_LEN_MASK)
+#define CSI_CH_FLIP_SIZE_VER_LEN(len)		((len << 16) & \
+						 CSI_CH_FLIP_SIZE_VER_LEN_MASK)
 #define CSI_CH_FLIP_SIZE_VALID_LEN_MASK		GENMASK(12, 0)
-#define CSI_CH_FLIP_SIZE_VALID_LEN(len)		((len << 0) & CSI_CH_FLIP_SIZE_VALID_LEN_MASK)
+#define CSI_CH_FLIP_SIZE_VALID_LEN(len)		((len << 0) & \
+						CSI_CH_FLIP_SIZE_VALID_LEN_MASK)
 
 #define CSI_CH_FRM_CLK_CNT_REG		0x90
 #define CSI_CH_ACC_ITNL_CLK_CNT_REG	0x94
@@ -155,8 +179,7 @@
 /*
  * csi input data format
  */
-enum csi_input_fmt
-{
+enum csi_input_fmt {
 	CSI_INPUT_FORMAT_RAW		= 0,
 	CSI_INPUT_FORMAT_YUV422		= 3,
 	CSI_INPUT_FORMAT_YUV420		= 4,
@@ -165,8 +188,7 @@ enum csi_input_fmt
 /*
  * csi output data format
  */
-enum csi_output_fmt
-{
+enum csi_output_fmt {
 	/* only when input format is RAW */
 	CSI_FIELD_RAW_8			= 0,
 	CSI_FIELD_RAW_10		= 1,
@@ -210,8 +232,7 @@ enum csi_output_fmt
 /*
  * csi YUV input data sequence
  */
-enum csi_input_seq
-{
+enum csi_input_seq {
 	/* only when input format is YUV422 */
 	CSI_INPUT_SEQ_YUYV = 0,
 	CSI_INPUT_SEQ_YVYU,

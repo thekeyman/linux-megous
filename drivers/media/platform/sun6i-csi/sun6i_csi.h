@@ -31,42 +31,44 @@
  * @bpp: Bytes per pixel (when stored in memory)
  */
 struct sun6i_csi_format {
-	u32				fourcc;
-	u32				mbus_code;
-	u8				bpp;
+	u32	fourcc;
+	u32	mbus_code;
+	u8	bpp;
+};
+
+struct sun6i_csi_subdev {
+	struct v4l2_subdev		*sd;
+	unsigned int			pad;
+	unsigned int			ep_id;
+	enum v4l2_mbus_type		bus_type;
+	struct v4l2_fwnode_bus_parallel	parallel;
 };
 
 struct sun6i_csi;
-
-struct sun6i_csi_subdev {
-	struct v4l2_subdev *sd;
-	unsigned int pad;
-	unsigned int ep_id;
-	enum v4l2_mbus_type bus_type;
-	struct v4l2_fwnode_bus_parallel parallel;
-};
 
 struct sun6i_csi_ops {
 	int (*get_supported_pixformats)(struct sun6i_csi *csi,
 					const u32 **pixformats);
 	bool (*is_format_support)(struct sun6i_csi *csi, u32 pixformat,
-				  u32 mbus_code, struct sun6i_csi_subdev *csi_sd);
+				  u32 mbus_code,
+				  struct sun6i_csi_subdev *csi_sd);
 	int (*s_power)(struct sun6i_csi *csi, bool enable);
-	int (*apply_config)(struct sun6i_csi *csi, struct sun6i_csi_subdev *csi_sd);
+	int (*apply_config)(struct sun6i_csi *csi,
+			    struct sun6i_csi_subdev *csi_sd);
 	int (*update_buf_addr)(struct sun6i_csi *csi, dma_addr_t addr);
 	int (*s_stream)(struct sun6i_csi *csi, bool enable);
 };
 
 struct sun6i_csi {
 	struct v4l2_device		v4l2_dev;
-	struct v4l2_ctrl_handler 	ctrl_handler;
+	struct v4l2_ctrl_handler	ctrl_handler;
 	struct v4l2_async_notifier	notifier;
 	struct video_device		vdev;
 	struct media_device		media_dev;
 	struct media_pad		pad;
 	struct device			*dev;
 
-	struct sun6i_csi_subdev 	sensors[SUN6I_CSI_NUM_SENSORS];
+	struct sun6i_csi_subdev		sensors[SUN6I_CSI_NUM_SENSORS];
 
 	struct sun6i_csi_ops		*ops;
 
@@ -91,7 +93,7 @@ int sun6i_csi_cleanup(struct sun6i_csi *csi);
 
 /**
  * sun6i_csi_get_supported_pixformats() - get csi supported pixformats
- * @csi: 	pointer to the csi
+ * @csi:	pointer to the csi
  * @pixformats: supported pixformats return from csi
  *
  * @return the count of pixformats or error(< 0)
@@ -108,14 +110,14 @@ sun6i_csi_get_supported_pixformats(struct sun6i_csi *csi,
 
 /**
  * sun6i_csi_is_format_support() - check if the format supported by csi
- * @csi: 	pointer to the csi
+ * @csi:	pointer to the csi
  * @pixformat:	v4l2 pixel format (V4L2_PIX_FMT_*)
  * @mbus_code:	media bus format code (MEDIA_BUS_FMT_*)
  */
 
 /**
  * sun6i_csi_set_power() - power on/off the csi
- * @csi: 	pointer to the csi
+ * @csi:	pointer to the csi
  * @enable:	on/off
  */
 static inline int sun6i_csi_set_power(struct sun6i_csi *csi, bool enable)
@@ -128,7 +130,7 @@ static inline int sun6i_csi_set_power(struct sun6i_csi *csi, bool enable)
 
 /**
  * sun6i_csi_update_buf_addr() - update the csi frame buffer address
- * @csi: 	pointer to the csi
+ * @csi:	pointer to the csi
  * @addr:	frame buffer's physical address
  */
 static inline int sun6i_csi_update_buf_addr(struct sun6i_csi *csi,
@@ -142,7 +144,7 @@ static inline int sun6i_csi_update_buf_addr(struct sun6i_csi *csi,
 
 /**
  * sun6i_csi_set_stream() - start/stop csi streaming
- * @csi: 	pointer to the csi
+ * @csi:	pointer to the csi
  * @enable:	start/stop
  */
 static inline int sun6i_csi_set_stream(struct sun6i_csi *csi, bool enable)
