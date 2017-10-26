@@ -273,7 +273,8 @@ static struct vb2_ops sun6i_csi_vb2_ops = {
 // }}}
 // {{{ videodev ioctl
 
-static int sun6i_video_set_fmt(struct sun6i_csi *csi, struct v4l2_format *f, bool try_only)
+static int sun6i_video_set_fmt(struct sun6i_csi *csi, struct v4l2_format *f,
+			       bool try_only)
 {
 	struct v4l2_subdev_format sd_fmt;
 	struct v4l2_subdev_pad_config padconf;
@@ -314,7 +315,7 @@ static int sun6i_video_set_fmt(struct sun6i_csi *csi, struct v4l2_format *f, boo
 		ret = v4l2_subdev_call(csi_sd->sd, pad, set_fmt, NULL, &sd_fmt);
 		if (ret)
 			return ret;
-	
+
 		//XXX: check that we got an expected format
 
 		csi->fmt = *f;
@@ -395,7 +396,8 @@ static int sun6i_enum_input(struct file *file, void *priv,
 			continue;
 
 		if (idx == i->index) {
-			ret = v4l2_subdev_call(subdev, video, g_input_status, &i->status);
+			ret = v4l2_subdev_call(subdev, video, g_input_status,
+					       &i->status);
 			if (ret < 0 && ret != -ENOIOCTLCMD && ret != -ENODEV)
 				return ret;
 
@@ -541,7 +543,7 @@ static const struct v4l2_file_operations sun6i_video_fops = {
 
 static bool
 sun6i_csi_is_format_support(struct sun6i_csi *csi, u32 pixformat, u32 mbus_code,
-		struct sun6i_csi_subdev* csi_sd)
+		struct sun6i_csi_subdev *csi_sd)
 {
 	if (csi->ops != NULL && csi->ops->is_format_support != NULL)
 		return csi->ops->is_format_support(csi, pixformat, mbus_code,
@@ -574,7 +576,8 @@ static int sun6i_video_formats_init(struct sun6i_csi *csi)
 	mbus_code.pad = csi_sd->pad;
 	mbus_code.which = V4L2_SUBDEV_FORMAT_ACTIVE;
 	while (codes_count < ARRAY_SIZE(subdev_codes) &&
-	       !v4l2_subdev_call(csi_sd->sd, pad, enum_mbus_code, NULL, &mbus_code)) {
+	       !v4l2_subdev_call(csi_sd->sd, pad, enum_mbus_code, NULL,
+				 &mbus_code)) {
 		subdev_codes[codes_count] = mbus_code.code;
 		codes_count++;
 		mbus_code.index++;
@@ -603,10 +606,8 @@ static int sun6i_video_formats_init(struct sun6i_csi *csi)
 	csi->num_formats = num_fmts;
 	csi->formats = devm_kcalloc(csi->dev, num_fmts,
 			sizeof(struct sun6i_csi_format), GFP_KERNEL);
-	if (!csi->formats) {
-		dev_err(csi->dev, "could not allocate memory\n");
+	if (!csi->formats)
 		return -ENOMEM;
-	}
 
 	/* Get supported formats */
 	num_fmts = 0;
@@ -616,7 +617,9 @@ static int sun6i_video_formats_init(struct sun6i_csi *csi)
 					subdev_codes[i], csi_sd))
 				continue;
 
-			dev_dbg(csi->dev, "supported format: pix=%d:bus=%d\n", pixformats[j], subdev_codes[i]);
+			dev_dbg(csi->dev, "supported format: pix=%d:bus=%d\n",
+				pixformats[j], subdev_codes[i]);
+
 			csi->formats[num_fmts].fourcc = pixformats[j];
 			csi->formats[num_fmts].mbus_code = subdev_codes[i];
 			csi->formats[num_fmts].bpp =
@@ -748,7 +751,8 @@ static int sun6i_csi_notify_bound(struct v4l2_async_notifier *notifier,
 	dev_dbg(csi->dev, "bound subdev %s\n", subdev->name);
 
 	if (subdev->entity.function != MEDIA_ENT_F_CAM_SENSOR) {
-		dev_err(csi->dev, "subdev %s not bound, must be a camera sensor\n", subdev->name);
+		dev_err(csi->dev, "subdev %s must be a camera sensor\n",
+			subdev->name);
 		return -EINVAL;
 	}
 
@@ -763,7 +767,8 @@ static int sun6i_csi_notify_bound(struct v4l2_async_notifier *notifier,
 		}
 	}
 
-	dev_err(csi->dev, "subdev %s not bound, not enough sensor slots\n", subdev->name);
+	dev_err(csi->dev, "subdev %s not bound, not enough sensor slots\n",
+		subdev->name);
 	return -ENOMEM;
 }
 
@@ -791,6 +796,7 @@ static int sun6i_csi_notify_complete(struct v4l2_async_notifier *notifier)
 	struct sun6i_csi *csi = notifier_to_csi(notifier);
 	struct v4l2_subdev *subdev;
 	struct media_entity *sink = &csi->vdev.entity;
+	struct media_entity *source;
 	unsigned int pad;
 	unsigned int i;
 	int ret;
@@ -803,28 +809,37 @@ static int sun6i_csi_notify_complete(struct v4l2_async_notifier *notifier)
 		if (subdev == NULL)
 			continue;
 
-		for (pad = 0; pad < subdev->entity.num_pads; pad++) {
-			if (subdev->entity.pads[pad].flags & MEDIA_PAD_FL_SOURCE) {
-                                csi->sensors[i].pad = pad;
+		source = &subdev->entity;
 
-				ret = media_create_pad_link(&subdev->entity, pad, sink, 0, first_sensor ? MEDIA_LNK_FL_ENABLED : 0);
+		for (pad = 0; pad < source->num_pads; pad++) {
+			if (!(source->pads[pad].flags & MEDIA_PAD_FL_SOURCE))
+				continue;
+
+			csi->sensors[i].pad = pad;
+
+			ret = media_create_pad_link(source, pad, sink,
+						    0, first_sensor ?
+						    MEDIA_LNK_FL_ENABLED : 0);
+			if (ret)
+				return ret;
+
+			dev_dbg(csi->dev, "created pad link %s:%u -> %s:0\n",
+				subdev->name, pad, csi->vdev.name);
+
+			if (first_sensor) {
+				ret = media_entity_call(sink, link_setup,
+							&sink->pads[0],
+							&source->pads[pad], 0);
 				if (ret)
 					return ret;
-
-				dev_dbg(csi->dev, "created pad link %s:%u -> %s:0\n", subdev->name, pad, csi->vdev.name);
-
-				if (first_sensor) {
-					ret = media_entity_call(sink, link_setup, &sink->pads[0], &subdev->entity.pads[pad], 0);
-					if (ret)
-						return ret;
-				}
-
-				first_sensor = false;
-				goto next_sensor;
 			}
+
+			first_sensor = false;
+			goto next_sensor;
 		}
 
-		dev_err(csi->dev, "subdev %s - no source pad found\n", subdev->name);
+		dev_err(csi->dev, "subdev %s - no source pad found\n",
+			subdev->name);
 		return -EINVAL;
 next_sensor:;
 	}
@@ -845,11 +860,11 @@ static int sun6i_csi_parse_subdev_endpoint(struct device *dev,
 				   struct v4l2_fwnode_endpoint *vep,
 				   struct v4l2_async_subdev *asd)
 {
-	struct sun6i_csi *csi = dev_get_drvdata(dev); // this is really a struct sun6i_csi_dev, struct sun6i_csi is its first member
+	//struct sun6i_csi *csi = dev_get_drvdata(dev);
 	struct sun6i_csi_async_subdev *csi_asd = asd_to_csi_asd(asd);
 
 	if (vep->base.port) {
-		dev_err(csi->dev, "CSI has only one port\n");
+		dev_err(dev, "CSI has only one port\n");
 		return -ENOTCONN;
 	}
 
@@ -861,7 +876,7 @@ static int sun6i_csi_parse_subdev_endpoint(struct device *dev,
 		csi_asd->parallel = vep->bus.parallel;
 		return 0;
 	default:
-		dev_err(csi->dev, "Unsupported media bus type\n");
+		dev_err(dev, "Unsupported media bus type\n");
 		return -ENOTCONN;
 	}
 }
@@ -909,8 +924,8 @@ int sun6i_csi_init(struct sun6i_csi *csi)
 	// - parse subdev DT endpoint properties and pass them later to bound
 	//   callback via internediate struct sun6i_csi_async_subdev
 	ret = v4l2_async_notifier_parse_fwnode_endpoints(
-		csi->dev, &csi->notifier,
-		sizeof(struct sun6i_csi_async_subdev), sun6i_csi_parse_subdev_endpoint);
+		csi->dev, &csi->notifier, sizeof(struct sun6i_csi_async_subdev),
+		sun6i_csi_parse_subdev_endpoint);
 	if (ret)
 		goto video_clean;
 

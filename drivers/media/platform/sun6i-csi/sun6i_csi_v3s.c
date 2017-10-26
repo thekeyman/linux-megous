@@ -46,7 +46,7 @@ struct sun6i_csi_cfg {
 };
 
 struct sun6i_csi_dev {
-	struct sun6i_csi		csi;
+	struct sun6i_csi		csi; /* must be first */
 	const struct sun6i_csi_cfg	*cfg;
 
 	struct regmap			*regmap;
@@ -105,14 +105,15 @@ static bool is_format_support(struct sun6i_csi *csi, u32 pixformat,
 {
 	//struct sun6i_csi_dev *sdev = sun6i_csi_to_dev(csi);
 	enum v4l2_mbus_type bus_type = csi_sd->bus_type;
-	bool is_parallel = bus_type == V4L2_MBUS_PARALLEL || bus_type == V4L2_MBUS_BT656;
+	bool is_parallel = bus_type == V4L2_MBUS_PARALLEL ||
+			   bus_type == V4L2_MBUS_BT656;
 
 	/*
 	 * Some video receiver have capability both 8bit and 16bit.
 	 * Identify the media bus format from device tree.
 	 */
 	if ((is_parallel && csi_sd->parallel.bus_width == 16) ||
-			bus_type == V4L2_MBUS_CSI2) {
+	    bus_type == V4L2_MBUS_CSI2) {
 		switch (pixformat) {
 		case V4L2_PIX_FMT_HM12:
 		case V4L2_PIX_FMT_NV12:
@@ -243,9 +244,10 @@ static enum csi_input_fmt get_csi_input_format(u32 mbus_code, u32 pixformat)
 static enum csi_output_fmt get_csi_output_format(u32 pixformat, u32 field)
 {
 	bool buf_interlaced = false;
-	if (field == V4L2_FIELD_INTERLACED
-	    || field == V4L2_FIELD_INTERLACED_TB
-	    || field == V4L2_FIELD_INTERLACED_BT)
+
+	if (field == V4L2_FIELD_INTERLACED ||
+	    field == V4L2_FIELD_INTERLACED_TB ||
+	    field == V4L2_FIELD_INTERLACED_BT)
 		buf_interlaced = true;
 
 	switch (pixformat) {
@@ -303,7 +305,7 @@ static enum csi_input_seq get_csi_input_seq(u32 mbus_code, u32 pixformat)
 	case V4L2_PIX_FMT_NV16:
 	case V4L2_PIX_FMT_YUV420:
 	case V4L2_PIX_FMT_YUV422P:
-		switch(mbus_code) {
+		switch (mbus_code) {
 		case MEDIA_BUS_FMT_UYVY8_2X8:
 		case MEDIA_BUS_FMT_UYVY8_1X16:
 			return CSI_INPUT_SEQ_UYVY;
@@ -321,7 +323,7 @@ static enum csi_input_seq get_csi_input_seq(u32 mbus_code, u32 pixformat)
 	case V4L2_PIX_FMT_NV21:
 	case V4L2_PIX_FMT_NV61:
 	case V4L2_PIX_FMT_YVU420:
-		switch(mbus_code) {
+		switch (mbus_code) {
 		case MEDIA_BUS_FMT_UYVY8_2X8:
 		case MEDIA_BUS_FMT_UYVY8_1X16:
 			return CSI_INPUT_SEQ_VYUY;
@@ -341,7 +343,8 @@ static enum csi_input_seq get_csi_input_seq(u32 mbus_code, u32 pixformat)
 	return CSI_INPUT_SEQ_YUYV;
 }
 
-static void sun6i_csi_setup_bus(struct sun6i_csi_dev *sdev, struct sun6i_csi_subdev *csi_sd)
+static void sun6i_csi_setup_bus(struct sun6i_csi_dev *sdev,
+				struct sun6i_csi_subdev *csi_sd)
 {
 	unsigned char bus_width = csi_sd->parallel.bus_width;
 	u32 flags = csi_sd->parallel.flags;
@@ -424,13 +427,16 @@ static void sun6i_csi_set_format(struct sun6i_csi_dev *sdev)
 		 CSI_CH_CFG_HFLIP_EN | CSI_CH_CFG_FIELD_SEL_MASK |
 		 CSI_CH_CFG_INPUT_SEQ_MASK);
 
-	val = get_csi_input_format(csi->current_fmt->mbus_code, csi->fmt.fmt.pix.pixelformat);
+	val = get_csi_input_format(csi->current_fmt->mbus_code,
+				   csi->fmt.fmt.pix.pixelformat);
 	cfg |= CSI_CH_CFG_INPUT_FMT(val);
 
-	val = get_csi_output_format(csi->current_fmt->mbus_code, csi->fmt.fmt.pix.field);
+	val = get_csi_output_format(csi->current_fmt->mbus_code,
+				    csi->fmt.fmt.pix.field);
 	cfg |= CSI_CH_CFG_OUTPUT_FMT(val);
 
-	val = get_csi_input_seq(csi->current_fmt->mbus_code, csi->fmt.fmt.pix.pixelformat);
+	val = get_csi_input_seq(csi->current_fmt->mbus_code,
+				csi->fmt.fmt.pix.pixelformat);
 	cfg |= CSI_CH_CFG_INPUT_SEQ(val);
 
 	if (csi->fmt.fmt.pix.field == V4L2_FIELD_TOP)
@@ -463,7 +469,7 @@ static void sun6i_csi_set_window(struct sun6i_csi_dev *sdev)
 
 	planar_offset[0] = 0;
 
-	switch(csi->fmt.fmt.pix.pixelformat) {
+	switch (csi->fmt.fmt.pix.pixelformat) {
 	case V4L2_PIX_FMT_HM12:
 	case V4L2_PIX_FMT_NV12:
 	case V4L2_PIX_FMT_NV21:
@@ -497,7 +503,8 @@ static void sun6i_csi_set_window(struct sun6i_csi_dev *sdev)
 		break;
 	}
 
-	dev_dbg(csi->dev, "bytesperline_c=%u bytesperline_y=%u\n", bytesperline_c, bytesperline_y);
+	dev_dbg(csi->dev, "bytesperline_c=%u bytesperline_y=%u\n",
+		bytesperline_c, bytesperline_y);
 
 	regmap_write(sdev->regmap, CSI_CH_BUF_LEN_REG,
 		     CSI_CH_BUF_LEN_BUF_LEN_C(bytesperline_c) |
@@ -636,9 +643,8 @@ static irqreturn_t sun6i_csi_isr(int irq, void *dev_id)
 		return IRQ_HANDLED;
 	}
 
-	if (status & CSI_CH_INT_STA_FD_PD) {
+	if (status & CSI_CH_INT_STA_FD_PD)
 		sun6i_video_frame_done(&sdev->csi);
-	}
 
 	regmap_write(regmap, CSI_CH_INT_STA_REG, status);
 
@@ -690,7 +696,8 @@ static int sun6i_csi_resource_request(struct sun6i_csi_dev *sdev,
 		return PTR_ERR(sdev->clk_ram);
 	}
 
-	sdev->rstc_ahb = devm_reset_control_get_optional_shared(&pdev->dev, NULL);
+	sdev->rstc_ahb = devm_reset_control_get_optional_shared(&pdev->dev,
+								NULL);
 	if (IS_ERR(sdev->rstc_ahb)) {
 		dev_err(&pdev->dev, "Cannot get reset controller\n");
 		return PTR_ERR(sdev->rstc_ahb);
