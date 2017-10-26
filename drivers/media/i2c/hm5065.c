@@ -892,31 +892,29 @@ static int hm5065_s_ctrl(struct v4l2_ctrl *ctrl)
 #endif
 
 	case V4L2_CID_CONTRAST:
-		return hm5065_write(sensor, HM5065_REG_CONTRAST,
-					 ctrl->val);
+		return hm5065_write(sensor, HM5065_REG_CONTRAST, ctrl->val);
 
 	case V4L2_CID_SATURATION:
 		return hm5065_write(sensor, HM5065_REG_COLOR_SATURATION,
-					 ctrl->val);
+				    ctrl->val);
 
 	case V4L2_CID_BRIGHTNESS:
-		return hm5065_write(sensor, HM5065_REG_BRIGHTNESS,
-					 ctrl->val);
+		return hm5065_write(sensor, HM5065_REG_BRIGHTNESS, ctrl->val);
 
 	case V4L2_CID_POWER_LINE_FREQUENCY:
 		return hm5065_set_power_line_frequency(sensor, ctrl->val);
 
 	case V4L2_CID_GAMMA:
 		return hm5065_write(sensor, HM5065_REG_P0_GAMMA_GAIN,
-					 ctrl->val);
+				    ctrl->val);
 
 	case V4L2_CID_VFLIP:
 		return hm5065_write(sensor, HM5065_REG_VERTICAL_FLIP,
-					 ctrl->val ? 1 : 0);
+				    ctrl->val ? 1 : 0);
 
 	case V4L2_CID_HFLIP:
 		return hm5065_write(sensor, HM5065_REG_HORIZONTAL_MIRROR,
-					 ctrl->val ? 1 : 0);
+				    ctrl->val ? 1 : 0);
 
 	case V4L2_CID_COLORFX:
 		return hm5065_set_colorfx(sensor, ctrl->val);
@@ -1198,7 +1196,7 @@ static int hm5065_setup_mode(struct hm5065_dev *sensor)
 	dev_info(&sensor->i2c_client->dev, "set frame rate\n");
 
 	ret = hm5065_write16(sensor, HM5065_REG_DESIRED_FRAME_RATE_NUM,
-				 sensor->frame_interval.denominator);
+			     sensor->frame_interval.denominator);
 	if (ret)
 		return ret;
 
