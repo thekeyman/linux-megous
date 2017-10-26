@@ -314,6 +314,8 @@ static int sun6i_video_set_fmt(struct sun6i_csi *csi, struct v4l2_format *f, boo
 		ret = v4l2_subdev_call(csi_sd->sd, pad, set_fmt, NULL, &sd_fmt);
 		if (ret)
 			return ret;
+	
+		//XXX: check that we got an expected format
 
 		csi->fmt = *f;
 		csi->current_fmt = csi_fmt;
