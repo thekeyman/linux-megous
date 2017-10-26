@@ -607,52 +607,40 @@ static int hm5065_write(struct hm5065_dev *sensor, u16 reg, u8 val)
 
 static int hm5065_read16(struct hm5065_dev *sensor, u16 reg, u16 *val)
 {
-	u8 buf[2];
 	int ret;
 
-	ret = hm5065_read_regs(sensor, reg, buf, sizeof(buf));
+	ret = hm5065_read_regs(sensor, reg, (u8 *)val, sizeof(*val));
 	if (ret)
 		return ret;
 
-	*val = ((u16)buf[0] << 8) | (u16)buf[1];
+	*val = be16_to_cpu(*val);
 	return 0;
 }
 
 static int hm5065_write16(struct hm5065_dev *sensor, u16 reg, u16 val)
 {
-	u8 buf[2];
+	u16 tmp = cpu_to_be16(val);
 
-	buf[0] = val >> 8;
-	buf[1] = val;
-
-	return hm5065_write_regs(sensor, reg, buf, sizeof(buf));
+	return hm5065_write_regs(sensor, reg, (u8 *)&tmp, sizeof(tmp));
 }
 
 static int hm5065_read32(struct hm5065_dev *sensor, u16 reg, u32 *val)
 {
-	u8 buf[4];
 	int ret;
 
-	ret = hm5065_read_regs(sensor, reg, buf, sizeof(buf));
+	ret = hm5065_read_regs(sensor, reg, (u8 *)val, sizeof(*val));
 	if (ret)
 		return ret;
 
-	*val = ((u32)buf[0] << 24) | ((u32)buf[1] << 16)
-		| ((u32)buf[2] << 8) | (u32)buf[3];
-
+	*val = be32_to_cpu(*val);
 	return 0;
 }
 
 static int hm5065_write32(struct hm5065_dev *sensor, u16 reg, u32 val)
 {
-	u8 buf[4];
+	u32 tmp = cpu_to_be32(val);
 
-	buf[0] = val >> 24;
-	buf[1] = val >> 16;
-	buf[2] = val >> 8;
-	buf[3] = val;
-
-	return hm5065_write_regs(sensor, reg, buf, sizeof(buf));
+	return hm5065_write_regs(sensor, reg, (u8 *)&tmp, sizeof(tmp));
 }
 
 #if 0
