@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2017 Yong Deng <yong.deng@magewell.com>
+ * Copyright (c) 2017 Ondrej Jirman <megous@megous.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by

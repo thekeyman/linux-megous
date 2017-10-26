@@ -2,6 +2,7 @@
  * Copyright (c) 2017 Magewell Electronics Co., Ltd. (Nanjing).
  * All rights reserved.
  * Author: Yong Deng <yong.deng@magewell.com>
+ * Copyright (c) 2017 Ondrej Jirman <megous@megous.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
