@@ -14,6 +14,7 @@
 
 #define DEBUG
 
+#include <asm/div64.h>
 #include <linux/clk.h>
 #include <linux/clk-provider.h>
 #include <linux/clkdev.h>
@@ -643,7 +644,6 @@ static int hm5065_write32(struct hm5065_dev *sensor, u16 reg, u32 val)
 	return hm5065_write_regs(sensor, reg, (u8 *)&tmp, sizeof(tmp));
 }
 
-#if 0
 /*
  * Sensor uses ST Float900 format to represent floating point numbers.
  * Binary floating point number: * (s ? -1 : 0) * 1.mmmmmmmmm * 2^eeeeee
@@ -673,25 +673,11 @@ static long hm5065_mili_from_fp16(u16 fp_val)
 	return val;
 }
 
-static int __fls64(u64 v)
-{
-	int i;
-
-	for (i = 63; i >= -1; i--) {
-		if (v & ((u64)1 << 63))
-			break;
-
-		v <<= 1;
-	}
-
-	return i;
-}
-
 static u16 hm5065_mili_to_fp16(s32 val)
 {
 	int fls;
 	u16 e, m, s = 0;
-	u64 v;
+	u64 v, rem;
 
 	if (val == 0)
 		return 0;
@@ -702,15 +688,16 @@ static u16 hm5065_mili_to_fp16(s32 val)
 	}
 
 	v = (u64)val * 1024;
-	v = v / 1000 + (((v % 1000) >= 500) ? 1 : 0);
-	fls = __fls64(v);
+	rem = do_div(v, 1000);
+	if (rem >= 500)
+		 v++;
 
+	fls = fls64(v) - 1;
 	e = 31 + fls - 10;
 	m = fls > 9 ? v >> (fls - 9) : v << (9 - fls);
 
 	return s | (m & 0x1ff) | (e << 9);
 }
-#endif
 
 /* }}} */
 /* {{{ Controls */
