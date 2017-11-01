@@ -522,18 +522,27 @@ static const char * const hm5065_supply_name[] = {
 struct hm5065_ctrls {
 	struct v4l2_ctrl_handler handler;
 	struct {
-		struct v4l2_ctrl *auto_exp;
+		struct v4l2_ctrl *auto_exposure;
 		struct v4l2_ctrl *exposure;
+		struct v4l2_ctrl *metering;
+		struct v4l2_ctrl *exposure_bias;
 	};
-	struct {
-		struct v4l2_ctrl *auto_gain;
-		struct v4l2_ctrl *gain;
-	};
+	struct v4l2_ctrl *d_gain;
+	struct v4l2_ctrl *a_gain;
 	struct {
 		struct v4l2_ctrl *wb;
 		struct v4l2_ctrl *blue_balance;
 		struct v4l2_ctrl *red_balance;
 	};
+	struct {
+		struct v4l2_ctrl *focus_auto;
+		struct v4l2_ctrl *af_start;
+		struct v4l2_ctrl *af_stop;
+		struct v4l2_ctrl *af_status;
+		struct v4l2_ctrl *af_distance;
+		struct v4l2_ctrl *focus_relative;
+	};
+	struct v4l2_ctrl *aaa_lock;
 	struct v4l2_ctrl *hflip;
 	struct v4l2_ctrl *vflip;
 	struct v4l2_ctrl *colorfx;
@@ -753,11 +762,44 @@ static u16 hm5065_mili_to_fp16(s32 val)
 /* }}} */
 /* {{{ Controls */
 
+static int hm5065_get_af_status(struct hm5065_dev *sensor)
+{
+	struct hm5065_ctrls *ctrls = &sensor->ctrls;
+	u8 in_focus, is_stable, mode;
+	int ret;
+
+	ret = hm5065_read(sensor, HM5065_REG_AF_MODE_STATUS, &mode);
+	if (ret)
+		return ret;
+
+	if (mode == HM5065_REG_AF_MODE_MANUAL) {
+		ctrls->af_status->val = V4L2_AUTO_FOCUS_STATUS_IDLE;
+		return 0;
+	}
+
+	ret = hm5065_read(sensor, HM5065_REG_AF_IN_FOCUS, &in_focus);
+	if (ret)
+		return ret;
+
+	ret = hm5065_read(sensor, HM5065_REG_AF_IS_STABLE, &is_stable);
+	if (ret)
+		return ret;
+
+	if (in_focus && is_stable)
+		ctrls->af_status->val = V4L2_AUTO_FOCUS_STATUS_REACHED;
+	else if (!in_focus && !is_stable)
+		ctrls->af_status->val = V4L2_AUTO_FOCUS_STATUS_BUSY;
+	else
+		ctrls->af_status->val = V4L2_AUTO_FOCUS_STATUS_FAILED;
+
+	return 0;
+}
+
 static int hm5065_g_volatile_ctrl(struct v4l2_ctrl *ctrl)
 {
 	struct v4l2_subdev *sd = ctrl_to_sd(ctrl);
 	struct hm5065_dev *sensor = to_hm5065_dev(sd);
-	//int val;
+	int ret;
 
 	/* v4l2_ctrl_lock() locks our own mutex */
 
@@ -765,15 +807,12 @@ static int hm5065_g_volatile_ctrl(struct v4l2_ctrl *ctrl)
 		return -EIO;
 
 	switch (ctrl->id) {
-#if 0
-	case V4L2_CID_AUTOGAIN:
-		if (!ctrl->val)
-			return 0;
-		val = hm5065_get_gain(sensor);
-		if (val < 0)
-			return val;
-		sensor->ctrls.gain->val = val;
+	case V4L2_CID_FOCUS_AUTO:
+		ret = hm5065_get_af_status(sensor);
+		if (ret)
+			return ret;
 		break;
+#if 0
 	case V4L2_CID_EXPOSURE_AUTO:
 		if (ctrl->val == V4L2_EXPOSURE_MANUAL)
 			return 0;
@@ -822,7 +861,7 @@ static int hm5065_set_power_line_frequency(struct hm5065_dev *sensor, s32 val)
 		if (ret)
 			return ret;
 
-		freq = val == V4L2_CID_POWER_LINE_FREQUENCY_50HZ ?
+		freq = (val == V4L2_CID_POWER_LINE_FREQUENCY_50HZ) ?
 			0x4b20 : 0x4bc0;
 
 		return hm5065_write16(sensor, HM5065_REG_FD_FLICKER_FREQUENCY,
@@ -889,11 +928,273 @@ static int hm5065_set_colorfx(struct hm5065_dev *sensor, s32 val)
 	}
 }
 
+#if 0
+// cargo cult table
+-1300 0xf6
+-1000 0xf7
+ -700 0xf8
+ -300 0xf9
+    0 0xfd
+  300 0x03
+  700 0x05
+ 1000 0x06
+ 1300 0x07
+#endif
+
+#define AE_BIAS_MENU_DEFAULT_VALUE_INDEX 4
+static const s64 ae_bias_menu_values[] = {
+	-7000, -6000, -5000, -4000, -3000, -2000, -1000,
+	0, 1000, 2000, 3000, 4000, 5000, 6000, 7000
+};
+
+static const s8 ae_bias_menu_reg_values[] = {
+	-7, -6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6, 7
+};
+
+static int hm5065_set_exposure(struct hm5065_dev *sensor, s32 val)
+{
+	struct hm5065_ctrls *ctrls = &sensor->ctrls;
+	bool auto_exposure = (val == V4L2_EXPOSURE_AUTO);
+	int ret = 0;
+
+	if (ctrls->auto_exposure->is_new) {
+		ret = hm5065_write(sensor, HM5065_REG_EXPOSURE_MODE,
+				   auto_exposure ?
+				   HM5065_REG_EXPOSURE_MODE_AUTO :
+				   HM5065_REG_EXPOSURE_MODE_COMPILED_MANUAL);
+		if (ret)
+			return ret;
+	}
+
+	if (auto_exposure && ctrls->metering->is_new) {
+		if (ctrls->metering->val == V4L2_EXPOSURE_METERING_AVERAGE)
+			ret = hm5065_write(sensor, HM5065_REG_EXPOSURE_METERING,
+					   HM5065_REG_EXPOSURE_METERING_FLAT);
+		else if (ctrls->metering->val ==
+			 V4L2_EXPOSURE_METERING_CENTER_WEIGHTED)
+			ret = hm5065_write(sensor, HM5065_REG_EXPOSURE_METERING,
+					 HM5065_REG_EXPOSURE_METERING_CENTERED);
+		else
+			return -EINVAL;
+
+		if (ret)
+			return ret;
+	}
+
+	if (auto_exposure && ctrls->exposure_bias->is_new) {
+		s32 bias = ctrls->exposure_bias->val;
+
+		if (bias < 0 || bias >= ARRAY_SIZE(ae_bias_menu_reg_values))
+			return -EINVAL;
+
+		ret = hm5065_write(sensor, HM5065_REG_EXPOSURE_COMPENSATION,
+				   (u8)ae_bias_menu_reg_values[bias]);
+		if (ret)
+			return ret;
+	}
+
+	if (!auto_exposure && ctrls->exposure->is_new) {
+                s32 val = ctrls->exposure->val;
+
+		ret = hm5065_write16(sensor, HM5065_REG_MANUAL_EXPOSURE_TIME_US,
+				     hm5065_mili_to_fp16(val * 100000));
+	}
+
+	return ret;
+}
+
+static int hm5065_3a_lock(struct hm5065_dev *sensor, struct v4l2_ctrl *ctrl)
+{
+	bool awb_lock = ctrl->val & V4L2_LOCK_WHITE_BALANCE;
+	bool ae_lock = ctrl->val & V4L2_LOCK_EXPOSURE;
+	bool af_lock = ctrl->val & V4L2_LOCK_FOCUS;
+	int ret = 0;
+
+	if ((ctrl->val ^ ctrl->cur.val) & V4L2_LOCK_EXPOSURE
+	    && sensor->ctrls.auto_exposure->val == V4L2_EXPOSURE_AUTO) {
+		ret = hm5065_write(sensor, HM5065_REG_FREEZE_AUTO_EXPOSURE,
+				   ae_lock);
+		if (ret)
+			return ret;
+	}
+
+	if (((ctrl->val ^ ctrl->cur.val) & V4L2_LOCK_WHITE_BALANCE)
+	    && sensor->ctrls.wb->val == V4L2_WHITE_BALANCE_AUTO) {
+		ret = hm5065_write(sensor, HM5065_REG_WB_MISC_SETTINGS,
+				   awb_lock ?
+				   HM5065_REG_WB_MISC_SETTINGS_FREEZE_ALGO : 0);
+		if (ret)
+			return ret;
+	}
+
+	//XXX: potentially drop this
+	if ((ctrl->val ^ ctrl->cur.val) & V4L2_LOCK_FOCUS
+	    && sensor->ctrls.focus_auto->val)
+		ret = hm5065_write(sensor, HM5065_REG_AF_MODE,
+				   af_lock ? HM5065_REG_AF_MODE_MANUAL :
+				   HM5065_REG_AF_MODE_CONTINUOUS);
+
+	return ret;
+}
+
+static int hm5065_set_auto_focus(struct hm5065_dev *sensor)
+{
+	struct hm5065_ctrls *ctrls = &sensor->ctrls;
+	bool auto_focus = ctrls->focus_auto->val;
+	int ret = 0;
+	u8 range;
+
+	if (auto_focus && ctrls->af_distance->is_new) {
+		switch (ctrls->af_distance->val) {
+		case V4L2_AUTO_FOCUS_RANGE_MACRO:
+			range = HM5065_REG_AF_RANGE_MACRO;
+			break;
+		case V4L2_AUTO_FOCUS_RANGE_AUTO:
+			range = HM5065_REG_AF_RANGE_FULL;
+			break;
+		case V4L2_AUTO_FOCUS_RANGE_INFINITY:
+			range = HM5065_REG_AF_RANGE_LANDSCAPE;
+			break;
+		default:
+			return -EINVAL;
+		}
+
+		ret = hm5065_write(sensor, HM5065_REG_AF_RANGE, range);
+		if (ret)
+			return ret;
+	}
+
+	if (ctrls->focus_auto->is_new) {
+		ret = hm5065_write(sensor, HM5065_REG_AF_MODE,
+				   auto_focus ?
+				   HM5065_REG_AF_MODE_CONTINUOUS :
+				   HM5065_REG_AF_MODE_MANUAL);
+		if (ret)
+			return ret;
+
+#if 0
+		ret = hm5065_write(sensor, HM5065_REG_AF_COMMAND,
+				   HM5065_REG_AF_COMMAND_RELEASED_BUTTON);
+		if (ret)
+			return ret;
+#endif
+	}
+
+	if (!auto_focus && ctrls->af_start->is_new) {
+		ret = hm5065_write(sensor, HM5065_REG_AF_MODE,
+				   HM5065_REG_AF_MODE_SINGLE);
+		if (ret)
+			return ret;
+
+#if 0
+		usleep_range(190000, 200000); // 200ms
+
+		ret = hm5065_write(sensor, HM5065_REG_AF_COMMAND,
+				   HM5065_REG_AF_COMMAND_RELEASED_BUTTON);
+		if (ret)
+			return ret;
+
+		usleep_range(190000, 200000); // 200ms
+#endif
+		ret = hm5065_write(sensor, HM5065_REG_AF_COMMAND,
+				   HM5065_REG_AF_COMMAND_HALF_BUTTON);
+		if (ret)
+			return ret;
+	}
+
+	if (!auto_focus && ctrls->af_stop->is_new) {
+		// stop single focus op
+		ret = hm5065_write(sensor, HM5065_REG_AF_COMMAND,
+				   HM5065_REG_AF_COMMAND_RELEASED_BUTTON);
+		if (ret)
+			return ret;
+
+		ret = hm5065_write(sensor, HM5065_REG_AF_MODE,
+				   HM5065_REG_AF_MODE_MANUAL);
+		if (ret)
+			return ret;
+	}
+
+	if (!auto_focus && ctrls->focus_relative->val) {
+		u8 cmd = 0xff;
+		s32 step = ctrls->focus_relative->val;
+
+		ret = hm5065_write(sensor, HM5065_REG_AF_MODE,
+				   HM5065_REG_AF_MODE_MANUAL);
+		if (ret)
+			return ret;
+
+		ret = hm5065_write(sensor, HM5065_REG_AF_MANUAL_STEP_SIZE,
+				   abs(step));
+		if (ret)
+			return ret;
+
+		if (step < 0)
+			cmd = HM5065_REG_AF_LENS_COMMAND_MOVE_STEP_TO_INFINITY;
+		else if (step > 0)
+			cmd = HM5065_REG_AF_LENS_COMMAND_MOVE_STEP_TO_MACRO;
+
+		if (cmd != 0xff)
+			ret = hm5065_write(sensor, HM5065_REG_AF_LENS_COMMAND,
+					   cmd);
+
+		if (ret)
+			return ret;
+	}
+
+	return ret;
+}
+
+static const u16 analog_gain_table[][2] = {
+	/* code, 1/100th of dB */
+	{ 0x00,    0 },
+	{ 0x10,   56 },
+	{ 0x20,  116 },
+	{ 0x30,  180 },
+	{ 0x40,  250 },
+	{ 0x50,  325 },
+	{ 0x60,  410 },
+	{ 0x70,  500 },
+	{ 0x80,  600 },
+	{ 0x90,  720 },
+	{ 0xA0,  850 },
+	{ 0xB0, 1010 },
+	{ 0xC0, 1200 },
+	{ 0xD0, 1450 },
+	{ 0xE0, 1810 },
+	{ 0xE4, 1920 },
+	{ 0xE8, 2060 },
+	{ 0xEC, 2210 },
+	{ 0xF0, 2410 },
+};
+
+static int hm5065_set_analog_gain(struct hm5065_dev *sensor, s32 val)
+{
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(analog_gain_table); i++)
+		if (val <= analog_gain_table[i][1])
+			break;
+
+	if (i == ARRAY_SIZE(analog_gain_table))
+		i--;
+
+	return hm5065_write16(sensor, HM5065_REG_DIRECT_MODE_CODED_ANALOG_GAIN,
+			    analog_gain_table[i][0]);
+}
+
+static int hm5065_set_digital_gain(struct hm5065_dev *sensor, s32 val)
+{
+	return hm5065_write16(sensor, HM5065_REG_DIRECT_MODE_DIGITAL_GAIN,
+			      hm5065_mili_to_fp16(val));
+}
+
 static int hm5065_s_ctrl(struct v4l2_ctrl *ctrl)
 {
 	struct v4l2_subdev *sd = ctrl_to_sd(ctrl);
 	struct hm5065_dev *sensor = to_hm5065_dev(sd);
 	struct hm5065_ctrls *ctrls = &sensor->ctrls;
+	s32 val = ctrl->val;
 	unsigned int i;
 	int ret;
 
@@ -908,46 +1209,50 @@ static int hm5065_s_ctrl(struct v4l2_ctrl *ctrl)
 		return 0;
 
 	switch (ctrl->id) {
-#if 0
-	case V4L2_CID_AUTOGAIN:
-		return hm5065_set_ctrl_gain(sensor, ctrl->val);
 	case V4L2_CID_EXPOSURE_AUTO:
-		return hm5065_set_ctrl_exposure(sensor, ctrl->val);
-	case V4L2_CID_HUE:
-		return hm5065_set_ctrl_hue(sensor, ctrl->val);
-#endif
+		return hm5065_set_exposure(sensor, val);
+
+	case V4L2_CID_DIGITAL_GAIN:
+		return hm5065_set_digital_gain(sensor, val);
+
+	case V4L2_CID_ANALOGUE_GAIN:
+		return hm5065_set_analog_gain(sensor, val);
+
+	case V4L2_CID_FOCUS_AUTO:
+		return hm5065_set_auto_focus(sensor);
 
 	case V4L2_CID_CONTRAST:
-		return hm5065_write(sensor, HM5065_REG_CONTRAST, ctrl->val);
+		return hm5065_write(sensor, HM5065_REG_CONTRAST, val);
 
 	case V4L2_CID_SATURATION:
-		return hm5065_write(sensor, HM5065_REG_COLOR_SATURATION,
-				    ctrl->val);
+		return hm5065_write(sensor, HM5065_REG_COLOR_SATURATION, val);
 
 	case V4L2_CID_BRIGHTNESS:
-		return hm5065_write(sensor, HM5065_REG_BRIGHTNESS, ctrl->val);
+		return hm5065_write(sensor, HM5065_REG_BRIGHTNESS, val);
 
 	case V4L2_CID_POWER_LINE_FREQUENCY:
-		return hm5065_set_power_line_frequency(sensor, ctrl->val);
+		return hm5065_set_power_line_frequency(sensor, val);
 
 	case V4L2_CID_GAMMA:
-		return hm5065_write(sensor, HM5065_REG_P0_GAMMA_GAIN,
-				    ctrl->val);
+		return hm5065_write(sensor, HM5065_REG_P0_GAMMA_GAIN, val);
 
 	case V4L2_CID_VFLIP:
 		return hm5065_write(sensor, HM5065_REG_VERTICAL_FLIP,
-				    ctrl->val ? 1 : 0);
+				    val ? 1 : 0);
 
 	case V4L2_CID_HFLIP:
 		return hm5065_write(sensor, HM5065_REG_HORIZONTAL_MIRROR,
-				    ctrl->val ? 1 : 0);
+				    val ? 1 : 0);
 
 	case V4L2_CID_COLORFX:
-		return hm5065_set_colorfx(sensor, ctrl->val);
+		return hm5065_set_colorfx(sensor, val);
+
+	case V4L2_CID_3A_LOCK:
+		return hm5065_3a_lock(sensor, ctrl);
 
 	case V4L2_CID_AUTO_N_PRESET_WHITE_BALANCE:
 		for (i = 0; i < ARRAY_SIZE(hm5065_wb_opts); i++) {
-			if (hm5065_wb_opts[i][0] != ctrl->val)
+			if (hm5065_wb_opts[i][0] != val)
 				continue;
 
 			return hm5065_write(sensor, HM5065_REG_WB_MODE,
@@ -957,32 +1262,28 @@ static int hm5065_s_ctrl(struct v4l2_ctrl *ctrl)
 		return -EINVAL;
 
 	case V4L2_CID_TEST_PATTERN_RED:
-		return hm5065_write16(sensor, HM5065_REG_TESTDATA_RED,
-				      ctrl->val);
+		return hm5065_write16(sensor, HM5065_REG_TESTDATA_RED, val);
 
 	case V4L2_CID_TEST_PATTERN_GREENR:
-		return hm5065_write16(sensor, HM5065_REG_TESTDATA_GREEN_R,
-				      ctrl->val);
+		return hm5065_write16(sensor, HM5065_REG_TESTDATA_GREEN_R, val);
 
 	case V4L2_CID_TEST_PATTERN_BLUE:
-		return hm5065_write16(sensor, HM5065_REG_TESTDATA_BLUE,
-				      ctrl->val);
+		return hm5065_write16(sensor, HM5065_REG_TESTDATA_BLUE, val);
 
 	case V4L2_CID_TEST_PATTERN_GREENB:
-		return hm5065_write16(sensor, HM5065_REG_TESTDATA_GREEN_B,
-				      ctrl->val);
+		return hm5065_write16(sensor, HM5065_REG_TESTDATA_GREEN_B, val);
 
 	case V4L2_CID_TEST_PATTERN:
 		for (i = 0; i < ARRAY_SIZE(ctrls->test_data); i++)
 			v4l2_ctrl_activate(ctrls->test_data[i],
-					   ctrl->val == 6); /* solid color */
+					   val == 6); /* solid color */
 
 		ret = hm5065_write(sensor, HM5065_REG_ENABLE_TEST_PATTERN,
-				   ctrl->val == 0 ? 0 : 1);
+				   val == 0 ? 0 : 1);
 		if (ret)
 			return ret;
 
-		return hm5065_write(sensor, HM5065_REG_TEST_PATTERN, ctrl->val);
+		return hm5065_write(sensor, HM5065_REG_TEST_PATTERN, val);
 
 	default:
 		return -EINVAL;
@@ -1021,6 +1322,33 @@ static int hm5065_init_controls(struct hm5065_dev *sensor)
 	/* we can use our own mutex for the ctrl lock */
 	hdl->lock = &sensor->lock;
 
+	ctrls->auto_exposure = v4l2_ctrl_new_std_menu(hdl, ops,
+						      V4L2_CID_EXPOSURE_AUTO,
+						      V4L2_EXPOSURE_MANUAL, 0,
+						      V4L2_EXPOSURE_AUTO);
+	ctrls->exposure = v4l2_ctrl_new_std(hdl, ops,
+					    V4L2_CID_EXPOSURE_ABSOLUTE,
+					    2, 5000, 1, 200);
+	ctrls->metering =
+		v4l2_ctrl_new_std_menu(hdl, ops,
+				       V4L2_CID_EXPOSURE_METERING,
+				       V4L2_EXPOSURE_METERING_CENTER_WEIGHTED,
+				       0, V4L2_EXPOSURE_METERING_AVERAGE);
+	ctrls->exposure_bias =
+		v4l2_ctrl_new_int_menu(hdl, ops,
+				       V4L2_CID_AUTO_EXPOSURE_BIAS,
+				       ARRAY_SIZE(ae_bias_menu_values) - 1,
+				       AE_BIAS_MENU_DEFAULT_VALUE_INDEX,
+				       ae_bias_menu_values);
+
+	ctrls->d_gain = v4l2_ctrl_new_std(hdl, ops,
+					  V4L2_CID_DIGITAL_GAIN,
+					  0, 100, 1, 0);
+
+	ctrls->a_gain = v4l2_ctrl_new_std(hdl, ops,
+					  V4L2_CID_ANALOGUE_GAIN,
+					  0, 2410, 1, 0);
+
 	for (i = 0; i < ARRAY_SIZE(hm5065_wb_opts); i++) {
 		if (wb_max < hm5065_wb_opts[i][0])
 			wb_max = hm5065_wb_opts[i][0];
@@ -1030,47 +1358,60 @@ static int hm5065_init_controls(struct hm5065_dev *sensor)
 	ctrls->wb = v4l2_ctrl_new_std_menu(hdl, ops,
 			V4L2_CID_AUTO_N_PRESET_WHITE_BALANCE,
 			wb_max, ~wb_mask, V4L2_WHITE_BALANCE_AUTO);
+#if 0
+	ctrls->blue_balance = v4l2_ctrl_new_std(hdl, ops, V4L2_CID_BLUE_BALANCE,
+						0, 4095, 1, 0);
+	ctrls->red_balance = v4l2_ctrl_new_std(hdl, ops, V4L2_CID_RED_BALANCE,
+					       0, 4095, 1, 0);
+#endif
+
 
 	ctrls->colorfx =
-		v4l2_ctrl_new_std_menu(hdl, ops,
-				       V4L2_CID_COLORFX,
-				       15, ~(
-					     BIT(V4L2_COLORFX_NONE) |
-					     BIT(V4L2_COLORFX_NEGATIVE) |
-					     BIT(V4L2_COLORFX_SOLARIZATION) |
-					     BIT(V4L2_COLORFX_SKETCH) |
-					     BIT(V4L2_COLORFX_SEPIA) |
-					     BIT(V4L2_COLORFX_ANTIQUE) |
-					     BIT(V4L2_COLORFX_AQUA) |
-					     BIT(V4L2_COLORFX_BW)
-				       ), V4L2_COLORFX_NONE);
+		v4l2_ctrl_new_std_menu(hdl, ops, V4L2_CID_COLORFX, 15,
+				       ~(BIT(V4L2_COLORFX_NONE) |
+					 BIT(V4L2_COLORFX_NEGATIVE) |
+					 BIT(V4L2_COLORFX_SOLARIZATION) |
+					 BIT(V4L2_COLORFX_SKETCH) |
+					 BIT(V4L2_COLORFX_SEPIA) |
+					 BIT(V4L2_COLORFX_ANTIQUE) |
+					 BIT(V4L2_COLORFX_AQUA) |
+					 BIT(V4L2_COLORFX_BW)),
+				       V4L2_COLORFX_NONE);
 
 	ctrls->hflip = v4l2_ctrl_new_std(hdl, ops,
 					 V4L2_CID_HFLIP, 0, 1, 1, 0);
 	ctrls->vflip = v4l2_ctrl_new_std(hdl, ops,
 					 V4L2_CID_VFLIP, 0, 1, 1, 0);
 
-#if 0
-	ctrls->blue_balance = v4l2_ctrl_new_std(hdl, ops, V4L2_CID_BLUE_BALANCE,
-						0, 4095, 1, 0);
-	ctrls->red_balance = v4l2_ctrl_new_std(hdl, ops, V4L2_CID_RED_BALANCE,
-					       0, 4095, 1, 0);
-	/* Auto/manual exposure */
-	ctrls->auto_exp = v4l2_ctrl_new_std_menu(hdl, ops,
-						 V4L2_CID_EXPOSURE_AUTO,
-						 V4L2_EXPOSURE_MANUAL, 0,
-						 V4L2_EXPOSURE_AUTO);
-	ctrls->exposure = v4l2_ctrl_new_std(hdl, ops, V4L2_CID_EXPOSURE,
-					    0, 65535, 1, 0);
-	/* Auto/manual gain */
-	ctrls->auto_gain = v4l2_ctrl_new_std(hdl, ops, V4L2_CID_AUTOGAIN,
-					     0, 1, 1, 1);
-	ctrls->gain = v4l2_ctrl_new_std(hdl, ops, V4L2_CID_GAIN,
-					0, 1023, 1, 0);
+	/* Auto focus */
+	ctrls->focus_auto = v4l2_ctrl_new_std(hdl, ops, V4L2_CID_FOCUS_AUTO,
+					      0, 1, 1, 0);
 
-	ctrls->hue = v4l2_ctrl_new_std(hdl, ops, V4L2_CID_HUE,
-				       //0, 359, 1, 0);
-#endif
+	ctrls->af_start = v4l2_ctrl_new_std(hdl, ops, V4L2_CID_AUTO_FOCUS_START,
+					    0, 1, 1, 0);
+
+	ctrls->af_stop = v4l2_ctrl_new_std(hdl, ops, V4L2_CID_AUTO_FOCUS_STOP,
+					   0, 1, 1, 0);
+
+	ctrls->af_status = v4l2_ctrl_new_std(hdl, ops,
+					     V4L2_CID_AUTO_FOCUS_STATUS, 0,
+					     (V4L2_AUTO_FOCUS_STATUS_BUSY |
+					      V4L2_AUTO_FOCUS_STATUS_REACHED |
+					      V4L2_AUTO_FOCUS_STATUS_FAILED),
+					     0, V4L2_AUTO_FOCUS_STATUS_IDLE);
+
+	ctrls->af_distance =
+		v4l2_ctrl_new_std_menu(hdl, ops,
+				       V4L2_CID_AUTO_FOCUS_RANGE,
+				       V4L2_AUTO_FOCUS_RANGE_MACRO,
+				       ~(BIT(V4L2_AUTO_FOCUS_RANGE_AUTO) |
+					 BIT(V4L2_AUTO_FOCUS_RANGE_INFINITY) |
+					 BIT(V4L2_AUTO_FOCUS_RANGE_MACRO)),
+				       V4L2_AUTO_FOCUS_RANGE_AUTO);
+
+	ctrls->focus_relative = v4l2_ctrl_new_std(hdl, ops,
+						  V4L2_CID_FOCUS_RELATIVE,
+						  -100, 100, 1, 0);
 
 	ctrls->brightness = v4l2_ctrl_new_std(hdl, ops, V4L2_CID_BRIGHTNESS,
 					      0, 200, 1, 100);
@@ -1078,6 +1419,9 @@ static int hm5065_init_controls(struct hm5065_dev *sensor)
 					      0, 200, 1, 118);
 	ctrls->contrast = v4l2_ctrl_new_std(hdl, ops, V4L2_CID_CONTRAST,
 					    0, 200, 1, 115);
+
+	ctrls->aaa_lock = v4l2_ctrl_new_std(hdl, ops, V4L2_CID_3A_LOCK,
+					    0, 0x7, 0, 0);
 
 	ctrls->test_pattern =
 		v4l2_ctrl_new_std_menu_items(hdl, ops, V4L2_CID_TEST_PATTERN,
@@ -1095,13 +1439,13 @@ static int hm5065_init_controls(struct hm5065_dev *sensor)
 	}
 
 #if 0
-	ctrls->gain->flags |= V4L2_CTRL_FLAG_VOLATILE;
 	ctrls->exposure->flags |= V4L2_CTRL_FLAG_VOLATILE;
-
-	v4l2_ctrl_auto_cluster(3, &ctrls->wb, 0, false);
-	v4l2_ctrl_auto_cluster(2, &ctrls->auto_gain, 0, true);
-	v4l2_ctrl_auto_cluster(2, &ctrls->auto_exp, 1, true);
 #endif
+	ctrls->af_status->flags |= V4L2_CTRL_FLAG_VOLATILE;
+
+	v4l2_ctrl_auto_cluster(4, &ctrls->auto_exposure, V4L2_EXPOSURE_MANUAL,
+			       false);
+	v4l2_ctrl_auto_cluster(6, &ctrls->focus_auto, 0, false);
 
 	sensor->sd.ctrl_handler = hdl;
 	return 0;
