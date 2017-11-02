@@ -45,6 +45,18 @@ sun6i_get_enabled_subdev(struct sun6i_csi *csi)
 		media_entity_to_v4l2_subdev(remote->entity));
 }
 
+static struct sun6i_csi_format *
+sun6i_find_format_by_fourcc(struct sun6i_csi* csi, u32 fourcc)
+{
+	int i;
+
+	for (i = 0; i < csi->num_formats; i++)
+		if (csi->formats[i].fourcc == fourcc)
+			return &csi->formats[i];
+
+	return NULL;
+}
+
 // }}}
 // {{{ vb2
 
@@ -279,17 +291,14 @@ static int sun6i_video_set_fmt(struct sun6i_csi *csi, struct v4l2_format *f,
 	struct v4l2_subdev_format sd_fmt;
 	struct v4l2_subdev_pad_config padconf;
 	struct v4l2_pix_format *pixfmt = &f->fmt.pix;
-	struct sun6i_csi_format *csi_fmt = NULL;
-	unsigned int i, num_formats = csi->num_formats;
+	struct sun6i_csi_format *csi_fmt;
 	struct sun6i_csi_subdev *csi_sd;
 	int ret;
 
-	if (num_formats == 0)
+	if (csi->num_formats == 0)
 		return -EINVAL;
 
-	for (i = 0; i < num_formats; i++)
-		if (csi->formats[i].fourcc == pixfmt->pixelformat)
-			csi_fmt = &csi->formats[i];
+	csi_fmt = sun6i_find_format_by_fourcc(csi, pixfmt->pixelformat);
 	if (csi_fmt == NULL)
 		csi_fmt = &csi->formats[0];
 	pixfmt->pixelformat = csi_fmt->fourcc;
@@ -382,6 +391,107 @@ static int sun6i_enum_fmt_vid_cap(struct file *file, void *priv,
 	return 0;
 }
 
+static int sun6i_enum_framesizes(struct file *file, void *priv,
+				 struct v4l2_frmsizeenum *fsize)
+{
+	struct sun6i_csi *csi = video_drvdata(file);
+	struct sun6i_csi_format *csi_fmt;
+	struct sun6i_csi_subdev *csi_sd;
+	struct v4l2_subdev_frame_size_enum fse = {
+		.index = fsize->index,
+		.which = V4L2_SUBDEV_FORMAT_ACTIVE,
+	};
+	int ret;
+
+	csi_fmt = sun6i_find_format_by_fourcc(csi, fsize->pixel_format);
+	if (!csi_fmt)
+		return -EINVAL;
+
+	fse.code = csi_fmt->mbus_code;
+
+	csi_sd = sun6i_get_enabled_subdev(csi);
+	if (csi_sd == NULL)
+		return -ENXIO;
+
+	ret = v4l2_subdev_call(csi_sd->sd, pad, enum_frame_size, NULL, &fse);
+	if (ret)
+		return ret;
+
+	fsize->type = V4L2_FRMSIZE_TYPE_DISCRETE;
+	fsize->discrete.width = fse.max_width;
+	fsize->discrete.height = fse.max_height;
+
+	return 0;
+}
+
+static int sun6i_enum_frameintervals(struct file *file, void *priv,
+				     struct v4l2_frmivalenum *fival)
+{
+	struct sun6i_csi *csi = video_drvdata(file);
+	struct sun6i_csi_format *csi_fmt;
+	struct sun6i_csi_subdev *csi_sd;
+	struct v4l2_subdev_frame_interval_enum fie = {
+		.index = fival->index,
+		.width = fival->width,
+		.height = fival->height,
+		.which = V4L2_SUBDEV_FORMAT_ACTIVE,
+	};
+	int ret;
+
+	csi_fmt = sun6i_find_format_by_fourcc(csi, fival->pixel_format);
+	if (!csi_fmt)
+		return -EINVAL;
+
+	fie.code = csi_fmt->mbus_code;
+
+	csi_sd = sun6i_get_enabled_subdev(csi);
+	if (csi_sd == NULL)
+		return -ENXIO;
+
+	ret = v4l2_subdev_call(csi_sd->sd, pad,
+			       enum_frame_interval, NULL, &fie);
+	if (ret)
+		return ret;
+
+	fival->type = V4L2_FRMIVAL_TYPE_DISCRETE;
+	fival->discrete = fie.interval;
+
+	return 0;
+}
+
+
+static int sun6i_g_parm(struct file *file, void *fh, struct v4l2_streamparm *a)
+{
+	struct sun6i_csi *csi = video_drvdata(file);
+	struct sun6i_csi_subdev *csi_sd;
+
+	if (a->type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
+		return -EINVAL;
+
+	csi_sd = sun6i_get_enabled_subdev(csi);
+	if (csi_sd == NULL)
+		return -ENXIO;
+
+	a->parm.capture.readbuffers = 0;
+	return v4l2_subdev_call(csi_sd->sd, video, g_parm, a);
+}
+
+static int sun6i_s_parm(struct file *file, void *fh, struct v4l2_streamparm *a)
+{
+	struct sun6i_csi *csi = video_drvdata(file);
+	struct sun6i_csi_subdev *csi_sd;
+
+	if (a->type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
+		return -EINVAL;
+
+	csi_sd = sun6i_get_enabled_subdev(csi);
+	if (csi_sd == NULL)
+		return -ENXIO;
+
+	a->parm.capture.readbuffers = 0;
+	return v4l2_subdev_call(csi_sd->sd, video, s_parm, a);
+}
+
 static int sun6i_enum_input(struct file *file, void *priv,
 			   struct v4l2_input *i)
 {
@@ -433,10 +543,16 @@ static int sun6i_s_input(struct file *file, void *priv, unsigned int i)
 
 static const struct v4l2_ioctl_ops sun6i_video_ioctl_ops = {
 	.vidioc_querycap		= sun6i_querycap,
+
 	.vidioc_try_fmt_vid_cap		= sun6i_try_fmt_vid_cap,
 	.vidioc_g_fmt_vid_cap		= sun6i_g_fmt_vid_cap,
 	.vidioc_s_fmt_vid_cap		= sun6i_s_fmt_vid_cap,
 	.vidioc_enum_fmt_vid_cap	= sun6i_enum_fmt_vid_cap,
+
+	.vidioc_g_parm			= sun6i_g_parm,
+	.vidioc_s_parm			= sun6i_s_parm,
+	.vidioc_enum_framesizes		= sun6i_enum_framesizes,
+	.vidioc_enum_frameintervals	= sun6i_enum_frameintervals,
 
 	.vidioc_enum_input		= sun6i_enum_input,
 	.vidioc_g_input			= sun6i_g_input,
