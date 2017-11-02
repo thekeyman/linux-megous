@@ -729,11 +729,11 @@ static int hm5065_write32(struct hm5065_dev *sensor, u16 reg, u32 val)
  * mili variant: val = 123456 => fp_val = 123.456
  * micro variant: val = -12345678 => fp_val = -12.345678
  */
-static long hm5065_mili_from_fp16(u16 fp_val)
+static s64 hm5065_mili_from_fp16(u16 fp_val)
 {
-	long val;
-	long mantisa = fp_val & 0x1ff;
-	int exp = ((int)(fp_val >> 9) & 0x3f) - 31;
+	s64 val;
+	s64 mantisa = fp_val & 0x1ff;
+	int exp = (int)((fp_val >> 9) & 0x3f) - 31;
 
 	val = (1000 * (mantisa | 0x200));
 	if (exp > 0)
@@ -1856,7 +1856,7 @@ static int hm5065_log_status(struct v4l2_subdev *sd)
 	ret = hm5065_read16(sensor, reg, &v16); \
 	if (ret) \
 		return -EIO; \
-	v4l2_info(sd, #name ": %ld\n", hm5065_mili_from_fp16(v16));
+	v4l2_info(sd, #name ": %lld\n", hm5065_mili_from_fp16(v16));
 
 #define DUMP_UI16(name, reg) \
 	ret = hm5065_read16(sensor, reg, &v16); \
