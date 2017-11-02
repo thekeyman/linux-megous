@@ -1491,6 +1491,9 @@ static int hm5065_g_frame_interval(struct v4l2_subdev *sd,
 {
 	struct hm5065_dev *sensor = to_hm5065_dev(sd);
 
+	if (fi->pad != 0)
+		return -EINVAL;
+
 	mutex_lock(&sensor->lock);
 	fi->interval = sensor->frame_interval;
 	mutex_unlock(&sensor->lock);
@@ -1531,6 +1534,7 @@ static int hm5065_s_frame_interval(struct v4l2_subdev *sd,
 	sensor->frame_interval.numerator = 1;
 	sensor->frame_interval.denominator = frame_rate;
 	sensor->pending_mode_change = true;
+	fi->interval = sensor->frame_interval;
 out:
 	mutex_unlock(&sensor->lock);
 	return ret;
@@ -1656,40 +1660,81 @@ static int hm5065_enum_frame_size(struct v4l2_subdev *sd,
 	return 0;
 }
 
-#if 0
-// enumerate discrete frame intervals? do we need this?
-// set_fmt/s_frame_interval can handle this
 static int hm5065_enum_frame_interval(
 	struct v4l2_subdev *sd,
 	struct v4l2_subdev_pad_config *cfg,
 	struct v4l2_subdev_frame_interval_enum *fie)
 {
-	//struct hm5065_dev *sensor = to_hm5065_dev(sd);
+	struct hm5065_dev *sensor = to_hm5065_dev(sd);
 	struct v4l2_fract tpf;
-	//int ret;
+	int max_fps, i;
 
 	if (fie->pad != 0)
 		return -EINVAL;
 
-	if (fie->index > 0)
+	for (i = 0; i < HM5065_NUM_FRAME_SIZES; i++) {
+		if (hm5065_frame_sizes[i].width == fie->width &&
+		    hm5065_frame_sizes[i].height == fie->height)
+			goto get_max_fps;
+	}
+
+	return -EINVAL;
+
+get_max_fps:
+	mutex_lock(&sensor->lock);
+	max_fps = sensor->max_pixel_rate / fie->width / fie->height;
+	mutex_unlock(&sensor->lock);
+	max_fps = clamp(max_fps, 1, HM5065_FRAME_RATE_MAX);
+
+	if (fie->index + 1 > max_fps)
 		return -EINVAL;
 
 	tpf.numerator = 1;
-	tpf.denominator = 15;
-
-	/*
-	 * fps = DIV_ROUND_CLOSEST(fi->denominator, fi->numerator);
-	 * fi->numerator = 1;
-	 * if (fps > maxfps)
-	 *	fi->denominator = maxfps;
-	 * else if (fps < minfps)
-	 *	fi->denominator = minfps;
-	 */
+	tpf.denominator = fie->index + 1;
 
 	fie->interval = tpf;
 	return 0;
 }
-#endif
+
+static int hm5065_g_parm(struct v4l2_subdev *sd, struct v4l2_streamparm *parms)
+{
+	struct v4l2_captureparm *cp = &parms->parm.capture;
+	struct v4l2_subdev_frame_interval fi;
+	int ret;
+
+	if (parms->type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
+		return -EINVAL;
+
+	cp->capability = V4L2_CAP_TIMEPERFRAME;
+	fi.pad = 0;
+	ret = hm5065_g_frame_interval(sd, &fi);
+	if (ret)
+		return ret;
+
+	cp->timeperframe = fi.interval;
+	return 0;
+}
+
+static int hm5065_s_parm(struct v4l2_subdev *sd, struct v4l2_streamparm *parms)
+{
+	struct v4l2_captureparm *cp = &parms->parm.capture;
+	struct v4l2_subdev_frame_interval fi;
+	int ret;
+
+	if (parms->type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
+		return -EINVAL;
+
+	fi.pad = 0;
+	fi.interval = cp->timeperframe;
+	cp->capability = V4L2_CAP_TIMEPERFRAME;
+
+	ret = hm5065_s_frame_interval(sd, &fi);
+	if (ret)
+		return ret;
+
+	cp->timeperframe = fi.interval;
+	return 0;
+}
 
 static int hm5065_get_fmt(struct v4l2_subdev *sd,
 			  struct v4l2_subdev_pad_config *cfg,
@@ -2026,7 +2071,7 @@ static const struct v4l2_subdev_core_ops hm5065_core_ops = {
 static const struct v4l2_subdev_pad_ops hm5065_pad_ops = {
 	.enum_mbus_code = hm5065_enum_mbus_code,
 	.enum_frame_size = hm5065_enum_frame_size,
-	//.enum_frame_interval = hm5065_enum_frame_interval,
+	.enum_frame_interval = hm5065_enum_frame_interval,
 	.get_fmt = hm5065_get_fmt,
 	.set_fmt = hm5065_set_fmt,
 };
@@ -2034,6 +2079,8 @@ static const struct v4l2_subdev_pad_ops hm5065_pad_ops = {
 static const struct v4l2_subdev_video_ops hm5065_video_ops = {
 	.g_frame_interval = hm5065_g_frame_interval,
 	.s_frame_interval = hm5065_s_frame_interval,
+	.g_parm = hm5065_g_parm,
+	.s_parm = hm5065_s_parm,
 	.s_stream = hm5065_s_stream,
 };
 
