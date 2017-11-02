@@ -335,7 +335,7 @@ static int sun6i_video_set_fmt(struct sun6i_csi *csi, struct v4l2_format *f,
 }
 
 static int sun6i_querycap(struct file *file, void *priv,
-				struct v4l2_capability *cap)
+			  struct v4l2_capability *cap)
 {
 	struct sun6i_csi *csi = video_drvdata(file);
 
@@ -348,7 +348,7 @@ static int sun6i_querycap(struct file *file, void *priv,
 }
 
 static int sun6i_try_fmt_vid_cap(struct file *file, void *priv,
-				  struct v4l2_format *f)
+				 struct v4l2_format *f)
 {
 	struct sun6i_csi *csi = video_drvdata(file);
 
@@ -366,7 +366,7 @@ static int sun6i_g_fmt_vid_cap(struct file *file, void *priv,
 }
 
 static int sun6i_s_fmt_vid_cap(struct file *file, void *priv,
-				struct v4l2_format *f)
+			       struct v4l2_format *f)
 {
 	struct sun6i_csi *csi = video_drvdata(file);
 
@@ -377,7 +377,7 @@ static int sun6i_s_fmt_vid_cap(struct file *file, void *priv,
 }
 
 static int sun6i_enum_fmt_vid_cap(struct file *file, void *priv,
-				   struct v4l2_fmtdesc *f)
+				  struct v4l2_fmtdesc *f)
 {
 	struct sun6i_csi *csi = video_drvdata(file);
 
