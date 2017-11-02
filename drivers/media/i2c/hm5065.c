@@ -549,6 +549,7 @@ struct hm5065_ctrls {
 	struct v4l2_ctrl *brightness;
 	struct v4l2_ctrl *saturation;
 	struct v4l2_ctrl *contrast;
+	struct v4l2_ctrl *gamma;
 	struct v4l2_ctrl *test_pattern;
 	struct v4l2_ctrl *test_data[4];
 };
@@ -1379,6 +1380,8 @@ static int hm5065_init_controls(struct hm5065_dev *sensor)
 					       0, 4095, 1, 0);
 #endif
 
+	ctrls->gamma = v4l2_ctrl_new_std(hdl, ops, V4L2_CID_GAMMA,
+					 0, 31, 1, 20);
 
 	ctrls->colorfx =
 		v4l2_ctrl_new_std_menu(hdl, ops, V4L2_CID_COLORFX, 15,
