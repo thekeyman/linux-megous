@@ -1414,7 +1414,7 @@ static int hm5065_init_controls(struct hm5065_dev *sensor)
 
 	/* Auto focus */
 	ctrls->focus_auto = v4l2_ctrl_new_std(hdl, ops, V4L2_CID_FOCUS_AUTO,
-					      0, 1, 1, 0);
+					      0, 1, 1, 1);
 
 	ctrls->af_start = v4l2_ctrl_new_std(hdl, ops, V4L2_CID_AUTO_FOCUS_START,
 					    0, 1, 1, 0);
