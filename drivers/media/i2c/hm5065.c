@@ -1469,7 +1469,8 @@ static int hm5065_init_controls(struct hm5065_dev *sensor)
 #if 0
 	ctrls->exposure->flags |= V4L2_CTRL_FLAG_VOLATILE;
 #endif
-	ctrls->af_status->flags |= V4L2_CTRL_FLAG_VOLATILE;
+	ctrls->af_status->flags |= V4L2_CTRL_FLAG_VOLATILE |
+		V4L2_CTRL_FLAG_READ_ONLY;
 
 	v4l2_ctrl_auto_cluster(4, &ctrls->auto_exposure, V4L2_EXPOSURE_MANUAL,
 			       false);
