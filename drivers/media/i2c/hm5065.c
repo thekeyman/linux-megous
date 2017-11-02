@@ -1355,7 +1355,8 @@ static int hm5065_init_controls(struct hm5065_dev *sensor)
 						      V4L2_EXPOSURE_AUTO);
 	ctrls->exposure = v4l2_ctrl_new_std(hdl, ops,
 					    V4L2_CID_EXPOSURE_ABSOLUTE,
-					    2, 5000, 1, 200);
+					    1, 20000, 1, 200);
+					    /* don't raise max value! */
 	ctrls->metering =
 		v4l2_ctrl_new_std_menu(hdl, ops,
 				       V4L2_CID_EXPOSURE_METERING,
