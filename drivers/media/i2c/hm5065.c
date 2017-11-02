@@ -607,8 +607,8 @@ static int hm5065_write_regs(struct hm5065_dev *sensor, u16 start_index,
 	msg.buf = buf;
 	msg.len = data_size + 2;
 
-	v4l2_info(&sensor->sd, "wr: %04x <= %*ph\n", (u32)start_index,
-		  data_size, data);
+	//v4l2_info(&sensor->sd, "wr: %04x <= %*ph\n", (u32)start_index,
+		  //data_size, data);
 
 	ret = i2c_transfer(client->adapter, &msg, 1);
 	if (ret < 0) {
@@ -650,23 +650,34 @@ static int hm5065_read_regs(struct hm5065_dev *sensor, u16 start_index,
 		return ret;
 	}
 
-	v4l2_info(&sensor->sd, "rd: %04x => %*ph\n", (u32)start_index,
-		  data_size, data);
+	//v4l2_info(&sensor->sd, "rd: %04x => %*ph\n", (u32)start_index,
+		  //data_size, data);
 
 	return 0;
 }
 
-static int hm5065_read(struct hm5065_dev *sensor, u16 reg, u8 *val)
+#define hm5065_read(s, r, v) _hm5065_read(s, #r, r, v)
+#define hm5065_write(s, r, v) _hm5065_write(s, #r, r, v)
+#define hm5065_read16(s, r, v) _hm5065_read16(s, #r, r, v)
+#define hm5065_write16(s, r, v) _hm5065_write16(s, #r, r, v)
+
+static int _hm5065_read(struct hm5065_dev *sensor, const char* reg_name, u16 reg, u8 *val)
 {
-	return hm5065_read_regs(sensor, reg, val, 1);
+	int ret = hm5065_read_regs(sensor, reg, val, 1);
+
+	v4l2_info(&sensor->sd, "READ8: %s => 0x%02x\n", reg_name, *val);
+
+	return ret;
 }
 
-static int hm5065_write(struct hm5065_dev *sensor, u16 reg, u8 val)
+static int _hm5065_write(struct hm5065_dev *sensor, const char* reg_name, u16 reg, u8 val)
 {
+	v4l2_info(&sensor->sd, "WRITE8: %s <= 0x%02x\n", reg_name, (int)val);
+
 	return hm5065_write_regs(sensor, reg, &val, 1);
 }
 
-static int hm5065_read16(struct hm5065_dev *sensor, u16 reg, u16 *val)
+static int _hm5065_read16(struct hm5065_dev *sensor, const char* reg_name, u16 reg, u16 *val)
 {
 	int ret;
 
@@ -675,12 +686,15 @@ static int hm5065_read16(struct hm5065_dev *sensor, u16 reg, u16 *val)
 		return ret;
 
 	*val = be16_to_cpu(*val);
+	v4l2_info(&sensor->sd, "READ16: %s <= 0x%04x\n", reg_name, (int)*val);
 	return 0;
 }
 
-static int hm5065_write16(struct hm5065_dev *sensor, u16 reg, u16 val)
+static int _hm5065_write16(struct hm5065_dev *sensor, const char* reg_name, u16 reg, u16 val)
 {
 	u16 tmp = cpu_to_be16(val);
+
+	v4l2_info(&sensor->sd, "WRITE16: %s <= 0x%04x\n", reg_name, (int)val);
 
 	return hm5065_write_regs(sensor, reg, (u8 *)&tmp, sizeof(tmp));
 }
@@ -1513,21 +1527,15 @@ static int hm5065_setup_mode(struct hm5065_dev *sensor)
 	int ret;
 	const struct hm5065_pixfmt *pix_fmt;
 
-	dev_info(&sensor->i2c_client->dev, "set mode\n");
-
 	ret = hm5065_write(sensor, HM5065_REG_P0_SENSOR_MODE,
 			   HM5065_REG_SENSOR_MODE_FULLSIZE);
 	if (ret)
 		return ret;
 
-	dev_info(&sensor->i2c_client->dev, "set img width\n");
-
 	ret = hm5065_write16(sensor, HM5065_REG_P0_MANUAL_HSIZE,
 			     sensor->fmt.width);
 	if (ret)
 		return ret;
-
-	dev_info(&sensor->i2c_client->dev, "set img height\n");
 
 	ret = hm5065_write16(sensor, HM5065_REG_P0_MANUAL_VSIZE,
 			     sensor->fmt.height);
@@ -1547,23 +1555,17 @@ static int hm5065_setup_mode(struct hm5065_dev *sensor)
 		return -EINVAL;
 	}
 
-	dev_info(&sensor->i2c_client->dev, "set P0 data fmt\n");
-
 	ret = hm5065_write(sensor, HM5065_REG_P0_DATA_FORMAT,
 			   pix_fmt->data_fmt);
 	if (ret)
 		return ret;
 
 	if (pix_fmt->ycbcr_order != HM5065_REG_YCRCB_ORDER_NONE) {
-		dev_info(&sensor->i2c_client->dev, "set P0 ycbcr order\n");
-
 		ret = hm5065_write(sensor, HM5065_REG_YCRCB_ORDER,
 				   pix_fmt->ycbcr_order);
 		if (ret)
 			return ret;
 	}
-
-	dev_info(&sensor->i2c_client->dev, "set frame rate\n");
 
 	ret = hm5065_write16(sensor, HM5065_REG_DESIRED_FRAME_RATE_NUM,
 			     sensor->frame_interval.denominator);
@@ -1575,8 +1577,6 @@ static int hm5065_setup_mode(struct hm5065_dev *sensor)
 
 static int hm5065_set_stream(struct hm5065_dev *sensor, int enable)
 {
-	dev_info(&sensor->i2c_client->dev, "stream cmd\n");
-
 	return hm5065_write(sensor, HM5065_REG_USER_COMMAND, enable ?
 			    HM5065_REG_USER_COMMAND_RUN :
 			    HM5065_REG_USER_COMMAND_STOP);
@@ -1782,26 +1782,41 @@ static int hm5065_log_status(struct v4l2_subdev *sd)
 	struct hm5065_dev *sensor = to_hm5065_dev(sd);
 	u8 buf[256];
 	int ret, i;
+	u16 v16;
 
 	if (!sensor->powered)
 		return -EIO;
 
-	ret = hm5065_read_regs(sensor, 0, buf, sizeof(buf));
-	if (ret)
-		return -EIO;
+	//ret = hm5065_read_regs(sensor, 0, buf, sizeof(buf));
+	//if (ret)
+		//return -EIO;
 
-	v4l2_info(sd, "HM5065 registers:\n");
-	for (i = 0; i < sizeof(buf); i++)
-		v4l2_info(sd, "%04x: %02x\n", i, buf[i]);
+#define DUMP_FP16(name, reg) \
+	ret = hm5065_read16(sensor, reg, &v16); \
+	if (ret) \
+		return -EIO; \
+	v4l2_info(sd, #name ": %ld\n", hm5065_mili_from_fp16(v16));
 
-#if 0
-	v4l2_info(sd, "version: %u\n", state->chip_version);
-	v4l2_info(sd, "power: %s\n", (reg_03 & 0x0c) ? "off" : "on");
-	v4l2_info(sd, "reset: %s\n", (reg_03 & 0x01) ? "off" : "on");
-	v4l2_info(sd, "test pattern: %s\n",
-		  (reg_03 & 0x20) ? "enabled" : "disabled");
-	//v4l2_info(sd, "format: %ux%u\n",);
-#endif
+#define DUMP_UI16(name, reg) \
+	ret = hm5065_read16(sensor, reg, &v16); \
+	if (ret) \
+		return -EIO; \
+	v4l2_info(sd, #name ": %u\n", v16);
+
+	DUMP_FP16(fpAnalogGainPending, 0x180)
+	DUMP_FP16(fpDigitalGainPending, 0x182)
+	DUMP_FP16(fpDesiredExposureTime_us, 0x184)
+	DUMP_FP16(fpCompiledExposureTime_us, 0x186)
+	DUMP_UI16(uwUserMaximumIntegrationLines, 0x189)
+	DUMP_FP16(fpTotalIntegrationTimePending_us, 0x18b)
+	DUMP_FP16(fpRequestedFrameRate_Hz, 0xd8)
+	DUMP_FP16(fpMaxFrameRate_Hz, 0xda)
+	DUMP_FP16(fpMinFrameRate_Hz, 0xdc)
+
+	//v4l2_info(sd, "HM5065 registers:\n");
+	//for (i = 0; i < sizeof(buf); i++)
+		//v4l2_info(sd, "%04x: %02x\n", i, buf[i]);
+
 	return 0;
 }
 
@@ -1838,8 +1853,6 @@ static int hm5065_configure(struct hm5065_dev *sensor)
 	const struct hm5065_clk_lut *lut;
 	unsigned long xclk_freq;
 
-	dev_dbg(&sensor->i2c_client->dev, "%s: read device id\n", __func__);
-
 	ret = hm5065_read16(sensor, HM5065_REG_DEVICE_ID, &device_id);
 	if (ret)
 		return ret;
@@ -1863,8 +1876,6 @@ static int hm5065_configure(struct hm5065_dev *sensor)
 		return -EINVAL;
 	}
 
-	dev_info(&sensor->i2c_client->dev, "set exclklut\n");
-
 	ret = hm5065_write(sensor, HM5065_REG_EXCLOCKLUT, lut->lut_id);
 	if (ret)
 		return ret;
@@ -1886,9 +1897,9 @@ static int hm5065_set_power(struct hm5065_dev *sensor, bool on)
 {
 	int ret = 0;
 
-	dev_dbg(&sensor->i2c_client->dev, "%s: on=%u\n", __func__, on);
-
 	if (on) {
+		dev_dbg(&sensor->i2c_client->dev, "%s: on\n", __func__);
+
 		ret = regulator_bulk_enable(HM5065_NUM_SUPPLIES,
 					    sensor->supplies);
 		if (ret)
@@ -1923,6 +1934,7 @@ xclk_off:
 	clk_disable_unprepare(sensor->xclk);
 power_off:
 	hm5065_chip_enable(sensor, false);
+	dev_dbg(&sensor->i2c_client->dev, "%s: off\n", __func__);
 	regulator_bulk_disable(HM5065_NUM_SUPPLIES, sensor->supplies);
 	return ret;
 }
@@ -1960,34 +1972,17 @@ static int hm5065_g_register(struct v4l2_subdev *sd,
 {
 	struct hm5065_dev *sensor = to_hm5065_dev(sd);
 	int ret;
+	u8 val = 0;
 
 	if (reg->reg > 0xffff)
 		return -EINVAL;
 
-	if (reg->size == 1) {
-		u8 val = 0;
+	reg->size = 1;
+	ret = hm5065_read(sensor, reg->reg, &val);
+	if (ret)
+		return -EIO;
 
-		ret = hm5065_read(sensor, (u16)reg->reg, &val);
-		if (ret)
-			return -EIO;
-		reg->val = val;
-	} else if (reg->size == 2) {
-		u16 val = 0;
-
-		ret = hm5065_read16(sensor, (u16)reg->reg, &val);
-		if (ret)
-			return -EIO;
-		reg->val = val;
-	} else if (reg->size == 4) {
-		u32 val = 0;
-
-		ret = hm5065_read32(sensor, (u16)reg->reg, &val);
-		if (ret)
-			return -EIO;
-		reg->val = val;
-	} else
-		return -EINVAL;
-
+	reg->val = val;
 	return 0;
 }
 
@@ -1996,19 +1991,10 @@ static int hm5065_s_register(struct v4l2_subdev *sd,
 {
 	struct hm5065_dev *sensor = to_hm5065_dev(sd);
 
-	if (reg->reg > 0xffff)
+	if (reg->reg > 0xffff || reg->val > 0xff)
 		return -EINVAL;
 
-	if (reg->size == 1 && reg->val <= 0xff)
-		return hm5065_write(sensor, (u16)reg->reg, reg->val);
-	else if (reg->size == 2 && reg->val <= 0xffff)
-		return hm5065_write16(sensor, (u16)reg->reg, reg->val);
-	else if (reg->size == 4 && reg->val <= 0xffffffffull)
-		return hm5065_write32(sensor, (u16)reg->reg, reg->val);
-	else
-		return -EINVAL;
-
-	return 0;
+	return hm5065_write(sensor, reg->reg, reg->val);
 }
 #endif
 
