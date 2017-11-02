@@ -1278,6 +1278,14 @@ static int hm5065_s_ctrl(struct v4l2_ctrl *ctrl)
 
 		return -EINVAL;
 
+	case V4L2_CID_BLUE_BALANCE:
+		return hm5065_write16(sensor, HM5065_REG_WB_HUE_B_BIAS,
+				      hm5065_mili_to_fp16(val));
+
+	case V4L2_CID_RED_BALANCE:
+		return hm5065_write16(sensor, HM5065_REG_WB_HUE_R_BIAS,
+				      hm5065_mili_to_fp16(val));
+
 	case V4L2_CID_TEST_PATTERN_RED:
 		return hm5065_write16(sensor, HM5065_REG_TESTDATA_RED, val);
 
@@ -1375,12 +1383,11 @@ static int hm5065_init_controls(struct hm5065_dev *sensor)
 	ctrls->wb = v4l2_ctrl_new_std_menu(hdl, ops,
 			V4L2_CID_AUTO_N_PRESET_WHITE_BALANCE,
 			wb_max, ~wb_mask, V4L2_WHITE_BALANCE_AUTO);
-#if 0
+
 	ctrls->blue_balance = v4l2_ctrl_new_std(hdl, ops, V4L2_CID_BLUE_BALANCE,
-						0, 4095, 1, 0);
+						0, 5000, 1, 1000);
 	ctrls->red_balance = v4l2_ctrl_new_std(hdl, ops, V4L2_CID_RED_BALANCE,
-					       0, 4095, 1, 0);
-#endif
+					       0, 5000, 1, 1000);
 
 	ctrls->gamma = v4l2_ctrl_new_std(hdl, ops, V4L2_CID_GAMMA,
 					 0, 31, 1, 20);
