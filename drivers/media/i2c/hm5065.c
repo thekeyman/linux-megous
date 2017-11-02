@@ -1043,11 +1043,13 @@ static int hm5065_3a_lock(struct hm5065_dev *sensor, struct v4l2_ctrl *ctrl)
 	}
 
 	//XXX: potentially drop this
+	/*
 	if ((ctrl->val ^ ctrl->cur.val) & V4L2_LOCK_FOCUS
 	    && sensor->ctrls.focus_auto->val)
 		ret = hm5065_write(sensor, HM5065_REG_AF_MODE,
 				   af_lock ? HM5065_REG_AF_MODE_MANUAL :
 				   HM5065_REG_AF_MODE_CONTINUOUS);
+          */
 
 	return ret;
 }
