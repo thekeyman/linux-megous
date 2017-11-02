@@ -1328,7 +1328,7 @@ static const char * const test_pattern_menu[] = {
 	"Vertical gray scale",
 	"Diagonal gray scale",
 	"PN28",
-	"PN9",
+	"PN9 (bus test)",
 	"Solid color",
 	"Color bars",
 	"Graduated color bars",
