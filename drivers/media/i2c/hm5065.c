@@ -466,25 +466,25 @@ static const struct hm5065_pixfmt hm5065_formats[] = {
 	{
 		.code              = MEDIA_BUS_FMT_UYVY8_2X8,
 		.colorspace        = V4L2_COLORSPACE_SRGB,
-		.data_fmt          = HM5065_REG_DATA_FORMAT_YCBCR_JFIF,
+		.data_fmt          = HM5065_REG_DATA_FORMAT_YCBCR_CUSTOM,
 		.ycbcr_order       = HM5065_REG_YCRCB_ORDER_CB_Y_CR_Y,
 	},
 	{
 		.code              = MEDIA_BUS_FMT_VYUY8_2X8,
 		.colorspace        = V4L2_COLORSPACE_SRGB,
-		.data_fmt          = HM5065_REG_DATA_FORMAT_YCBCR_JFIF,
+		.data_fmt          = HM5065_REG_DATA_FORMAT_YCBCR_CUSTOM,
 		.ycbcr_order       = HM5065_REG_YCRCB_ORDER_CR_Y_CB_Y,
 	},
 	{
 		.code              = MEDIA_BUS_FMT_YUYV8_2X8,
 		.colorspace        = V4L2_COLORSPACE_SRGB,
-		.data_fmt          = HM5065_REG_DATA_FORMAT_YCBCR_JFIF,
+		.data_fmt          = HM5065_REG_DATA_FORMAT_YCBCR_CUSTOM,
 		.ycbcr_order       = HM5065_REG_YCRCB_ORDER_Y_CB_Y_CR,
 	},
 	{
 		.code              = MEDIA_BUS_FMT_YVYU8_2X8,
 		.colorspace        = V4L2_COLORSPACE_SRGB,
-		.data_fmt          = HM5065_REG_DATA_FORMAT_YCBCR_JFIF,
+		.data_fmt          = HM5065_REG_DATA_FORMAT_YCBCR_CUSTOM,
 		.ycbcr_order       = HM5065_REG_YCRCB_ORDER_Y_CR_Y_CB,
 	},
 	{
