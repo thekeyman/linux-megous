@@ -391,6 +391,11 @@
 
 /* }}} */
 
+struct reg_value {
+	u16 addr;
+	u8 value;
+} __attribute__ ((packed));
+
 /*
  * Sensor has various pre-defined PLL configurations for a set of
  * external clock frequencies.
