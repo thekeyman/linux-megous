@@ -966,7 +966,7 @@ static int hm5065_set_colorfx(struct hm5065_dev *sensor, s32 val)
  1300 0x07
 #endif
 
-#define AE_BIAS_MENU_DEFAULT_VALUE_INDEX 4
+#define AE_BIAS_MENU_DEFAULT_VALUE_INDEX 6
 static const s64 ae_bias_menu_values[] = {
 	-7000, -6000, -5000, -4000, -3000, -2000, -1000,
 	0, 1000, 2000, 3000, 4000, 5000, 6000, 7000
@@ -1453,11 +1453,11 @@ static int hm5065_init_controls(struct hm5065_dev *sensor)
 						  -100, 100, 1, 0);
 
 	ctrls->brightness = v4l2_ctrl_new_std(hdl, ops, V4L2_CID_BRIGHTNESS,
-					      0, 200, 1, 100);
+					      0, 200, 1, 90);
 	ctrls->saturation = v4l2_ctrl_new_std(hdl, ops, V4L2_CID_SATURATION,
-					      0, 200, 1, 118);
+					      0, 200, 1, 110);
 	ctrls->contrast = v4l2_ctrl_new_std(hdl, ops, V4L2_CID_CONTRAST,
-					    0, 200, 1, 115);
+					    0, 200, 1, 108);
 
 	ctrls->aaa_lock = v4l2_ctrl_new_std(hdl, ops, V4L2_CID_3A_LOCK,
 					    0, 0x7, 0, 0);
