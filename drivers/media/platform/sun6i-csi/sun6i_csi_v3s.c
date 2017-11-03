@@ -475,8 +475,6 @@ static void sun6i_csi_set_window(struct sun6i_csi_dev *sdev)
 		     CSI_CH_VSIZE_VER_LEN(height) |
 		     CSI_CH_VSIZE_VER_START(0));
 
-	dev_dbg(csi->dev, "hsize_for_len=%u vsize_for_len=%u\n", width, height);
-
 	planar_offset[0] = 0;
 
 	switch (csi->fmt.fmt.pix.pixelformat) {
@@ -513,9 +511,6 @@ static void sun6i_csi_set_window(struct sun6i_csi_dev *sdev)
 		break;
 	}
 
-	dev_dbg(csi->dev, "bytesperline_c=%u bytesperline_y=%u\n",
-		bytesperline_c, bytesperline_y);
-
 	regmap_write(sdev->regmap, CSI_CH_BUF_LEN_REG,
 		     CSI_CH_BUF_LEN_BUF_LEN_C(bytesperline_c) |
 		     CSI_CH_BUF_LEN_BUF_LEN_Y(bytesperline_y));
@@ -526,8 +521,6 @@ static int set_power(struct sun6i_csi *csi, bool enable)
 	struct sun6i_csi_dev *sdev = sun6i_csi_to_dev(csi);
 	struct regmap *regmap = sdev->regmap;
 	int ret;
-
-	dev_dbg(csi->dev, "Setting csi power %d\n", enable);
 
 	if (!enable) {
 		regmap_update_bits(regmap, CSI_EN_REG, CSI_EN_CSI_EN, 0);
@@ -752,8 +745,6 @@ static int sun6i_csi_probe(struct platform_device *pdev)
 	ret = sun6i_csi_init(&sdev->csi);
 	if (ret)
 		return ret;
-
-	dev_dbg(sdev->csi.dev, "driver registered\n");
 
 	return 0;
 }
