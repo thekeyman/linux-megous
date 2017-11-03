@@ -152,6 +152,8 @@
 			bus-width = <8>;
 			data-active = <1>;
 			pclk-sample = <1>;
+			hsync-active = <1>;
+			vsync-active = <0>;
 		};
 
 #ifdef GC2145_SENSOR
