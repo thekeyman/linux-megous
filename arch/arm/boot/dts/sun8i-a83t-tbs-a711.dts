@@ -73,7 +73,7 @@
 		compatible = "i2c-gpio";
 		gpios = <&pio 4 15 GPIO_ACTIVE_HIGH>, /* PE15, sda */
 			<&pio 4 14 GPIO_ACTIVE_HIGH>; /* PE14, scl */
-		i2c-gpio,delay-us = <2>;	/* ~100 kHz */
+		i2c-gpio,delay-us = <1>;	/* ~100 kHz */
 		#address-cells = <1>;
 		#size-cells = <0>;
 	};
