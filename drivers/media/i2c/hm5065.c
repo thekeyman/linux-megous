@@ -700,23 +700,29 @@ static int _hm5065_write16(struct hm5065_dev *sensor, const char* reg_name, u16 
 	return hm5065_write_regs(sensor, reg, (u8 *)&tmp, sizeof(tmp));
 }
 
-static int hm5065_read32(struct hm5065_dev *sensor, u16 reg, u32 *val)
+static int hm5065_write_list(struct hm5065_dev *sensor, unsigned int list_size,
+			     const struct reg_value *list)
 {
 	int ret;
+	unsigned int i = 0;
+	u16 start, len;
+        u8 buf[128];
 
-	ret = hm5065_read_regs(sensor, reg, (u8 *)val, sizeof(*val));
-	if (ret)
-		return ret;
+	/* we speed up I2C communication via auto-increment functionality */
+	while (i < list_size) {
+		start = list[i].addr;
+		len = 0;
 
-	*val = be32_to_cpu(*val);
+		while (i < list_size && list[i].addr == (start + len) &&
+		       len < sizeof(buf))
+			buf[len++] = list[i++].value;
+
+		ret = hm5065_write_regs(sensor, start, buf, len);
+		if (ret)
+			return ret;
+	}
+
 	return 0;
-}
-
-static int hm5065_write32(struct hm5065_dev *sensor, u16 reg, u32 val)
-{
-	u32 tmp = cpu_to_be32(val);
-
-	return hm5065_write_regs(sensor, reg, (u8 *)&tmp, sizeof(tmp));
 }
 
 /*
