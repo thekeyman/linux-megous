@@ -1939,7 +1939,6 @@ static int hm5065_configure(struct hm5065_dev *sensor)
 	}
 
 	xclk_freq = clk_get_rate(sensor->xclk);
-#if 1
 	lut = hm5065_find_clk_lut(xclk_freq);
 	if (!lut) {
 		dev_err(&sensor->i2c_client->dev,
@@ -1950,16 +1949,12 @@ static int hm5065_configure(struct hm5065_dev *sensor)
 	ret = hm5065_write(sensor, HM5065_REG_EXCLOCKLUT, lut->lut_id);
 	if (ret)
 		return ret;
-#else
-	ret = hm5065_write16(sensor, HM5065_REG_EXTERNAL_CLOCK_FREQ_MHZ,
-			     0x4700);
-	if (ret)
-		return ret;
 
-	ret = hm5065_write16(sensor, HM5065_REG_TARGET_PLL_OUTPUT, 0x4b20);
+	/* PLL output = 480MHz */
+	ret = hm5065_write16(sensor, HM5065_REG_TARGET_PLL_OUTPUT,
+			     hm5065_mili_to_fp16(480000));
 	if (ret)
 		return ret;
-#endif
 
 	return 0;
 }
