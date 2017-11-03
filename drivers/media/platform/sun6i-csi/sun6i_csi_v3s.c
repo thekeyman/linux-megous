@@ -457,9 +457,19 @@ static void sun6i_csi_set_window(struct sun6i_csi_dev *sdev)
 	int *planar_offset = sdev->planar_offset;
 	u32 width = csi->fmt.fmt.pix.width;
 	u32 height = csi->fmt.fmt.pix.height;
+	u32 hor_len = width;
+
+	switch (csi->fmt.fmt.pix.pixelformat) {
+	case V4L2_PIX_FMT_YUYV:
+	case V4L2_PIX_FMT_YVYU:
+	case V4L2_PIX_FMT_UYVY:
+	case V4L2_PIX_FMT_VYUY:
+		hor_len *= 2;
+		break;
+	}
 
 	regmap_write(sdev->regmap, CSI_CH_HSIZE_REG,
-		     CSI_CH_HSIZE_HOR_LEN(width * 2) |
+		     CSI_CH_HSIZE_HOR_LEN(hor_len) |
 		     CSI_CH_HSIZE_HOR_START(0));
 	regmap_write(sdev->regmap, CSI_CH_VSIZE_REG,
 		     CSI_CH_VSIZE_VER_LEN(height) |
