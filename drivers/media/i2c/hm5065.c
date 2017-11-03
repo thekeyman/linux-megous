@@ -662,7 +662,8 @@ static int hm5065_read_regs(struct hm5065_dev *sensor, u16 start_index,
 #define hm5065_read16(s, r, v) _hm5065_read16(s, #r, r, v)
 #define hm5065_write16(s, r, v) _hm5065_write16(s, #r, r, v)
 
-static int _hm5065_read(struct hm5065_dev *sensor, const char* reg_name, u16 reg, u8 *val)
+static int _hm5065_read(struct hm5065_dev *sensor, const char* reg_name,
+			u16 reg, u8 *val)
 {
 	int ret = hm5065_read_regs(sensor, reg, val, 1);
 
@@ -671,14 +672,16 @@ static int _hm5065_read(struct hm5065_dev *sensor, const char* reg_name, u16 reg
 	return ret;
 }
 
-static int _hm5065_write(struct hm5065_dev *sensor, const char* reg_name, u16 reg, u8 val)
+static int _hm5065_write(struct hm5065_dev *sensor, const char* reg_name,
+			 u16 reg, u8 val)
 {
 	v4l2_info(&sensor->sd, "WRITE8: %s <= 0x%02x\n", reg_name, (int)val);
 
 	return hm5065_write_regs(sensor, reg, &val, 1);
 }
 
-static int _hm5065_read16(struct hm5065_dev *sensor, const char* reg_name, u16 reg, u16 *val)
+static int _hm5065_read16(struct hm5065_dev *sensor, const char* reg_name,
+			  u16 reg, u16 *val)
 {
 	int ret;
 
@@ -691,7 +694,8 @@ static int _hm5065_read16(struct hm5065_dev *sensor, const char* reg_name, u16 r
 	return 0;
 }
 
-static int _hm5065_write16(struct hm5065_dev *sensor, const char* reg_name, u16 reg, u16 val)
+static int _hm5065_write16(struct hm5065_dev *sensor, const char* reg_name,
+			   u16 reg, u16 val)
 {
 	u16 tmp = cpu_to_be16(val);
 
