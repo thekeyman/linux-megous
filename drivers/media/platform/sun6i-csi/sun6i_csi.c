@@ -190,7 +190,7 @@ err_stop_media_pipeline:
 err_queue_buffers:
 	spin_lock_irqsave(&csi->dma_queue_lock, flags);
 	if (csi->cur_frm) {
-		vb2_buffer_done(&csi->cur_frm->vb.vb2_buf, VB2_BUF_STATE_ERROR);
+		vb2_buffer_done(&csi->cur_frm->vb.vb2_buf, VB2_BUF_STATE_QUEUED);
 		csi->cur_frm = NULL;
 	}
 	list_for_each_entry(buf, &csi->dma_queue, list)
