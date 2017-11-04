@@ -3713,6 +3713,12 @@ static int hm5065_s_stream(struct v4l2_subdev *sd, int enable)
 		if (ret)
 			goto out;
 
+		if (enable && sensor->ctrls.focus_auto->cur.val) {
+			msleep(20);
+			ret = hm5065_write(sensor, HM5065_REG_AF_MODE,
+					   HM5065_REG_AF_MODE_CONTINUOUS);
+		}
+
 		sensor->streaming = !!enable;
 	}
 
