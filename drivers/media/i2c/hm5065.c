@@ -32,7 +32,7 @@
 #include <media/v4l2-subdev.h>
 
 #define HM5065_PCLK_FREQ_ABS_MAX 89000000
-#define HM5065_FRAME_RATE_MAX 120
+#define HM5065_FRAME_RATE_MAX 30
 
 /* min/typical/max system clock (xclk) frequencies */
 #define HM5065_XCLK_MIN  6000000
@@ -154,7 +154,6 @@
 #define HM5065_REG_YCRCB_ORDER_CR_Y_CB_Y	0x01
 #define HM5065_REG_YCRCB_ORDER_Y_CB_Y_CR	0x02
 #define HM5065_REG_YCRCB_ORDER_Y_CR_Y_CB	0x03
-#define HM5065_REG_YCRCB_ORDER_NONE		0xff
 
 /* clock chain parameter inputs (floating point) */
 #define HM5065_REG_EXTERNAL_CLOCK_FREQ_MHZ	0x00b0 /* fp16, 6-27, standby */
@@ -2707,13 +2706,13 @@ static const struct hm5065_pixfmt hm5065_formats[] = {
 		.code              = MEDIA_BUS_FMT_RGB555_2X8_PADHI_BE,
 		.colorspace        = V4L2_COLORSPACE_SRGB,
 		.data_fmt          = HM5065_REG_DATA_FORMAT_RGB_555,
-		.ycbcr_order       = HM5065_REG_YCRCB_ORDER_NONE,
+		.ycbcr_order       = HM5065_REG_YCRCB_ORDER_Y_CR_Y_CB,
 	},
 	{
 		.code              = MEDIA_BUS_FMT_RGB565_2X8_BE,
 		.colorspace        = V4L2_COLORSPACE_SRGB,
 		.data_fmt          = HM5065_REG_DATA_FORMAT_RGB_565,
-		.ycbcr_order       = HM5065_REG_YCRCB_ORDER_NONE,
+		.ycbcr_order       = HM5065_REG_YCRCB_ORDER_Y_CR_Y_CB,
 	},
 };
 
@@ -3777,27 +3776,6 @@ static int hm5065_setup_mode(struct hm5065_dev *sensor)
 {
 	int ret;
 	const struct hm5065_pixfmt *pix_fmt;
-
-	ret = hm5065_write(sensor, HM5065_REG_P0_SENSOR_MODE,
-			   HM5065_REG_SENSOR_MODE_FULLSIZE);
-	if (ret)
-		return ret;
-
-	ret = hm5065_write16(sensor, HM5065_REG_P0_MANUAL_HSIZE,
-			     sensor->fmt.width);
-	if (ret)
-		return ret;
-
-	ret = hm5065_write16(sensor, HM5065_REG_P0_MANUAL_VSIZE,
-			     sensor->fmt.height);
-	if (ret)
-		return ret;
-
-	ret = hm5065_write(sensor, HM5065_REG_P0_IMAGE_SIZE,
-			   HM5065_REG_IMAGE_SIZE_MANUAL);
-	if (ret)
-		return ret;
-
 	pix_fmt = hm5065_find_format(sensor->fmt.code);
 	if (!pix_fmt) {
 		dev_err(&sensor->i2c_client->dev,
@@ -3806,17 +3784,26 @@ static int hm5065_setup_mode(struct hm5065_dev *sensor)
 		return -EINVAL;
 	}
 
-	ret = hm5065_write(sensor, HM5065_REG_P0_DATA_FORMAT,
-			   pix_fmt->data_fmt);
+	struct reg_value setup_mode[] = {
+		{HM5065_REG_USER_COMMAND, HM5065_REG_USER_COMMAND_POWEROFF},
+		{0x00ed, 1},
+		{0x00ee, sensor->frame_interval.denominator},
+		{0x7000, 0x08},
+		{0x5200, 0x09},
+		{HM5065_REG_P0_SENSOR_MODE, HM5065_REG_SENSOR_MODE_FULLSIZE},
+		{HM5065_REG_P0_MANUAL_HSIZE, sensor->fmt.width >> 8},
+		{HM5065_REG_P0_MANUAL_HSIZE + 1, sensor->fmt.width},
+		{HM5065_REG_P0_MANUAL_VSIZE, sensor->fmt.height >> 8},
+		{HM5065_REG_P0_MANUAL_VSIZE + 1, sensor->fmt.height},
+		{HM5065_REG_P0_IMAGE_SIZE, HM5065_REG_IMAGE_SIZE_MANUAL},
+		{HM5065_REG_P0_DATA_FORMAT, pix_fmt->data_fmt},
+		{HM5065_REG_YCRCB_ORDER, pix_fmt->ycbcr_order},
+		{0x0030, 0x11},
+	};
+
+	ret = hm5065_write_list(sensor, ARRAY_SIZE(setup_mode), setup_mode);
 	if (ret)
 		return ret;
-
-	if (pix_fmt->ycbcr_order != HM5065_REG_YCRCB_ORDER_NONE) {
-		ret = hm5065_write(sensor, HM5065_REG_YCRCB_ORDER,
-				   pix_fmt->ycbcr_order);
-		if (ret)
-			return ret;
-	}
 
 	ret = hm5065_write16(sensor, HM5065_REG_DESIRED_FRAME_RATE_NUM,
 			     sensor->frame_interval.denominator);
