@@ -80,6 +80,18 @@ static int sun8i_mixer_drm_format_to_layer(struct drm_plane *plane,
 		*mode = SUN8I_MIXER_CHAN_UI_LAYER_ATTR_FBFMT_RGB888;
 		break;
 
+	case DRM_FORMAT_BGR888:
+		*mode = SUN8I_MIXER_CHAN_UI_LAYER_ATTR_FBFMT_BGR888;
+		break;
+
+	case DRM_FORMAT_RGB565:
+		*mode = SUN8I_MIXER_CHAN_UI_LAYER_ATTR_FBFMT_RGB565;
+		break;
+
+	case DRM_FORMAT_BGR565:
+		*mode = SUN8I_MIXER_CHAN_UI_LAYER_ATTR_FBFMT_BGR565;
+		break;
+
 	default:
 		return -EINVAL;
 	}
