@@ -80,6 +80,8 @@ static const u32 supported_pixformats[] = {
 	V4L2_PIX_FMT_YVYU,
 	V4L2_PIX_FMT_UYVY,
 	V4L2_PIX_FMT_VYUY,
+	V4L2_PIX_FMT_RGB565,
+	V4L2_PIX_FMT_RGB555,
 	V4L2_PIX_FMT_HM12,
 	V4L2_PIX_FMT_NV12,
 	V4L2_PIX_FMT_NV21,
@@ -137,70 +139,44 @@ static bool is_format_support(struct sun6i_csi *csi, u32 pixformat,
 
 	switch (pixformat) {
 	case V4L2_PIX_FMT_SBGGR8:
-		if (mbus_code == MEDIA_BUS_FMT_SBGGR8_1X8)
-			return true;
-		break;
+		return mbus_code == MEDIA_BUS_FMT_SBGGR8_1X8;
 	case V4L2_PIX_FMT_SGBRG8:
-		if (mbus_code == MEDIA_BUS_FMT_SGBRG8_1X8)
-			return true;
-		break;
+		return mbus_code == MEDIA_BUS_FMT_SGBRG8_1X8;
 	case V4L2_PIX_FMT_SGRBG8:
-		if (mbus_code == MEDIA_BUS_FMT_SGRBG8_1X8)
-			return true;
-		break;
+		return mbus_code == MEDIA_BUS_FMT_SGRBG8_1X8;
 	case V4L2_PIX_FMT_SRGGB8:
-		if (mbus_code == MEDIA_BUS_FMT_SRGGB8_1X8)
-			return true;
-		break;
+		return mbus_code == MEDIA_BUS_FMT_SRGGB8_1X8;
 	case V4L2_PIX_FMT_SBGGR10:
-		if (mbus_code == MEDIA_BUS_FMT_SBGGR10_1X10)
-			return true;
-		break;
+		return mbus_code == MEDIA_BUS_FMT_SBGGR10_1X10;
 	case V4L2_PIX_FMT_SGBRG10:
-		if (mbus_code == MEDIA_BUS_FMT_SGBRG10_1X10)
-			return true;
-		break;
+		return mbus_code == MEDIA_BUS_FMT_SGBRG10_1X10;
 	case V4L2_PIX_FMT_SGRBG10:
-		if (mbus_code == MEDIA_BUS_FMT_SGRBG10_1X10)
-			return true;
-		break;
+		return mbus_code == MEDIA_BUS_FMT_SGRBG10_1X10;
 	case V4L2_PIX_FMT_SRGGB10:
-		if (mbus_code == MEDIA_BUS_FMT_SRGGB10_1X10)
-			return true;
-		break;
+		return mbus_code == MEDIA_BUS_FMT_SRGGB10_1X10;
 	case V4L2_PIX_FMT_SBGGR12:
-		if (mbus_code == MEDIA_BUS_FMT_SBGGR12_1X12)
-			return true;
-		break;
+		return mbus_code == MEDIA_BUS_FMT_SBGGR12_1X12;
 	case V4L2_PIX_FMT_SGBRG12:
-		if (mbus_code == MEDIA_BUS_FMT_SGBRG12_1X12)
-			return true;
-		break;
+		return mbus_code == MEDIA_BUS_FMT_SGBRG12_1X12;
 	case V4L2_PIX_FMT_SGRBG12:
-		if (mbus_code == MEDIA_BUS_FMT_SGRBG12_1X12)
-			return true;
-		break;
+		return mbus_code == MEDIA_BUS_FMT_SGRBG12_1X12;
 	case V4L2_PIX_FMT_SRGGB12:
-		if (mbus_code == MEDIA_BUS_FMT_SRGGB12_1X12)
-			return true;
-		break;
+		return mbus_code == MEDIA_BUS_FMT_SRGGB12_1X12;
+
+	case V4L2_PIX_FMT_RGB565:
+		return mbus_code == MEDIA_BUS_FMT_RGB565_2X8_LE ||
+			mbus_code == MEDIA_BUS_FMT_RGB565_2X8_BE;
+	case V4L2_PIX_FMT_RGB555:
+		return mbus_code == MEDIA_BUS_FMT_RGB555_2X8_PADHI_LE;
 
 	case V4L2_PIX_FMT_YUYV:
-		if (mbus_code == MEDIA_BUS_FMT_YUYV8_2X8)
-			return true;
-		break;
+		return mbus_code == MEDIA_BUS_FMT_YUYV8_2X8;
 	case V4L2_PIX_FMT_YVYU:
-		if (mbus_code == MEDIA_BUS_FMT_YVYU8_2X8)
-			return true;
-		break;
+		return mbus_code == MEDIA_BUS_FMT_YVYU8_2X8;
 	case V4L2_PIX_FMT_UYVY:
-		if (mbus_code == MEDIA_BUS_FMT_UYVY8_2X8)
-			return true;
-		break;
+		return mbus_code == MEDIA_BUS_FMT_UYVY8_2X8;
 	case V4L2_PIX_FMT_VYUY:
-		if (mbus_code == MEDIA_BUS_FMT_VYUY8_2X8)
-			return true;
-		break;
+		return mbus_code == MEDIA_BUS_FMT_VYUY8_2X8;
 
 	case V4L2_PIX_FMT_HM12:
 	case V4L2_PIX_FMT_NV12:
@@ -234,6 +210,8 @@ static enum csi_input_fmt get_csi_input_format(u32 mbus_code, u32 pixformat)
 	case V4L2_PIX_FMT_YVYU:
 	case V4L2_PIX_FMT_UYVY:
 	case V4L2_PIX_FMT_VYUY:
+	case V4L2_PIX_FMT_RGB565:
+	case V4L2_PIX_FMT_RGB555:
 		return CSI_INPUT_FORMAT_RAW;
 	}
 
@@ -271,6 +249,8 @@ static enum csi_output_fmt get_csi_output_format(u32 pixformat, u32 field)
 	case V4L2_PIX_FMT_YVYU:
 	case V4L2_PIX_FMT_UYVY:
 	case V4L2_PIX_FMT_VYUY:
+	case V4L2_PIX_FMT_RGB565:
+	case V4L2_PIX_FMT_RGB555:
 		return buf_interlaced ? CSI_FRAME_RAW_8 : CSI_FIELD_RAW_8;
 
 	case V4L2_PIX_FMT_HM12:
@@ -464,6 +444,8 @@ static void sun6i_csi_set_window(struct sun6i_csi_dev *sdev)
 	case V4L2_PIX_FMT_YVYU:
 	case V4L2_PIX_FMT_UYVY:
 	case V4L2_PIX_FMT_VYUY:
+	case V4L2_PIX_FMT_RGB565:
+	case V4L2_PIX_FMT_RGB555:
 		hor_len *= 2;
 		break;
 	}
@@ -650,7 +632,6 @@ static irqreturn_t sun6i_csi_isr(int irq, void *dev_id)
 		sun6i_video_frame_done(&sdev->csi);
 
 	regmap_write(regmap, CSI_CH_INT_STA_REG, status);
-
 	return IRQ_HANDLED;
 }
 
