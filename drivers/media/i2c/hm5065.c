@@ -3041,6 +3041,33 @@ static int hm5065_get_af_status(struct hm5065_dev *sensor)
 	return 0;
 }
 
+static int hm5065_get_exposure(struct hm5065_dev *sensor)
+{
+	struct hm5065_ctrls *ctrls = &sensor->ctrls;
+	u16 again, dgain, exp;
+	int ret;
+
+	ret = hm5065_read16(sensor, HM5065_REG_ANALOG_GAIN_PENDING, &again);
+	if (ret)
+		return ret;
+
+	ret = hm5065_read16(sensor, HM5065_REG_DIGITAL_GAIN_PENDING, &dgain);
+	if (ret)
+		return ret;
+
+	ret = hm5065_read16(sensor, HM5065_REG_COMPILED_EXPOSURE_TIME_US, &exp);
+	if (ret)
+		return ret;
+
+	//XXX: potential for overflow
+	sensor->ctrls.exposure->val = (s32)hm5065_mili_from_fp16(exp) / 100000;
+	sensor->ctrls.d_gain->val = clamp(hm5065_mili_from_fp16(exp),
+					  1000ll, 3000ll);
+	//XXX: what unit is it in?
+	//sensor->ctrls.a_gain->val = hm5065_mili_from_fp16(exp) / 1000;
+	return 0;
+}
+
 static int hm5065_g_volatile_ctrl(struct v4l2_ctrl *ctrl)
 {
 	struct v4l2_subdev *sd = ctrl_to_sd(ctrl);
@@ -3062,10 +3089,10 @@ static int hm5065_g_volatile_ctrl(struct v4l2_ctrl *ctrl)
 	case V4L2_CID_EXPOSURE_AUTO:
 		if (ctrl->val == V4L2_EXPOSURE_MANUAL)
 			return 0;
-		val = hm5065_get_exposure(sensor);
-		if (val < 0)
-			return val;
-		sensor->ctrls.exposure->val = val;
+
+		ret = hm5065_get_exposure(sensor);
+		if (ret < 0)
+			return ret;
 		break;
 #endif
 	default:
