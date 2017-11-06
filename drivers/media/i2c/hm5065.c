@@ -3319,16 +3319,16 @@ static int hm5065_set_auto_focus(struct hm5065_dev *sensor)
 		ret = hm5065_write(sensor, HM5065_REG_AF_MODE,
 				   auto_focus ?
 				   HM5065_REG_AF_MODE_CONTINUOUS :
-				   HM5065_REG_AF_MODE_MANUAL);
+				   HM5065_REG_AF_MODE_SINGLE);
 		if (ret)
 			return ret;
 
-#if 0
-		ret = hm5065_write(sensor, HM5065_REG_AF_COMMAND,
-				   HM5065_REG_AF_COMMAND_RELEASED_BUTTON);
-		if (ret)
-			return ret;
-#endif
+		if (!auto_focus) {
+			ret = hm5065_write(sensor, HM5065_REG_AF_COMMAND,
+					   HM5065_REG_AF_COMMAND_RELEASED_BUTTON);
+			if (ret)
+				return ret;
+		}
 	}
 
 	if (!auto_focus && ctrls->af_start->is_new) {
@@ -3337,16 +3337,13 @@ static int hm5065_set_auto_focus(struct hm5065_dev *sensor)
 		if (ret)
 			return ret;
 
-#if 0
-		usleep_range(190000, 200000); // 200ms
-
 		ret = hm5065_write(sensor, HM5065_REG_AF_COMMAND,
 				   HM5065_REG_AF_COMMAND_RELEASED_BUTTON);
 		if (ret)
 			return ret;
 
-		usleep_range(190000, 200000); // 200ms
-#endif
+		usleep_range(190000, 200000);
+
 		ret = hm5065_write(sensor, HM5065_REG_AF_COMMAND,
 				   HM5065_REG_AF_COMMAND_HALF_BUTTON);
 		if (ret)
