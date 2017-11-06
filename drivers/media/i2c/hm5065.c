@@ -3174,23 +3174,10 @@ static int hm5065_set_colorfx(struct hm5065_dev *sensor, s32 val)
 	}
 }
 
-#if 0
-// cargo cult table
--1300 0xf6
--1000 0xf7
- -700 0xf8
- -300 0xf9
-    0 0xfd
-  300 0x03
-  700 0x05
- 1000 0x06
- 1300 0x07
-#endif
-
-#define AE_BIAS_MENU_DEFAULT_VALUE_INDEX 6
+#define AE_BIAS_MENU_DEFAULT_VALUE_INDEX 7
 static const s64 ae_bias_menu_values[] = {
-	-7000, -6000, -5000, -4000, -3000, -2000, -1000,
-	0, 1000, 2000, 3000, 4000, 5000, 6000, 7000
+	-2100, -1800, -1500, -1200, -900, -600, -300,
+	0, 300, 600, 900, 1200, 1500, 1800, 2100
 };
 
 static const s8 ae_bias_menu_reg_values[] = {
@@ -3427,7 +3414,7 @@ static int hm5065_set_analog_gain(struct hm5065_dev *sensor, s32 val)
 		i--;
 
 	return hm5065_write16(sensor, HM5065_REG_DIRECT_MODE_CODED_ANALOG_GAIN,
-			    analog_gain_table[i][0]);
+			      analog_gain_table[i][0]);
 }
 
 static int hm5065_set_digital_gain(struct hm5065_dev *sensor, s32 val)
