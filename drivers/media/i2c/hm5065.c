@@ -2703,15 +2703,15 @@ static const struct hm5065_pixfmt hm5065_formats[] = {
 		.ycbcr_order       = HM5065_REG_YCRCB_ORDER_Y_CR_Y_CB,
 	},
 	{
-		.code              = MEDIA_BUS_FMT_RGB555_2X8_PADHI_BE,
+		.code              = MEDIA_BUS_FMT_RGB565_2X8_LE,
 		.colorspace        = V4L2_COLORSPACE_SRGB,
-		.data_fmt          = HM5065_REG_DATA_FORMAT_RGB_555,
+		.data_fmt          = HM5065_REG_DATA_FORMAT_RGB_565,
 		.ycbcr_order       = HM5065_REG_YCRCB_ORDER_Y_CR_Y_CB,
 	},
 	{
-		.code              = MEDIA_BUS_FMT_RGB565_2X8_BE,
+		.code              = MEDIA_BUS_FMT_RGB555_2X8_PADHI_LE,
 		.colorspace        = V4L2_COLORSPACE_SRGB,
-		.data_fmt          = HM5065_REG_DATA_FORMAT_RGB_565,
+		.data_fmt          = HM5065_REG_DATA_FORMAT_RGB_555,
 		.ycbcr_order       = HM5065_REG_YCRCB_ORDER_Y_CR_Y_CB,
 	},
 };
