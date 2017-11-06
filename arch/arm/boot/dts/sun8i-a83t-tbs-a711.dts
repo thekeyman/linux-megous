@@ -190,6 +190,11 @@
 		interrupts = <0 7 IRQ_TYPE_EDGE_FALLING>;
 		reset-gpios = <&pio 3 5 GPIO_ACTIVE_LOW>;
 		power-supply = <&reg_ldo_io0>;
+/* For older batch:
+		touchscreen-size-y = <1024>;
+		touchscreen-size-x = <600>;
+		touchscreen-swapped-x-y;
+*/
 		touchscreen-size-x = <1024>;
 		touchscreen-size-y = <600>;
 	};
