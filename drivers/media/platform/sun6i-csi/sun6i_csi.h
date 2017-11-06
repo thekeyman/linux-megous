@@ -77,8 +77,8 @@ struct sun6i_csi {
 	struct vb2_queue		vb2_vidq;
 	spinlock_t			dma_queue_lock;
 	struct list_head		dma_queue;
-	struct sun6i_csi_buffer		*cur_frm;
 	unsigned int			sequence;
+	bool				skip_first_interrupt;
 
 	struct sun6i_csi_format		*formats;
 	unsigned int			num_formats;

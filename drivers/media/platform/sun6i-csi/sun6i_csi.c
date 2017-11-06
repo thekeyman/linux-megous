@@ -154,8 +154,6 @@ static int sun6i_video_start_streaming(struct vb2_queue *vq, unsigned int count)
 	unsigned long flags;
 	int ret;
 
-	csi->sequence = 0;
-
 	ret = media_pipeline_start(&csi->vdev.entity, &csi->vdev.pipe);
 	if (ret < 0)
 		goto err_queue_buffers;
@@ -165,10 +163,10 @@ static int sun6i_video_start_streaming(struct vb2_queue *vq, unsigned int count)
 		goto err_stop_media_pipeline;
 
 	spin_lock_irqsave(&csi->dma_queue_lock, flags);
-	csi->cur_frm = list_first_entry(&csi->dma_queue,
-					struct sun6i_csi_buffer, list);
-	list_del(&csi->cur_frm->list);
-	ret = sun6i_csi_update_buf_addr(csi, csi->cur_frm->dma_addr);
+	csi->sequence = 0;
+	csi->skip_first_interrupt = true;
+	buf = list_first_entry(&csi->dma_queue, struct sun6i_csi_buffer, list);
+	ret = sun6i_csi_update_buf_addr(csi, buf->dma_addr);
 	spin_unlock_irqrestore(&csi->dma_queue_lock, flags);
 	if (ret < 0)
 		goto err_stop_media_pipeline;
@@ -189,10 +187,6 @@ err_stop_media_pipeline:
 	media_pipeline_stop(&csi->vdev.entity);
 err_queue_buffers:
 	spin_lock_irqsave(&csi->dma_queue_lock, flags);
-	if (csi->cur_frm) {
-		vb2_buffer_done(&csi->cur_frm->vb.vb2_buf, VB2_BUF_STATE_QUEUED);
-		csi->cur_frm = NULL;
-	}
 	list_for_each_entry(buf, &csi->dma_queue, list)
 		vb2_buffer_done(&buf->vb.vb2_buf, VB2_BUF_STATE_QUEUED);
 	INIT_LIST_HEAD(&csi->dma_queue);
@@ -213,10 +207,6 @@ static void sun6i_video_stop_streaming(struct vb2_queue *vq)
 
 	/* Release all active buffers */
 	spin_lock_irqsave(&csi->dma_queue_lock, flags);
-	if (csi->cur_frm) {
-		vb2_buffer_done(&csi->cur_frm->vb.vb2_buf, VB2_BUF_STATE_ERROR);
-		csi->cur_frm = NULL;
-	}
 	list_for_each_entry(buf, &csi->dma_queue, list)
 		vb2_buffer_done(&buf->vb.vb2_buf, VB2_BUF_STATE_ERROR);
 	INIT_LIST_HEAD(&csi->dma_queue);
@@ -238,30 +228,41 @@ static void sun6i_video_buffer_queue(struct vb2_buffer *vb)
 
 void sun6i_video_frame_done(struct sun6i_csi *csi)
 {
+	struct sun6i_csi_buffer *buf;
+	struct sun6i_csi_buffer *next_buf;
+	bool can_dequeue;
+
 	spin_lock(&csi->dma_queue_lock);
 
-	if (!csi->cur_frm) {
-		spin_unlock(&csi->dma_queue_lock);
-		return;
-	}
+	if (!vb2_is_streaming(&csi->vb2_vidq))
+		goto out_unlock;
 
-	/* only finish current buffer if there's another waiting in the queue */
+	/* we always keep two buffers in the queue and expect the third */
+	buf = list_first_entry(&csi->dma_queue, struct sun6i_csi_buffer, list);
+	next_buf = list_next_entry(buf, list);
+	can_dequeue = !list_is_last(&next_buf->list, &csi->dma_queue);
 
-	if (!list_empty(&csi->dma_queue) && vb2_is_streaming(&csi->vb2_vidq)) {
-		struct vb2_v4l2_buffer *vbuf = &csi->cur_frm->vb;
+	if (csi->skip_first_interrupt) {
+		csi->skip_first_interrupt = false;
+		sun6i_csi_update_buf_addr(csi, next_buf->dma_addr);
+		goto out_unlock;
+	} else if (!can_dequeue) {
+		csi->skip_first_interrupt = true;
+	} else {
+		struct vb2_v4l2_buffer *vbuf = &buf->vb;
 		struct vb2_buffer *vb = &vbuf->vb2_buf;
 
 		vb->timestamp = ktime_get_ns();
 		vbuf->sequence = csi->sequence++;
 		vb2_buffer_done(vb, VB2_BUF_STATE_DONE);
 
-		csi->cur_frm = list_first_entry(&csi->dma_queue,
-						struct sun6i_csi_buffer, list);
-		list_del(&csi->cur_frm->list);
+		list_del(&buf->list);
+
+		next_buf = list_next_entry(next_buf, list);
+		sun6i_csi_update_buf_addr(csi, next_buf->dma_addr);
 	}
 
-	sun6i_csi_update_buf_addr(csi, csi->cur_frm->dma_addr);
-
+out_unlock:
 	spin_unlock(&csi->dma_queue_lock);
 }
 
@@ -787,7 +788,6 @@ static int sun6i_video_init(struct sun6i_csi *csi, const char *name)
 	INIT_LIST_HEAD(&csi->dma_queue);
 	spin_lock_init(&csi->dma_queue_lock);
 
-	csi->cur_frm = NULL;
 	csi->sequence = 0;
 	csi->num_formats = 0;
 

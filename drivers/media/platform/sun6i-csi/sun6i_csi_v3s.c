@@ -582,8 +582,14 @@ static int set_stream(struct sun6i_csi *csi, bool enable)
 	if (!enable) {
 		regmap_update_bits(regmap, CSI_CAP_REG, CSI_CAP_CH0_VCAP_ON, 0);
 		regmap_write(regmap, CSI_CH_INT_EN_REG, 0);
+		regmap_update_bits(regmap, CSI_EN_REG, CSI_EN_CSI_EN, 0);
 		return 0;
 	}
+
+	/* reset */
+	regmap_update_bits(regmap, CSI_EN_REG, CSI_EN_CSI_EN, CSI_EN_CSI_EN);
+	regmap_update_bits(regmap, CSI_EN_REG, CSI_EN_CSI_EN, 0);
+	regmap_update_bits(regmap, CSI_EN_REG, CSI_EN_CSI_EN, CSI_EN_CSI_EN);
 
 	regmap_write(regmap, CSI_CH_INT_STA_REG, 0xFF);
 	regmap_write(regmap, CSI_CH_INT_EN_REG,
@@ -621,7 +627,7 @@ static irqreturn_t sun6i_csi_isr(int irq, void *dev_id)
 	    (status & CSI_CH_INT_STA_FIFO1_OF_PD) ||
 	    (status & CSI_CH_INT_STA_FIFO2_OF_PD) ||
 	    (status & CSI_CH_INT_STA_HB_OF_PD)) {
-		regmap_write(regmap, CSI_CH_INT_STA_REG, status);
+		regmap_write(regmap, CSI_CH_INT_STA_REG, 0xff);
 		regmap_update_bits(regmap, CSI_EN_REG, CSI_EN_CSI_EN, 0);
 		regmap_update_bits(regmap, CSI_EN_REG, CSI_EN_CSI_EN,
 				   CSI_EN_CSI_EN);
@@ -631,7 +637,7 @@ static irqreturn_t sun6i_csi_isr(int irq, void *dev_id)
 	if (status & CSI_CH_INT_STA_FD_PD)
 		sun6i_video_frame_done(&sdev->csi);
 
-	regmap_write(regmap, CSI_CH_INT_STA_REG, status);
+	regmap_write(regmap, CSI_CH_INT_STA_REG, 0xff);
 	return IRQ_HANDLED;
 }
 
