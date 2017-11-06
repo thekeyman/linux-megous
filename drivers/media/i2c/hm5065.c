@@ -4079,49 +4079,6 @@ out:
 /* }}} */
 /* {{{ Core Ops */
 
-static int hm5065_log_status(struct v4l2_subdev *sd)
-{
-	struct hm5065_dev *sensor = to_hm5065_dev(sd);
-	u8 buf[256];
-	int ret, i;
-	u16 v16;
-
-	if (!sensor->powered)
-		return -EIO;
-
-	//ret = hm5065_read_regs(sensor, 0, buf, sizeof(buf));
-	//if (ret)
-		//return -EIO;
-
-#define DUMP_FP16(name, reg) \
-	ret = hm5065_read16(sensor, reg, &v16); \
-	if (ret) \
-		return -EIO; \
-	v4l2_info(sd, #name ": %lld\n", hm5065_mili_from_fp16(v16));
-
-#define DUMP_UI16(name, reg) \
-	ret = hm5065_read16(sensor, reg, &v16); \
-	if (ret) \
-		return -EIO; \
-	v4l2_info(sd, #name ": %u\n", v16);
-
-	DUMP_FP16(fpAnalogGainPending, 0x180)
-	DUMP_FP16(fpDigitalGainPending, 0x182)
-	DUMP_FP16(fpDesiredExposureTime_us, 0x184)
-	DUMP_FP16(fpCompiledExposureTime_us, 0x186)
-	DUMP_UI16(uwUserMaximumIntegrationLines, 0x189)
-	DUMP_FP16(fpTotalIntegrationTimePending_us, 0x18b)
-	DUMP_FP16(fpRequestedFrameRate_Hz, 0xd8)
-	DUMP_FP16(fpMaxFrameRate_Hz, 0xda)
-	DUMP_FP16(fpMinFrameRate_Hz, 0xdc)
-
-	//v4l2_info(sd, "HM5065 registers:\n");
-	//for (i = 0; i < sizeof(buf); i++)
-		//v4l2_info(sd, "%04x: %02x\n", i, buf[i]);
-
-	return 0;
-}
-
 static void hm5065_chip_enable(struct hm5065_dev *sensor, bool enable)
 {
 	dev_dbg(&sensor->i2c_client->dev, "%s: ce=%d\n", __func__, !!enable);
@@ -4309,7 +4266,6 @@ static int hm5065_s_register(struct v4l2_subdev *sd,
 /* }}} */
 
 static const struct v4l2_subdev_core_ops hm5065_core_ops = {
-	.log_status = hm5065_log_status,
 	.s_power = hm5065_s_power,
 #ifdef CONFIG_VIDEO_ADV_DEBUG
 	.g_register = hm5065_g_register,
