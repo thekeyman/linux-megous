@@ -3619,9 +3619,9 @@ static int hm5065_init_controls(struct hm5065_dev *sensor)
 			wb_max, ~wb_mask, V4L2_WHITE_BALANCE_AUTO);
 
 	ctrls->blue_balance = v4l2_ctrl_new_std(hdl, ops, V4L2_CID_BLUE_BALANCE,
-						0, 5000, 1, 1000);
+						0, 4000, 1, 1000);
 	ctrls->red_balance = v4l2_ctrl_new_std(hdl, ops, V4L2_CID_RED_BALANCE,
-					       0, 5000, 1, 1000);
+					       0, 4000, 1, 1000);
 
 	ctrls->gamma = v4l2_ctrl_new_std(hdl, ops, V4L2_CID_GAMMA,
 					 0, 31, 1, 20);
@@ -3640,7 +3640,8 @@ static int hm5065_init_controls(struct hm5065_dev *sensor)
 
 	ctrls->pl_freq =
 		v4l2_ctrl_new_std_menu(hdl, ops, V4L2_CID_POWER_LINE_FREQUENCY,
-				15, 0, V4L2_CID_POWER_LINE_FREQUENCY_50HZ);
+				V4L2_CID_POWER_LINE_FREQUENCY_AUTO, 0,
+				V4L2_CID_POWER_LINE_FREQUENCY_50HZ);
 
 	ctrls->hflip = v4l2_ctrl_new_std(hdl, ops,
 					 V4L2_CID_HFLIP, 0, 1, 1, 0);
