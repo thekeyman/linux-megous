@@ -3602,7 +3602,7 @@ static int hm5065_init_controls(struct hm5065_dev *sensor)
 
 	ctrls->d_gain = v4l2_ctrl_new_std(hdl, ops,
 					  V4L2_CID_DIGITAL_GAIN,
-					  0, 100, 1, 0);
+					  1000, 3000, 1, 1000);
 
 	ctrls->a_gain = v4l2_ctrl_new_std(hdl, ops,
 					  V4L2_CID_ANALOGUE_GAIN,
