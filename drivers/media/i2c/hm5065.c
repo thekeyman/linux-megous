@@ -2743,12 +2743,12 @@ struct hm5065_ctrls {
 	struct v4l2_ctrl_handler handler;
 	struct {
 		struct v4l2_ctrl *auto_exposure;
-		struct v4l2_ctrl *exposure;
 		struct v4l2_ctrl *metering;
 		struct v4l2_ctrl *exposure_bias;
+		struct v4l2_ctrl *exposure;
+		struct v4l2_ctrl *d_gain;
+		struct v4l2_ctrl *a_gain;
 	};
-	struct v4l2_ctrl *d_gain;
-	struct v4l2_ctrl *a_gain;
 	struct {
 		struct v4l2_ctrl *wb;
 		struct v4l2_ctrl *blue_balance;
