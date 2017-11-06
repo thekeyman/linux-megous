@@ -999,8 +999,6 @@ int sun6i_csi_init(struct sun6i_csi *csi)
 		sizeof(csi->media_dev.model));
 	media_device_init(&csi->media_dev);
 
-	dev_dbg(csi->dev, "step 0\n");
-
 	ret = v4l2_ctrl_handler_init(&csi->ctrl_handler, 0);
 	if (ret) {
 		dev_err(csi->dev, "V4L2 controls handler init failed (%d)\n",
