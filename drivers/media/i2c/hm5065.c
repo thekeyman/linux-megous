@@ -4183,7 +4183,7 @@ static int hm5065_configure(struct hm5065_dev *sensor)
 
 	/* PLL output = 480MHz */
 	ret = hm5065_write16(sensor, HM5065_REG_TARGET_PLL_OUTPUT,
-			     hm5065_mili_to_fp16(480000));
+			     hm5065_mili_to_fp16(720000));
 	if (ret)
 		return ret;
 
