@@ -3793,6 +3793,33 @@ static int hm5065_setup_mode(struct hm5065_dev *sensor)
 {
 	int ret;
 	const struct hm5065_pixfmt *pix_fmt;
+
+	/*
+	ret = hm5065_write(sensor, HM5065_REG_USER_COMMAND,
+			   HM5065_REG_USER_COMMAND_POWEROFF);
+	if (ret)
+		return ret;
+
+	ret = hm5065_write(sensor, HM5065_REG_P0_SENSOR_MODE,
+			   HM5065_REG_SENSOR_MODE_FULLSIZE);
+	if (ret)
+		return ret;
+
+	ret = hm5065_write16(sensor, HM5065_REG_P0_MANUAL_HSIZE,
+			     sensor->fmt.width);
+	if (ret)
+		return ret;
+
+	ret = hm5065_write16(sensor, HM5065_REG_P0_MANUAL_VSIZE,
+			     sensor->fmt.height);
+	if (ret)
+		return ret;
+
+	ret = hm5065_write(sensor, HM5065_REG_P0_IMAGE_SIZE,
+			   HM5065_REG_IMAGE_SIZE_MANUAL);
+	if (ret)
+		return ret;
+          */
 	pix_fmt = hm5065_find_format(sensor->fmt.code);
 	if (!pix_fmt) {
 		dev_err(&sensor->i2c_client->dev,
