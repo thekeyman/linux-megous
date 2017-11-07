@@ -3130,7 +3130,7 @@ static int hm5065_set_power_line_frequency(struct hm5065_dev *sensor, s32 val)
 		if (ret)
 			return ret;
 
-		ret = hm5065_write(sensor, HM5065_REG_FD_ENABLE_DETECT, 0);
+		ret = hm5065_write(sensor, HM5065_REG_FD_ENABLE_DETECT, 1);
 		if (ret)
 			return ret;
 
