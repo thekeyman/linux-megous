@@ -3722,7 +3722,7 @@ static int hm5065_init_controls(struct hm5065_dev *sensor)
 
 	v4l2_ctrl_auto_cluster(4, &ctrls->auto_exposure, V4L2_EXPOSURE_MANUAL,
 			       false);
-	v4l2_ctrl_auto_cluster(6, &ctrls->focus_auto, 0, false);
+	v4l2_ctrl_cluster(6, &ctrls->focus_auto);
 
 	sensor->sd.ctrl_handler = hdl;
 	return 0;
