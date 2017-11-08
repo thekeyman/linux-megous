@@ -1139,9 +1139,6 @@ static int hm5065_set_auto_focus(struct hm5065_dev *sensor)
 	bool auto_focus = ctrls->focus_auto->val;
 	int ret = 0;
 	u8 range;
-	s32 step = ctrls->focus_relative->val;
-
-	ctrls->focus_relative->val = 0;
 
 	if (auto_focus && ctrls->af_distance->is_new) {
 		switch (ctrls->af_distance->val) {
@@ -1164,6 +1161,10 @@ static int hm5065_set_auto_focus(struct hm5065_dev *sensor)
 	}
 
 	if (ctrls->focus_auto->is_new) {
+		v4l2_ctrl_activate(ctrls->af_start, !auto_focus);
+		v4l2_ctrl_activate(ctrls->af_stop, !auto_focus);
+		v4l2_ctrl_activate(ctrls->focus_relative, !auto_focus);
+
 		ret = hm5065_write(sensor, HM5065_REG_AF_MODE,
 				   auto_focus ?
 				   HM5065_REG_AF_MODE_CONTINUOUS :
@@ -1211,8 +1212,12 @@ static int hm5065_set_auto_focus(struct hm5065_dev *sensor)
 			return ret;
 	}
 
-	if (!auto_focus && ctrls->focus_relative->val) {
+	if (!auto_focus && ctrls->focus_relative->is_new &&
+	    ctrls->focus_relative->val) {
 		u8 cmd = 0xff;
+		s32 step = ctrls->focus_relative->val;
+
+		ctrls->focus_relative->val = 0;
 
 		ret = hm5065_write(sensor, HM5065_REG_AF_MODE,
 				   HM5065_REG_AF_MODE_MANUAL);
