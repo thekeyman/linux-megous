@@ -17,6 +17,7 @@
 #include <linux/ctype.h>
 #include <linux/delay.h>
 #include <linux/device.h>
+#include <linux/firmware.h>
 #include <linux/i2c.h>
 #include <linux/init.h>
 #include <linux/module.h>
@@ -31,12 +32,15 @@
 #include <media/v4l2-fwnode.h>
 #include <media/v4l2-subdev.h>
 
-#define HM5065_PCLK_FREQ_ABS_MAX 89000000
-#define HM5065_FRAME_RATE_MAX 30
+#define HM5065_AF_FIRMWARE		"hm5065-af.bin"
+#define HM5065_FIRMWARE_PARAMETERS	"hm5065-init.bin"
+
+#define HM5065_PCLK_FREQ_ABS_MAX	89000000
+#define HM5065_FRAME_RATE_MAX		30
 
 /* min/typical/max system clock (xclk) frequencies */
-#define HM5065_XCLK_MIN  6000000
-#define HM5065_XCLK_MAX 27000000
+#define HM5065_XCLK_MIN	6000000
+#define HM5065_XCLK_MAX	27000000
 
 /* {{{ Register definitions */
 
@@ -2951,6 +2955,56 @@ static int hm5065_write_list(struct hm5065_dev *sensor, unsigned int list_size,
 }
 
 /*
+ * The firmware format:
+ * <record 0>, ..., <record N - 1>
+ * "record" is a 2-byte register address (big endian) followed by 1-byte data
+ */
+static int hm5065_load_firmware(struct hm5065_dev *sensor, const char *name)
+{
+	int ret = 0, i = 0, list_size;
+	const struct firmware *fw;
+	struct reg_value* list;
+	u16 start, len;
+        u8 buf[128];
+
+	ret = request_firmware(&fw, name, sensor->sd.v4l2_dev->dev);
+	if (ret) {
+		v4l2_err(&sensor->sd, "Failed to read firmware %s (%d)\n", name,
+			 ret);
+		return ret;
+	}
+
+	if (fw->size % 3 != 0) {
+		v4l2_err(&sensor->sd, "Firmware image %s has invalid size\n",
+			 name);
+		ret = -EINVAL;
+		goto err_release;
+	}
+
+	list_size = fw->size / 3;
+	list = (struct reg_value*)fw->data;
+
+	/* we speed up I2C communication via auto-increment functionality */
+	while (i < list_size) {
+		start = be16_to_cpu(list[i].addr);
+		len = 0;
+
+		while (i < list_size &&
+		       be16_to_cpu(list[i].addr) == (start + len) &&
+		       len < sizeof(buf))
+			buf[len++] = list[i++].value;
+
+		ret = hm5065_write_regs(sensor, start, buf, len);
+		if (ret)
+			goto err_release;
+	}
+
+err_release:
+	release_firmware(fw);
+	return ret;
+}
+
+/*
  * Sensor uses ST Float900 format to represent floating point numbers.
  * Binary floating point number: * (s ? -1 : 0) * 1.mmmmmmmmm * 2^eeeeee
  *
@@ -4171,17 +4225,17 @@ static int hm5065_configure(struct hm5065_dev *sensor)
 	if (ret)
 		return ret;
 
-	ret = hm5065_write_list(sensor, ARRAY_SIZE(af_init_regs), af_init_regs);
+	ret = hm5065_load_firmware(sensor, HM5065_AF_FIRMWARE);
 	if (ret)
 		return ret;
 
 	mdelay(200);
 
-	ret = hm5065_write_list(sensor, ARRAY_SIZE(default_regs), default_regs);
+	ret = hm5065_load_firmware(sensor, HM5065_FIRMWARE_PARAMETERS);
 	if (ret)
 		return ret;
-	mdelay(100);
 
+	mdelay(100);
 	return 0;
 }
 
