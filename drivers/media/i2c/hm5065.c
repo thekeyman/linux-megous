@@ -538,12 +538,12 @@ struct hm5065_ctrls {
 	struct v4l2_ctrl_handler handler;
 	struct {
 		struct v4l2_ctrl *auto_exposure;
-		struct v4l2_ctrl *metering;
-		struct v4l2_ctrl *exposure_bias;
 		struct v4l2_ctrl *exposure;
 		struct v4l2_ctrl *d_gain;
 		struct v4l2_ctrl *a_gain;
 	};
+	struct v4l2_ctrl *metering;
+	struct v4l2_ctrl *exposure_bias;
 	struct {
 		struct v4l2_ctrl *wb;
 		struct v4l2_ctrl *blue_balance;
@@ -892,7 +892,8 @@ static int hm5065_get_exposure(struct hm5065_dev *sensor)
 	u16 again, dgain, exp;
 	int ret;
 
-	ret = hm5065_read16(sensor, HM5065_REG_ANALOG_GAIN_PENDING, &again);
+	ret = hm5065_read16(sensor, HM5065_REG_CODED_ANALOG_GAIN_PENDING,
+			    &again);
 	if (ret)
 		return ret;
 
@@ -900,16 +901,18 @@ static int hm5065_get_exposure(struct hm5065_dev *sensor)
 	if (ret)
 		return ret;
 
-	ret = hm5065_read16(sensor, HM5065_REG_COMPILED_EXPOSURE_TIME_US, &exp);
+	ret = hm5065_read16(sensor, HM5065_REG_COARSE_INTEGRATION, &exp);
 	if (ret)
 		return ret;
 
-	//XXX: potential for overflow
-	sensor->ctrls.exposure->val = (s32)hm5065_mili_from_fp16(exp) / 100000;
-	sensor->ctrls.d_gain->val = clamp(hm5065_mili_from_fp16(exp),
-					  1000ll, 3000ll);
-	//XXX: what unit is it in?
-	//sensor->ctrls.a_gain->val = hm5065_mili_from_fp16(exp) / 1000;
+	ctrls->exposure->val = exp;
+	ctrls->d_gain->val = clamp(hm5065_mili_from_fp16(dgain), 1000ll, 4000ll);
+	ctrls->a_gain->val = again;
+
+	dev_dbg(&sensor->i2c_client->dev,
+		"%s: again(coded)=%x dgain=%u exposure=%u\n", __func__,
+		again, dgain, exp);
+
 	return 0;
 }
 
@@ -930,16 +933,11 @@ static int hm5065_g_volatile_ctrl(struct v4l2_ctrl *ctrl)
 		if (ret)
 			return ret;
 		break;
-#if 0
 	case V4L2_CID_EXPOSURE_AUTO:
-		if (ctrl->val == V4L2_EXPOSURE_MANUAL)
-			return 0;
-
 		ret = hm5065_get_exposure(sensor);
-		if (ret < 0)
+		if (ret)
 			return ret;
 		break;
-#endif
 	default:
 		return -EINVAL;
 	}
@@ -1066,6 +1064,48 @@ static const s8 ae_bias_menu_reg_values[] = {
 	-7, -6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6, 7
 };
 
+static const u16 analog_gain_table[][2] = {
+	/* code, 1/100th of dB */
+	{ 0x00,    0 },
+	{ 0x10,   56 },
+	{ 0x20,  116 },
+	{ 0x30,  180 },
+	{ 0x40,  250 },
+	{ 0x50,  325 },
+	{ 0x60,  410 },
+	{ 0x70,  500 },
+	{ 0x80,  600 },
+	{ 0x90,  720 },
+	{ 0xA0,  850 },
+	{ 0xB0, 1010 },
+	{ 0xC0, 1200 },
+	{ 0xD0, 1450 },
+	{ 0xE0, 1810 },
+	{ 0xE4, 1920 },
+	{ 0xE8, 2060 },
+	{ 0xEC, 2210 },
+	{ 0xF0, 2410 },
+};
+
+static int hm5065_set_analog_gain(struct hm5065_dev *sensor, s32 val)
+{
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(analog_gain_table); i++)
+		if (val <= analog_gain_table[i][1])
+			break;
+
+	if (i == ARRAY_SIZE(analog_gain_table))
+		i--;
+
+	dev_dbg(&sensor->i2c_client->dev,
+		"%s: again(coded)=%x\n", __func__,
+		analog_gain_table[i][0]);
+
+	return hm5065_write16(sensor, HM5065_REG_DIRECT_MODE_CODED_ANALOG_GAIN,
+			      analog_gain_table[i][0]);
+}
+
 static int hm5065_set_exposure(struct hm5065_dev *sensor, s32 val)
 {
 	struct hm5065_ctrls *ctrls = &sensor->ctrls;
@@ -1076,44 +1116,33 @@ static int hm5065_set_exposure(struct hm5065_dev *sensor, s32 val)
 		ret = hm5065_write(sensor, HM5065_REG_EXPOSURE_MODE,
 				   auto_exposure ?
 				   HM5065_REG_EXPOSURE_MODE_AUTO :
-				   HM5065_REG_EXPOSURE_MODE_COMPILED_MANUAL);
-		if (ret)
-			return ret;
-	}
-
-	if (auto_exposure && ctrls->metering->is_new) {
-		if (ctrls->metering->val == V4L2_EXPOSURE_METERING_AVERAGE)
-			ret = hm5065_write(sensor, HM5065_REG_EXPOSURE_METERING,
-					   HM5065_REG_EXPOSURE_METERING_FLAT);
-		else if (ctrls->metering->val ==
-			 V4L2_EXPOSURE_METERING_CENTER_WEIGHTED)
-			ret = hm5065_write(sensor, HM5065_REG_EXPOSURE_METERING,
-					 HM5065_REG_EXPOSURE_METERING_CENTERED);
-		else
-			return -EINVAL;
-
-		if (ret)
-			return ret;
-	}
-
-	if (auto_exposure && ctrls->exposure_bias->is_new) {
-		s32 bias = ctrls->exposure_bias->val;
-
-		if (bias < 0 || bias >= ARRAY_SIZE(ae_bias_menu_reg_values))
-			return -EINVAL;
-
-		ret = hm5065_write(sensor, HM5065_REG_EXPOSURE_COMPENSATION,
-				   (u8)ae_bias_menu_reg_values[bias]);
+				   HM5065_REG_EXPOSURE_MODE_DIRECT_MANUAL);
 		if (ret)
 			return ret;
 	}
 
 	if (!auto_exposure && ctrls->exposure->is_new) {
-		s32 val = ctrls->exposure->val;
-
-		ret = hm5065_write16(sensor, HM5065_REG_MANUAL_EXPOSURE_TIME_US,
-				     hm5065_mili_to_fp16(val * 100000));
+		ret = hm5065_write(sensor,
+			   HM5065_REG_DIRECT_MODE_COARSE_INTEGRATION_LINES,
+			   ctrls->exposure->val);
+		if (ret)
+			return ret;
 	}
+
+	if (!auto_exposure && ctrls->d_gain->is_new) {
+		ret = hm5065_write16(sensor,
+				     HM5065_REG_DIRECT_MODE_DIGITAL_GAIN,
+				     hm5065_mili_to_fp16(ctrls->d_gain->val));
+		if (ret)
+			return ret;
+	}
+
+	if (!auto_exposure && ctrls->a_gain->is_new)
+		ret = hm5065_set_analog_gain(sensor, ctrls->a_gain->val);
+
+	dev_dbg(&sensor->i2c_client->dev,
+		"%s: again(coded)=%x dgain=%u exposure=%u\n", __func__,
+		ctrls->a_gain->val, ctrls->d_gain->val, ctrls->exposure->val);
 
 	return ret;
 }
@@ -1251,50 +1280,6 @@ static int hm5065_set_auto_focus(struct hm5065_dev *sensor)
 	return ret;
 }
 
-static const u16 analog_gain_table[][2] = {
-	/* code, 1/100th of dB */
-	{ 0x00,    0 },
-	{ 0x10,   56 },
-	{ 0x20,  116 },
-	{ 0x30,  180 },
-	{ 0x40,  250 },
-	{ 0x50,  325 },
-	{ 0x60,  410 },
-	{ 0x70,  500 },
-	{ 0x80,  600 },
-	{ 0x90,  720 },
-	{ 0xA0,  850 },
-	{ 0xB0, 1010 },
-	{ 0xC0, 1200 },
-	{ 0xD0, 1450 },
-	{ 0xE0, 1810 },
-	{ 0xE4, 1920 },
-	{ 0xE8, 2060 },
-	{ 0xEC, 2210 },
-	{ 0xF0, 2410 },
-};
-
-static int hm5065_set_analog_gain(struct hm5065_dev *sensor, s32 val)
-{
-	int i;
-
-	for (i = 0; i < ARRAY_SIZE(analog_gain_table); i++)
-		if (val <= analog_gain_table[i][1])
-			break;
-
-	if (i == ARRAY_SIZE(analog_gain_table))
-		i--;
-
-	return hm5065_write16(sensor, HM5065_REG_DIRECT_MODE_CODED_ANALOG_GAIN,
-			      analog_gain_table[i][0]);
-}
-
-static int hm5065_set_digital_gain(struct hm5065_dev *sensor, s32 val)
-{
-	return hm5065_write16(sensor, HM5065_REG_DIRECT_MODE_DIGITAL_GAIN,
-			      hm5065_mili_to_fp16(val));
-}
-
 static int hm5065_set_white_balance(struct hm5065_dev *sensor)
 {
 	struct hm5065_ctrls *ctrls = &sensor->ctrls;
@@ -1343,6 +1328,7 @@ static int hm5065_s_ctrl(struct v4l2_ctrl *ctrl)
 	s32 val = ctrl->val;
 	unsigned int i;
 	int ret;
+	u8 reg;
 
 	/* v4l2_ctrl_lock() locks our own mutex */
 
@@ -1358,11 +1344,22 @@ static int hm5065_s_ctrl(struct v4l2_ctrl *ctrl)
 	case V4L2_CID_EXPOSURE_AUTO:
 		return hm5065_set_exposure(sensor, val);
 
-	case V4L2_CID_DIGITAL_GAIN:
-		return hm5065_set_digital_gain(sensor, val);
+	case V4L2_CID_EXPOSURE_METERING:
+		if (val == V4L2_EXPOSURE_METERING_AVERAGE)
+			reg = HM5065_REG_EXPOSURE_METERING_FLAT;
+		else if (val == V4L2_EXPOSURE_METERING_CENTER_WEIGHTED)
+			reg = HM5065_REG_EXPOSURE_METERING_CENTERED;
+		else
+			return -EINVAL;
 
-	case V4L2_CID_ANALOGUE_GAIN:
-		return hm5065_set_analog_gain(sensor, val);
+		return hm5065_write(sensor, HM5065_REG_EXPOSURE_METERING, reg);
+
+	case V4L2_CID_AUTO_EXPOSURE_BIAS:
+		if (val < 0 || val >= ARRAY_SIZE(ae_bias_menu_reg_values))
+			return -EINVAL;
+
+		return hm5065_write(sensor, HM5065_REG_EXPOSURE_COMPENSATION,
+				    (u8)ae_bias_menu_reg_values[val]);
 
 	case V4L2_CID_FOCUS_AUTO:
 		return hm5065_set_auto_focus(sensor);
@@ -1465,9 +1462,16 @@ static int hm5065_init_controls(struct hm5065_dev *sensor)
 						      V4L2_EXPOSURE_MANUAL, 0,
 						      V4L2_EXPOSURE_AUTO);
 	ctrls->exposure = v4l2_ctrl_new_std(hdl, ops,
-					    V4L2_CID_EXPOSURE_ABSOLUTE,
-					    1, 10000, 1, 100);
-					    /* don't raise max value! */
+					    V4L2_CID_EXPOSURE,
+					    1, HM5065_SENSOR_HEIGHT, 1, 30);
+	ctrls->d_gain = v4l2_ctrl_new_std(hdl, ops,
+					  V4L2_CID_DIGITAL_GAIN,
+					  1000, 4000, 1, 1000);
+
+	ctrls->a_gain = v4l2_ctrl_new_std(hdl, ops,
+					  V4L2_CID_ANALOGUE_GAIN,
+					  0, 2410, 1, 0);
+
 	ctrls->metering =
 		v4l2_ctrl_new_std_menu(hdl, ops,
 				       V4L2_CID_EXPOSURE_METERING,
@@ -1479,14 +1483,6 @@ static int hm5065_init_controls(struct hm5065_dev *sensor)
 				       ARRAY_SIZE(ae_bias_menu_values) - 1,
 				       AE_BIAS_MENU_DEFAULT_VALUE_INDEX,
 				       ae_bias_menu_values);
-
-	ctrls->d_gain = v4l2_ctrl_new_std(hdl, ops,
-					  V4L2_CID_DIGITAL_GAIN,
-					  1000, 3000, 1, 1000);
-
-	ctrls->a_gain = v4l2_ctrl_new_std(hdl, ops,
-					  V4L2_CID_ANALOGUE_GAIN,
-					  0, 2410, 1, 0);
 
 	for (i = 0; i < ARRAY_SIZE(hm5065_wb_opts); i++) {
 		if (wb_max < hm5065_wb_opts[i][0])
@@ -1583,15 +1579,12 @@ static int hm5065_init_controls(struct hm5065_dev *sensor)
 		goto free_ctrls;
 	}
 
-#if 0
-	ctrls->exposure->flags |= V4L2_CTRL_FLAG_VOLATILE;
-#endif
 	ctrls->af_status->flags |= V4L2_CTRL_FLAG_VOLATILE |
 		V4L2_CTRL_FLAG_READ_ONLY;
 
 	v4l2_ctrl_auto_cluster(3, &ctrls->wb, V4L2_WHITE_BALANCE_MANUAL, false);
 	v4l2_ctrl_auto_cluster(4, &ctrls->auto_exposure, V4L2_EXPOSURE_MANUAL,
-			       false);
+			       true);
 	v4l2_ctrl_cluster(6, &ctrls->focus_auto);
 
 	sensor->sd.ctrl_handler = hdl;
