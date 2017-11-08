@@ -1659,6 +1659,11 @@ static int hm5065_setup_mode(struct hm5065_dev *sensor)
 	if (ret)
 		return ret;
 
+	ret = hm5065_write16(sensor, HM5065_REG_TARGET_PLL_OUTPUT,
+			     hm5065_mili_to_fp16(440000));
+	if (ret)
+		return ret;
+
 	ret = hm5065_write(sensor, HM5065_REG_P0_SENSOR_MODE,
 			   sensor->sensor_mode);
 	if (ret)
@@ -2025,12 +2030,6 @@ static int hm5065_configure(struct hm5065_dev *sensor)
 	}
 
 	ret = hm5065_write(sensor, HM5065_REG_EXCLOCKLUT, lut->lut_id);
-	if (ret)
-		return ret;
-
-	/* PLL output = 480MHz */
-	ret = hm5065_write16(sensor, HM5065_REG_TARGET_PLL_OUTPUT,
-			     hm5065_mili_to_fp16(640000));
 	if (ret)
 		return ret;
 
