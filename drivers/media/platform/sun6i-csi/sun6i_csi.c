@@ -46,7 +46,7 @@ sun6i_get_enabled_subdev(struct sun6i_csi *csi)
 }
 
 static struct sun6i_csi_format *
-sun6i_find_format_by_fourcc(struct sun6i_csi* csi, u32 fourcc)
+sun6i_find_format_by_fourcc(struct sun6i_csi *csi, u32 fourcc)
 {
 	int i;
 
