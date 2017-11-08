@@ -36,11 +36,14 @@
 #define HM5065_FIRMWARE_PARAMETERS	"hm5065-init.bin"
 
 #define HM5065_PCLK_FREQ_ABS_MAX	89000000
-#define HM5065_FRAME_RATE_MAX		30
+#define HM5065_FRAME_RATE_MAX		60
 
 /* min/typical/max system clock (xclk) frequencies */
 #define HM5065_XCLK_MIN	6000000
 #define HM5065_XCLK_MAX	27000000
+
+#define HM5065_SENSOR_WIDTH 2592
+#define HM5065_SENSOR_HEIGHT 1944
 
 /* {{{ Register definitions */
 
@@ -388,6 +391,10 @@
 #define HM5065_REG_AF_IN_FOCUS			0x07ae /* ro 0,1 */
 #define HM5065_REG_AF_IS_STABLE			0x0725 /* ro 0,1 */
 
+/* reverse engineered registers */
+#define HM5065_REG_BUS_DATA_FORMAT		0x7000
+#define HM5065_REG_COLORSPACE			0x5200
+
 /* }}} */
 
 struct reg_value {
@@ -584,6 +591,7 @@ struct hm5065_dev {
 	struct v4l2_mbus_framefmt fmt;
 	struct v4l2_fract frame_interval;
 	struct hm5065_ctrls ctrls;
+	u8 sensor_mode;
 
 	bool pending_mode_change;
 	bool powered;
@@ -1639,14 +1647,20 @@ static int hm5065_setup_mode(struct hm5065_dev *sensor)
 	int ret;
 	const struct hm5065_pixfmt *pix_fmt;
 
-	/*
+	pix_fmt = hm5065_find_format(sensor->fmt.code);
+	if (!pix_fmt) {
+		dev_err(&sensor->i2c_client->dev,
+			"pixel format not supported %u\n", sensor->fmt.code);
+		return -EINVAL;
+	}
+
 	ret = hm5065_write(sensor, HM5065_REG_USER_COMMAND,
 			   HM5065_REG_USER_COMMAND_POWEROFF);
 	if (ret)
 		return ret;
 
 	ret = hm5065_write(sensor, HM5065_REG_P0_SENSOR_MODE,
-			   HM5065_REG_SENSOR_MODE_FULLSIZE);
+			   sensor->sensor_mode);
 	if (ret)
 		return ret;
 
@@ -1664,40 +1678,24 @@ static int hm5065_setup_mode(struct hm5065_dev *sensor)
 			   HM5065_REG_IMAGE_SIZE_MANUAL);
 	if (ret)
 		return ret;
-          */
-	pix_fmt = hm5065_find_format(sensor->fmt.code);
-	if (!pix_fmt) {
-		dev_err(&sensor->i2c_client->dev,
-			"pixel format not supported %u\n",
-			sensor->fmt.code);
-		return -EINVAL;
-	}
 
-	struct reg_value setup_mode[] = {
-		// so that pll changes take effect
-		{HM5065_REG_USER_COMMAND, HM5065_REG_USER_COMMAND_POWEROFF},
-		//{0x00e8, 1}, // some rate control mode reg, prevents desired frame rate from being changed when 0
-		//{0x00ed, 1},
-		//{0x00ee, sensor->frame_interval.denominator},
-		{HM5065_REG_P0_SENSOR_MODE, HM5065_REG_SENSOR_MODE_BINNING_2X2},
-		{HM5065_REG_P0_MANUAL_HSIZE, sensor->fmt.width >> 8},
-		{HM5065_REG_P0_MANUAL_HSIZE + 1, sensor->fmt.width},
-		{HM5065_REG_P0_MANUAL_VSIZE, sensor->fmt.height >> 8},
-		{HM5065_REG_P0_MANUAL_VSIZE + 1, sensor->fmt.height},
-		{HM5065_REG_P0_IMAGE_SIZE, HM5065_REG_IMAGE_SIZE_MANUAL},
-		{HM5065_REG_P0_DATA_FORMAT, pix_fmt->data_fmt},
-		{HM5065_REG_YCRCB_ORDER, pix_fmt->ycbcr_order},
-		{0x5200, pix_fmt->colorspace == V4L2_COLORSPACE_SRGB ? 0 : 1},
-		{0x7000, pix_fmt->fmt_setup},
-		{0x0030, 0x11},
-	};
-
-	ret = hm5065_write_list(sensor, ARRAY_SIZE(setup_mode), setup_mode);
+	ret = hm5065_write(sensor, HM5065_REG_P0_DATA_FORMAT,
+			   pix_fmt->data_fmt);
 	if (ret)
 		return ret;
 
-	ret = hm5065_write16(sensor, HM5065_REG_TARGET_PLL_OUTPUT,
-			     hm5065_mili_to_fp16(480000));
+	ret = hm5065_write(sensor, HM5065_REG_YCRCB_ORDER,
+			   pix_fmt->ycbcr_order);
+	if (ret)
+		return ret;
+
+	ret = hm5065_write(sensor, HM5065_REG_COLORSPACE,
+			   pix_fmt->colorspace == V4L2_COLORSPACE_SRGB ? 0 : 1);
+	if (ret)
+		return ret;
+
+	ret = hm5065_write(sensor, HM5065_REG_BUS_DATA_FORMAT,
+			   pix_fmt->fmt_setup);
 	if (ret)
 		return ret;
 
@@ -1953,6 +1951,14 @@ static int hm5065_set_fmt(struct v4l2_subdev *sd,
 		goto out;
 	}
 
+	sensor->sensor_mode = HM5065_REG_SENSOR_MODE_FULLSIZE;
+	if (mf->width < HM5065_SENSOR_WIDTH / 4 &&
+	    mf->height < HM5065_SENSOR_HEIGHT / 4)
+		sensor->sensor_mode = HM5065_REG_SENSOR_MODE_BINNING_4X4;
+	else if (mf->width < HM5065_SENSOR_WIDTH / 2 &&
+		 mf->height < HM5065_SENSOR_HEIGHT / 2)
+		sensor->sensor_mode = HM5065_REG_SENSOR_MODE_BINNING_2X2;
+
 	sensor->fmt = *mf;
 	sensor->pending_mode_change = true;
 out:
@@ -2024,7 +2030,7 @@ static int hm5065_configure(struct hm5065_dev *sensor)
 
 	/* PLL output = 480MHz */
 	ret = hm5065_write16(sensor, HM5065_REG_TARGET_PLL_OUTPUT,
-			     hm5065_mili_to_fp16(480000));
+			     hm5065_mili_to_fp16(640000));
 	if (ret)
 		return ret;
 
@@ -2208,6 +2214,7 @@ static int hm5065_probe(struct i2c_client *client,
 
 	sensor->i2c_client = client;
 
+	sensor->sensor_mode = HM5065_REG_SENSOR_MODE_FULLSIZE;
 	sensor->fmt.code = hm5065_formats[0].code;
 	sensor->fmt.width = hm5065_frame_sizes[HM5065_DEFAULT_FRAME_SIZE].width;
 	sensor->fmt.height =
