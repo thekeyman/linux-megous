@@ -912,10 +912,6 @@ static int hm5065_get_exposure(struct hm5065_dev *sensor)
 				   4000ll);
 	ctrls->a_gain->val = again;
 
-	dev_dbg(&sensor->i2c_client->dev,
-		"%s: again(coded)=%x dgain=%u exposure=%u\n", __func__,
-		again, dgain, exp);
-
 	return 0;
 }
 
@@ -1068,22 +1064,22 @@ static const s8 ae_bias_menu_reg_values[] = {
 	-7, -6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6, 7
 };
 
-static int hm5065_set_exposure(struct hm5065_dev *sensor, s32 val)
+static int hm5065_set_exposure(struct hm5065_dev *sensor)
 {
 	struct hm5065_ctrls *ctrls = &sensor->ctrls;
-	bool auto_exposure = (val == V4L2_EXPOSURE_AUTO);
+	bool is_auto = (ctrls->auto_exposure->val != V4L2_EXPOSURE_MANUAL);
 	int ret = 0;
 
 	if (ctrls->auto_exposure->is_new) {
 		ret = hm5065_write(sensor, HM5065_REG_EXPOSURE_MODE,
-				   auto_exposure ?
+				   is_auto ?
 				   HM5065_REG_EXPOSURE_MODE_AUTO :
 				   HM5065_REG_EXPOSURE_MODE_DIRECT_MANUAL);
 		if (ret)
 			return ret;
 	}
 
-	if (!auto_exposure && ctrls->exposure->is_new) {
+	if (!is_auto && ctrls->exposure->is_new) {
 		ret = hm5065_write16(sensor,
 			   HM5065_REG_DIRECT_MODE_COARSE_INTEGRATION_LINES,
 			   ctrls->exposure->val);
@@ -1091,7 +1087,7 @@ static int hm5065_set_exposure(struct hm5065_dev *sensor, s32 val)
 			return ret;
 	}
 
-	if (!auto_exposure && ctrls->d_gain->is_new) {
+	if (!is_auto && ctrls->d_gain->is_new) {
 		ret = hm5065_write16(sensor,
 				     HM5065_REG_DIRECT_MODE_DIGITAL_GAIN,
 				     hm5065_mili_to_fp16(ctrls->d_gain->val));
@@ -1099,7 +1095,7 @@ static int hm5065_set_exposure(struct hm5065_dev *sensor, s32 val)
 			return ret;
 	}
 
-	if (!auto_exposure && ctrls->a_gain->is_new)
+	if (!is_auto && ctrls->a_gain->is_new)
 		ret = hm5065_write16(sensor,
 				     HM5065_REG_DIRECT_MODE_CODED_ANALOG_GAIN,
 				     ctrls->a_gain->val);
@@ -1307,7 +1303,7 @@ static int hm5065_s_ctrl(struct v4l2_ctrl *ctrl)
 
 	switch (ctrl->id) {
 	case V4L2_CID_EXPOSURE_AUTO:
-		return hm5065_set_exposure(sensor, val);
+		return hm5065_set_exposure(sensor);
 
 	case V4L2_CID_EXPOSURE_METERING:
 		if (val == V4L2_EXPOSURE_METERING_AVERAGE)
