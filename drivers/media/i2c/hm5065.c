@@ -35,8 +35,8 @@
 #define HM5065_AF_FIRMWARE		"hm5065-af.bin"
 #define HM5065_FIRMWARE_PARAMETERS	"hm5065-init.bin"
 
-#define HM5065_SENSOR_WIDTH 	2592
-#define HM5065_SENSOR_HEIGHT 	1944
+#define HM5065_SENSOR_WIDTH	2592
+#define HM5065_SENSOR_HEIGHT	1944
 
 /* {{{ Register definitions */
 
@@ -1666,14 +1666,14 @@ static int hm5065_setup_mode(struct hm5065_dev *sensor)
 		return ret;
 
 	switch (hm5065_get_max_binning(sensor->fmt.width, sensor->fmt.height)) {
-		case 4:
-			sensor_mode = HM5065_REG_SENSOR_MODE_BINNING_4X4;
-			break;
-		case 2:
-			sensor_mode = HM5065_REG_SENSOR_MODE_BINNING_2X2;
-			break;
-		default:
-			sensor_mode = HM5065_REG_SENSOR_MODE_FULLSIZE;
+	case 4:
+		sensor_mode = HM5065_REG_SENSOR_MODE_BINNING_4X4;
+		break;
+	case 2:
+		sensor_mode = HM5065_REG_SENSOR_MODE_BINNING_2X2;
+		break;
+	default:
+		sensor_mode = HM5065_REG_SENSOR_MODE_FULLSIZE;
 	}
 
 	ret = hm5065_write(sensor, HM5065_REG_P0_SENSOR_MODE, sensor_mode);
