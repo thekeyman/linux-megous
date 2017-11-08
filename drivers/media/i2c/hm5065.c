@@ -2254,7 +2254,7 @@ static int hm5065_probe(struct i2c_client *client,
 	sensor->max_pixel_rate = HM5065_PCLK_FREQ_ABS_MAX * 10 / 22;
 
 	sensor->chipenable_gpio = devm_gpiod_get_optional(dev, "chipenable",
-						    GPIOD_OUT_LOW);
+							  GPIOD_OUT_LOW);
 	sensor->reset_gpio = devm_gpiod_get_optional(dev, "reset",
 						     GPIOD_OUT_HIGH);
 
