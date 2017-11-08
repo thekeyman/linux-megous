@@ -2678,6 +2678,7 @@ struct hm5065_pixfmt {
 	u32 colorspace;
 	u8 data_fmt;
 	u8 ycbcr_order;
+	u8 fmt_setup;
 };
 
 //XXX: identify colrorspace correctly, see datasheet page 40
@@ -2687,36 +2688,42 @@ static const struct hm5065_pixfmt hm5065_formats[] = {
 		.colorspace        = V4L2_COLORSPACE_SRGB,
 		.data_fmt          = HM5065_REG_DATA_FORMAT_YCBCR_CUSTOM,
 		.ycbcr_order       = HM5065_REG_YCRCB_ORDER_CB_Y_CR_Y,
+		.fmt_setup         = 0x08  // 0c 2c 08
 	},
 	{
 		.code              = MEDIA_BUS_FMT_VYUY8_2X8,
 		.colorspace        = V4L2_COLORSPACE_SRGB,
 		.data_fmt          = HM5065_REG_DATA_FORMAT_YCBCR_CUSTOM,
 		.ycbcr_order       = HM5065_REG_YCRCB_ORDER_CR_Y_CB_Y,
+		.fmt_setup         = 0x08  // 0c 2c 08
 	},
 	{
 		.code              = MEDIA_BUS_FMT_YUYV8_2X8,
 		.colorspace        = V4L2_COLORSPACE_SRGB,
 		.data_fmt          = HM5065_REG_DATA_FORMAT_YCBCR_CUSTOM,
 		.ycbcr_order       = HM5065_REG_YCRCB_ORDER_Y_CB_Y_CR,
+		.fmt_setup         = 0x08  // 0c 2c 08
 	},
 	{
 		.code              = MEDIA_BUS_FMT_YVYU8_2X8,
 		.colorspace        = V4L2_COLORSPACE_SRGB,
 		.data_fmt          = HM5065_REG_DATA_FORMAT_YCBCR_CUSTOM,
 		.ycbcr_order       = HM5065_REG_YCRCB_ORDER_Y_CR_Y_CB,
+		.fmt_setup         = 0x08  // 0c 2c 08
 	},
 	{
 		.code              = MEDIA_BUS_FMT_RGB565_2X8_LE,
 		.colorspace        = V4L2_COLORSPACE_SRGB,
 		.data_fmt          = HM5065_REG_DATA_FORMAT_RGB_565,
 		.ycbcr_order       = HM5065_REG_YCRCB_ORDER_Y_CR_Y_CB,
+		.fmt_setup         = 0x02
 	},
 	{
-		.code              = MEDIA_BUS_FMT_RGB555_2X8_PADHI_LE,
+		.code              = MEDIA_BUS_FMT_RGB555_2X8_PADHI_LE, //XXX: correct
 		.colorspace        = V4L2_COLORSPACE_SRGB,
 		.data_fmt          = HM5065_REG_DATA_FORMAT_RGB_555,
 		.ycbcr_order       = HM5065_REG_YCRCB_ORDER_Y_CR_Y_CB,
+		.fmt_setup         = 0x02
 	},
 };
 
@@ -3883,12 +3890,12 @@ static int hm5065_setup_mode(struct hm5065_dev *sensor)
 	}
 
 	struct reg_value setup_mode[] = {
+		// so that pll changes take effect
 		{HM5065_REG_USER_COMMAND, HM5065_REG_USER_COMMAND_POWEROFF},
-		{0x7000, 0x08},
-		{0x5200, 0x09},
-		//{0x00ed, sensor->frame_interval.denominator},
+		//{0x00e8, 1}, // some rate control mode reg, prevents desired frame rate from being changed when 0
+		//{0x00ed, 1},
 		//{0x00ee, sensor->frame_interval.denominator},
-		{HM5065_REG_P0_SENSOR_MODE, HM5065_REG_SENSOR_MODE_FULLSIZE},
+		{HM5065_REG_P0_SENSOR_MODE, HM5065_REG_SENSOR_MODE_BINNING_2X2},
 		{HM5065_REG_P0_MANUAL_HSIZE, sensor->fmt.width >> 8},
 		{HM5065_REG_P0_MANUAL_HSIZE + 1, sensor->fmt.width},
 		{HM5065_REG_P0_MANUAL_VSIZE, sensor->fmt.height >> 8},
@@ -3896,6 +3903,8 @@ static int hm5065_setup_mode(struct hm5065_dev *sensor)
 		{HM5065_REG_P0_IMAGE_SIZE, HM5065_REG_IMAGE_SIZE_MANUAL},
 		{HM5065_REG_P0_DATA_FORMAT, pix_fmt->data_fmt},
 		{HM5065_REG_YCRCB_ORDER, pix_fmt->ycbcr_order},
+		{0x5200, pix_fmt->colorspace == V4L2_COLORSPACE_SRGB ? 0 : 1},
+		{0x7000, pix_fmt->fmt_setup},
 		{0x0030, 0x11},
 	};
 
