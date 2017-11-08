@@ -906,7 +906,8 @@ static int hm5065_get_exposure(struct hm5065_dev *sensor)
 		return ret;
 
 	ctrls->exposure->val = exp;
-	ctrls->d_gain->val = clamp(hm5065_mili_from_fp16(dgain), 1000ll, 4000ll);
+	ctrls->d_gain->val = clamp(hm5065_mili_from_fp16(dgain), 1000ll,
+				   4000ll);
 	ctrls->a_gain->val = again;
 
 	dev_dbg(&sensor->i2c_client->dev,
@@ -997,7 +998,8 @@ static int hm5065_set_power_line_frequency(struct hm5065_dev *sensor, s32 val)
 		if (ret)
 			return ret;
 
-		ret = hm5065_write16(sensor, HM5065_REG_FD_FLICKER_FREQUENCY, 0);
+		ret = hm5065_write16(sensor, HM5065_REG_FD_FLICKER_FREQUENCY,
+				     0);
 		if (ret)
 			return ret;
 
@@ -1778,6 +1780,7 @@ static int hm5065_s_stream(struct v4l2_subdev *sd, int enable)
 
 		if (enable && sensor->ctrls.focus_auto->cur.val) {
 			msleep(100);
+
 			/* checking error here is not super important */
 			hm5065_write(sensor, HM5065_REG_AF_MODE,
 				     HM5065_REG_AF_MODE_CONTINUOUS);
@@ -1840,7 +1843,6 @@ static int hm5065_enum_frame_interval(
 	struct v4l2_subdev_pad_config *cfg,
 	struct v4l2_subdev_frame_interval_enum *fie)
 {
-	struct hm5065_dev *sensor = to_hm5065_dev(sd);
 	struct v4l2_fract tpf;
 	int max_fps, i;
 
@@ -2348,8 +2350,6 @@ static int hm5065_probe(struct i2c_client *client,
 	ret = v4l2_async_register_subdev(&sensor->sd);
 	if (ret)
 		goto free_ctrls;
-
-	dev_err(dev, "sensor regsitered\n");
 
 	return 0;
 
