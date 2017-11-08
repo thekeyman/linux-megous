@@ -948,6 +948,7 @@ static int hm5065_g_volatile_ctrl(struct v4l2_ctrl *ctrl)
 }
 
 static const u8 hm5065_wb_opts[][2] = {
+	{ V4L2_WHITE_BALANCE_MANUAL, HM5065_REG_WB_MODE_OFF },
 	{ V4L2_WHITE_BALANCE_INCANDESCENT, HM5065_REG_WB_MODE_TUNGSTEN_PRESET },
 	{ V4L2_WHITE_BALANCE_FLUORESCENT,
 		HM5065_REG_WB_MODE_FLUORESCENT_PRESET },
@@ -1294,6 +1295,46 @@ static int hm5065_set_digital_gain(struct hm5065_dev *sensor, s32 val)
 			      hm5065_mili_to_fp16(val));
 }
 
+static int hm5065_set_white_balance(struct hm5065_dev *sensor)
+{
+	struct hm5065_ctrls *ctrls = &sensor->ctrls;
+	bool manual_wb = ctrls->wb->val == V4L2_WHITE_BALANCE_MANUAL;
+	int ret = 0, i;
+	s32 val;
+
+	if (ctrls->wb->is_new) {
+		for (i = 0; i < ARRAY_SIZE(hm5065_wb_opts); i++) {
+			if (hm5065_wb_opts[i][0] != ctrls->wb->val)
+				continue;
+
+			ret = hm5065_write(sensor, HM5065_REG_WB_MODE,
+					    hm5065_wb_opts[i][1]);
+			if (ret)
+				return ret;
+			goto next;
+		}
+
+		return -EINVAL;
+	}
+
+next:
+	if (ctrls->wb->is_new || ctrls->blue_balance->is_new) {
+		val = manual_wb ? ctrls->blue_balance->val : 1000;
+		ret = hm5065_write16(sensor, HM5065_REG_WB_HUE_B_BIAS,
+				     hm5065_mili_to_fp16(val));
+		if (ret)
+			return ret;
+	}
+
+	if (ctrls->wb->is_new || ctrls->red_balance->is_new) {
+		val = manual_wb ? ctrls->red_balance->val : 1000;
+		ret = hm5065_write16(sensor, HM5065_REG_WB_HUE_R_BIAS,
+				     hm5065_mili_to_fp16(val));
+	}
+
+	return ret;
+}
+
 static int hm5065_s_ctrl(struct v4l2_ctrl *ctrl)
 {
 	struct v4l2_subdev *sd = ctrl_to_sd(ctrl);
@@ -1356,23 +1397,7 @@ static int hm5065_s_ctrl(struct v4l2_ctrl *ctrl)
 		return hm5065_3a_lock(sensor, ctrl);
 
 	case V4L2_CID_AUTO_N_PRESET_WHITE_BALANCE:
-		for (i = 0; i < ARRAY_SIZE(hm5065_wb_opts); i++) {
-			if (hm5065_wb_opts[i][0] != val)
-				continue;
-
-			return hm5065_write(sensor, HM5065_REG_WB_MODE,
-					    hm5065_wb_opts[i][1]);
-		}
-
-		return -EINVAL;
-
-	case V4L2_CID_BLUE_BALANCE:
-		return hm5065_write16(sensor, HM5065_REG_WB_HUE_B_BIAS,
-				      hm5065_mili_to_fp16(val));
-
-	case V4L2_CID_RED_BALANCE:
-		return hm5065_write16(sensor, HM5065_REG_WB_HUE_R_BIAS,
-				      hm5065_mili_to_fp16(val));
+		return hm5065_set_white_balance(sensor);
 
 	case V4L2_CID_TEST_PATTERN_RED:
 		return hm5065_write16(sensor, HM5065_REG_TESTDATA_RED, val);
@@ -1564,6 +1589,7 @@ static int hm5065_init_controls(struct hm5065_dev *sensor)
 	ctrls->af_status->flags |= V4L2_CTRL_FLAG_VOLATILE |
 		V4L2_CTRL_FLAG_READ_ONLY;
 
+	v4l2_ctrl_auto_cluster(3, &ctrls->wb, V4L2_WHITE_BALANCE_MANUAL, false);
 	v4l2_ctrl_auto_cluster(4, &ctrls->auto_exposure, V4L2_EXPOSURE_MANUAL,
 			       false);
 	v4l2_ctrl_cluster(6, &ctrls->focus_auto);
