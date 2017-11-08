@@ -756,10 +756,14 @@ static int hm5065_load_firmware(struct hm5065_dev *sensor, const char *name)
 
 	ret = request_firmware(&fw, name, sensor->sd.v4l2_dev->dev);
 	if (ret) {
-		v4l2_err(&sensor->sd, "Failed to read firmware %s (%d)\n", name,
-			 ret);
-		return ret;
+		v4l2_warn(&sensor->sd,
+			  "Failed to read firmware %s, continuing anyway...\n",
+			  name);
+		return 1;
 	}
+
+	if (fw->size == 0)
+		return 1;
 
 	if (fw->size % 3 != 0) {
 		v4l2_err(&sensor->sd, "Firmware image %s has invalid size\n",
@@ -2025,16 +2029,19 @@ static int hm5065_configure(struct hm5065_dev *sensor)
 		return ret;
 
 	ret = hm5065_load_firmware(sensor, HM5065_AF_FIRMWARE);
-	if (ret)
+	if (ret < 0)
 		return ret;
 
-	mdelay(200);
+	if (ret == 0) /* ret == 1 means firmware file missing */
+		mdelay(200);
 
 	ret = hm5065_load_firmware(sensor, HM5065_FIRMWARE_PARAMETERS);
-	if (ret)
+	if (ret < 0)
 		return ret;
 
-	mdelay(100);
+	if (ret == 0)
+		mdelay(100);
+
 	return 0;
 }
 
