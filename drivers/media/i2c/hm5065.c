@@ -387,6 +387,9 @@
 /* reverse engineered registers */
 #define HM5065_REG_BUS_DATA_FORMAT		0x7000
 #define HM5065_REG_COLORSPACE			0x5200
+#define HM5065_REG_BUS_CONFIG			0x7101
+#define HM5065_REG_BUS_CONFIG_BT656		0x24
+#define HM5065_REG_BUS_CONFIG_PARALLEL_HH_VL	0x44
 
 /* }}} */
 
@@ -2056,10 +2059,16 @@ static int hm5065_configure(struct hm5065_dev *sensor)
 	if (ret < 0)
 		return ret;
 
-	if (ret == 0)
-		mdelay(100);
+	if (sensor->ep.bus_type == V4L2_MBUS_BT656) {
+		ret = hm5065_write(sensor, HM5065_REG_BUS_CONFIG,
+				   HM5065_REG_BUS_CONFIG_BT656);
+		ret = 0;
+	} else {
+		ret = hm5065_write(sensor, HM5065_REG_BUS_CONFIG,
+				   HM5065_REG_BUS_CONFIG_PARALLEL_HH_VL);
+	}
 
-	return 0;
+	return ret;
 }
 
 static int hm5065_set_power(struct hm5065_dev *sensor, bool on)
@@ -2219,6 +2228,10 @@ static int hm5065_get_regulators(struct hm5065_dev *sensor)
 				       sensor->supplies);
 }
 
+#define HM5065_PARALLEL_SUPPORT_FLAGS \
+	(V4L2_MBUS_HSYNC_ACTIVE_HIGH | V4L2_MBUS_VSYNC_ACTIVE_LOW | \
+	 V4L2_MBUS_PCLK_SAMPLE_RISING | V4L2_MBUS_DATA_ACTIVE_HIGH)
+
 static int hm5065_probe(struct i2c_client *client,
 			const struct i2c_device_id *id)
 {
@@ -2259,9 +2272,15 @@ static int hm5065_probe(struct i2c_client *client,
 		return ret;
 	}
 
-	/* we don't know how to configure the camera for PARALLEL mode */
-	if (sensor->ep.bus_type != V4L2_MBUS_BT656) {
-		dev_err(dev, "invalid bus type, must be BT.656\n");
+	/*
+	 * We don't know how to configure the camera for any other parallel
+	 * Wode.
+	 */
+	if (sensor->ep.bus_type != V4L2_MBUS_BT656 &&
+	    !(sensor->ep.bus_type == V4L2_MBUS_PARALLEL &&
+	      (sensor->ep.bus.parallel.flags & HM5065_PARALLEL_SUPPORT_FLAGS) ==
+	      HM5065_PARALLEL_SUPPORT_FLAGS)) {
+		dev_err(dev, "unsupported bus configuration\n");
 		return -EINVAL;
 	}
 
