@@ -196,6 +196,8 @@
 /* exposure algorithm controls */
 #define HM5065_REG_DIGITAL_GAIN_FLOOR			0x015c /* fp16 */
 #define HM5065_REG_DIGITAL_GAIN_CEILING			0x015e /* fp16 */
+#define HM5065_REG_ANALOG_GAIN_FLOOR			0x02c0 /* u16 */
+#define HM5065_REG_ANALOG_GAIN_CEILING			0x02c2 /* u16 */
 
 /* exposure status */
 #define HM5065_REG_COARSE_INTEGRATION			0x017c /* u16 */
@@ -1066,48 +1068,6 @@ static const s8 ae_bias_menu_reg_values[] = {
 	-7, -6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6, 7
 };
 
-static const u16 analog_gain_table[][2] = {
-	/* code, 1/100th of dB */
-	{ 0x00,    0 },
-	{ 0x10,   56 },
-	{ 0x20,  116 },
-	{ 0x30,  180 },
-	{ 0x40,  250 },
-	{ 0x50,  325 },
-	{ 0x60,  410 },
-	{ 0x70,  500 },
-	{ 0x80,  600 },
-	{ 0x90,  720 },
-	{ 0xA0,  850 },
-	{ 0xB0, 1010 },
-	{ 0xC0, 1200 },
-	{ 0xD0, 1450 },
-	{ 0xE0, 1810 },
-	{ 0xE4, 1920 },
-	{ 0xE8, 2060 },
-	{ 0xEC, 2210 },
-	{ 0xF0, 2410 },
-};
-
-static int hm5065_set_analog_gain(struct hm5065_dev *sensor, s32 val)
-{
-	int i;
-
-	for (i = 0; i < ARRAY_SIZE(analog_gain_table); i++)
-		if (val <= analog_gain_table[i][1])
-			break;
-
-	if (i == ARRAY_SIZE(analog_gain_table))
-		i--;
-
-	dev_dbg(&sensor->i2c_client->dev,
-		"%s: again(coded)=%x\n", __func__,
-		analog_gain_table[i][0]);
-
-	return hm5065_write16(sensor, HM5065_REG_DIRECT_MODE_CODED_ANALOG_GAIN,
-			      analog_gain_table[i][0]);
-}
-
 static int hm5065_set_exposure(struct hm5065_dev *sensor, s32 val)
 {
 	struct hm5065_ctrls *ctrls = &sensor->ctrls;
@@ -1124,7 +1084,7 @@ static int hm5065_set_exposure(struct hm5065_dev *sensor, s32 val)
 	}
 
 	if (!auto_exposure && ctrls->exposure->is_new) {
-		ret = hm5065_write(sensor,
+		ret = hm5065_write16(sensor,
 			   HM5065_REG_DIRECT_MODE_COARSE_INTEGRATION_LINES,
 			   ctrls->exposure->val);
 		if (ret)
@@ -1140,11 +1100,9 @@ static int hm5065_set_exposure(struct hm5065_dev *sensor, s32 val)
 	}
 
 	if (!auto_exposure && ctrls->a_gain->is_new)
-		ret = hm5065_set_analog_gain(sensor, ctrls->a_gain->val);
-
-	dev_dbg(&sensor->i2c_client->dev,
-		"%s: again(coded)=%x dgain=%u exposure=%u\n", __func__,
-		ctrls->a_gain->val, ctrls->d_gain->val, ctrls->exposure->val);
+		ret = hm5065_write16(sensor,
+				     HM5065_REG_DIRECT_MODE_CODED_ANALOG_GAIN,
+				     ctrls->a_gain->val);
 
 	return ret;
 }
@@ -1470,13 +1428,11 @@ static int hm5065_init_controls(struct hm5065_dev *sensor)
 					  V4L2_CID_DIGITAL_GAIN,
 					  1000, 4000, 1, 1000);
 
-	ctrls->a_gain = v4l2_ctrl_new_std(hdl, ops,
-					  V4L2_CID_ANALOGUE_GAIN,
-					  0, 2410, 1, 0);
+	ctrls->a_gain = v4l2_ctrl_new_std(hdl, ops, V4L2_CID_ANALOGUE_GAIN,
+					  0, 0xf4, 1, 0);
 
 	ctrls->metering =
-		v4l2_ctrl_new_std_menu(hdl, ops,
-				       V4L2_CID_EXPOSURE_METERING,
+		v4l2_ctrl_new_std_menu(hdl, ops, V4L2_CID_EXPOSURE_METERING,
 				       V4L2_EXPOSURE_METERING_CENTER_WEIGHTED,
 				       0, V4L2_EXPOSURE_METERING_AVERAGE);
 	ctrls->exposure_bias =
