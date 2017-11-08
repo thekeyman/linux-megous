@@ -400,7 +400,7 @@
 struct reg_value {
 	u16 addr;
 	u8 value;
-} __attribute__ ((packed));
+} __packed;
 
 /*
  * Sensor has various pre-defined PLL configurations for a set of
@@ -499,14 +499,14 @@ static const struct hm5065_pixfmt hm5065_formats[] = {
 		.fmt_setup         = 0x08  // 0c 2c 08
 	},
 	{
-		.code              = MEDIA_BUS_FMT_RGB565_2X8_LE,
+		.code              = MEDIA_BUS_FMT_RGB565_2X8_BE,
 		.colorspace        = V4L2_COLORSPACE_SRGB,
 		.data_fmt          = HM5065_REG_DATA_FORMAT_RGB_565,
 		.ycbcr_order       = HM5065_REG_YCRCB_ORDER_Y_CR_Y_CB,
 		.fmt_setup         = 0x02
 	},
 	{
-		.code              = MEDIA_BUS_FMT_RGB555_2X8_PADHI_LE, //XXX: correct
+		.code              = MEDIA_BUS_FMT_RGB555_2X8_PADHI_BE,
 		.colorspace        = V4L2_COLORSPACE_SRGB,
 		.data_fmt          = HM5065_REG_DATA_FORMAT_RGB_555,
 		.ycbcr_order       = HM5065_REG_YCRCB_ORDER_Y_CR_Y_CB,
@@ -682,7 +682,7 @@ static int hm5065_read_regs(struct hm5065_dev *sensor, u16 start_index,
 #define hm5065_read16(s, r, v) _hm5065_read16(s, #r, r, v)
 #define hm5065_write16(s, r, v) _hm5065_write16(s, #r, r, v)
 
-static int _hm5065_read(struct hm5065_dev *sensor, const char* reg_name,
+static int _hm5065_read(struct hm5065_dev *sensor, const char *reg_name,
 			u16 reg, u8 *val)
 {
 	int ret = hm5065_read_regs(sensor, reg, val, 1);
@@ -692,7 +692,7 @@ static int _hm5065_read(struct hm5065_dev *sensor, const char* reg_name,
 	return ret;
 }
 
-static int _hm5065_write(struct hm5065_dev *sensor, const char* reg_name,
+static int _hm5065_write(struct hm5065_dev *sensor, const char *reg_name,
 			 u16 reg, u8 val)
 {
 	v4l2_info(&sensor->sd, "WRITE8: %s <= 0x%02x\n", reg_name, (int)val);
@@ -700,7 +700,7 @@ static int _hm5065_write(struct hm5065_dev *sensor, const char* reg_name,
 	return hm5065_write_regs(sensor, reg, &val, 1);
 }
 
-static int _hm5065_read16(struct hm5065_dev *sensor, const char* reg_name,
+static int _hm5065_read16(struct hm5065_dev *sensor, const char *reg_name,
 			  u16 reg, u16 *val)
 {
 	int ret;
@@ -714,7 +714,7 @@ static int _hm5065_read16(struct hm5065_dev *sensor, const char* reg_name,
 	return 0;
 }
 
-static int _hm5065_write16(struct hm5065_dev *sensor, const char* reg_name,
+static int _hm5065_write16(struct hm5065_dev *sensor, const char *reg_name,
 			   u16 reg, u16 val)
 {
 	u16 tmp = cpu_to_be16(val);
@@ -730,7 +730,7 @@ static int hm5065_write_list(struct hm5065_dev *sensor, unsigned int list_size,
 	int ret;
 	unsigned int i = 0;
 	u16 start, len;
-        u8 buf[128];
+	u8 buf[128];
 
 	/* we speed up I2C communication via auto-increment functionality */
 	while (i < list_size) {
@@ -758,9 +758,9 @@ static int hm5065_load_firmware(struct hm5065_dev *sensor, const char *name)
 {
 	int ret = 0, i = 0, list_size;
 	const struct firmware *fw;
-	struct reg_value* list;
+	struct reg_value *list;
 	u16 start, len;
-        u8 buf[128];
+	u8 buf[128];
 
 	ret = request_firmware(&fw, name, sensor->sd.v4l2_dev->dev);
 	if (ret) {
@@ -781,7 +781,7 @@ static int hm5065_load_firmware(struct hm5065_dev *sensor, const char *name)
 	}
 
 	list_size = fw->size / 3;
-	list = (struct reg_value*)fw->data;
+	list = (struct reg_value *)fw->data;
 
 	/* we speed up I2C communication via auto-increment functionality */
 	while (i < list_size) {
@@ -849,7 +849,7 @@ static u16 hm5065_mili_to_fp16(s32 val)
 	v = (u64)val * 1024;
 	rem = do_div(v, 1000);
 	if (rem >= 500)
-		 v++;
+		v++;
 
 	fls = fls64(v) - 1;
 	e = 31 + fls - 10;
@@ -1107,7 +1107,7 @@ static int hm5065_set_exposure(struct hm5065_dev *sensor, s32 val)
 	}
 
 	if (!auto_exposure && ctrls->exposure->is_new) {
-                s32 val = ctrls->exposure->val;
+		s32 val = ctrls->exposure->val;
 
 		ret = hm5065_write16(sensor, HM5065_REG_MANUAL_EXPOSURE_TIME_US,
 				     hm5065_mili_to_fp16(val * 100000));
@@ -1120,7 +1120,6 @@ static int hm5065_3a_lock(struct hm5065_dev *sensor, struct v4l2_ctrl *ctrl)
 {
 	bool awb_lock = ctrl->val & V4L2_LOCK_WHITE_BALANCE;
 	bool ae_lock = ctrl->val & V4L2_LOCK_EXPOSURE;
-	bool af_lock = ctrl->val & V4L2_LOCK_FOCUS;
 	int ret = 0;
 
 	if ((ctrl->val ^ ctrl->cur.val) & V4L2_LOCK_EXPOSURE
@@ -1139,15 +1138,6 @@ static int hm5065_3a_lock(struct hm5065_dev *sensor, struct v4l2_ctrl *ctrl)
 		if (ret)
 			return ret;
 	}
-
-	//XXX: potentially drop this
-	/*
-	if ((ctrl->val ^ ctrl->cur.val) & V4L2_LOCK_FOCUS
-	    && sensor->ctrls.focus_auto->val)
-		ret = hm5065_write(sensor, HM5065_REG_AF_MODE,
-				   af_lock ? HM5065_REG_AF_MODE_MANUAL :
-				   HM5065_REG_AF_MODE_CONTINUOUS);
-          */
 
 	return ret;
 }
@@ -1192,7 +1182,7 @@ static int hm5065_set_auto_focus(struct hm5065_dev *sensor)
 
 		if (!auto_focus) {
 			ret = hm5065_write(sensor, HM5065_REG_AF_COMMAND,
-					   HM5065_REG_AF_COMMAND_RELEASED_BUTTON);
+					 HM5065_REG_AF_COMMAND_RELEASED_BUTTON);
 			if (ret)
 				return ret;
 		}
