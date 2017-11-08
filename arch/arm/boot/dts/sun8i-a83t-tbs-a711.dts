@@ -249,6 +249,11 @@
 		port {
 			hm5065_ep: endpoint {
 				remote-endpoint = <&csi0_hm5065_ep>;
+				bus-width = <8>;
+				data-active = <1>;
+				pclk-sample = <1>;
+				hsync-active = <1>;
+				vsync-active = <0>;
 			};
 		};
 	};
