@@ -1959,10 +1959,10 @@ static int hm5065_set_fmt(struct v4l2_subdev *sd,
 	sensor->sensor_mode = HM5065_REG_SENSOR_MODE_FULLSIZE;
 	if (mf->width < HM5065_SENSOR_WIDTH / 4 &&
 	    mf->height < HM5065_SENSOR_HEIGHT / 4)
-		sensor->sensor_mode = HM5065_REG_SENSOR_MODE_BINNING_4X4;
+		sensor->sensor_mode = HM5065_REG_SENSOR_MODE_SUBSAMPLING_4X4;
 	else if (mf->width < HM5065_SENSOR_WIDTH / 2 &&
 		 mf->height < HM5065_SENSOR_HEIGHT / 2)
-		sensor->sensor_mode = HM5065_REG_SENSOR_MODE_BINNING_2X2;
+		sensor->sensor_mode = HM5065_REG_SENSOR_MODE_SUBSAMPLING_2X2;
 
 	sensor->fmt = *mf;
 	sensor->pending_mode_change = true;
