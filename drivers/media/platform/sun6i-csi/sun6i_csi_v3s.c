@@ -164,8 +164,7 @@ static bool is_format_support(struct sun6i_csi *csi, u32 pixformat,
 		return mbus_code == MEDIA_BUS_FMT_SRGGB12_1X12;
 
 	case V4L2_PIX_FMT_RGB565:
-		return mbus_code == MEDIA_BUS_FMT_RGB565_2X8_LE ||
-			mbus_code == MEDIA_BUS_FMT_RGB565_2X8_BE;
+		return mbus_code == MEDIA_BUS_FMT_RGB565_2X8_LE;
 	case V4L2_PIX_FMT_RGB555:
 		return mbus_code == MEDIA_BUS_FMT_RGB555_2X8_PADHI_LE;
 
