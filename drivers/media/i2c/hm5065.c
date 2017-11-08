@@ -860,7 +860,7 @@ static u16 hm5065_mili_to_fp16(s32 val)
 static int hm5065_get_af_status(struct hm5065_dev *sensor)
 {
 	struct hm5065_ctrls *ctrls = &sensor->ctrls;
-	u8 in_focus, is_stable, mode;
+	u8 is_stable, mode;
 	int ret;
 
 	ret = hm5065_read(sensor, HM5065_REG_AF_MODE_STATUS, &mode);
@@ -872,20 +872,16 @@ static int hm5065_get_af_status(struct hm5065_dev *sensor)
 		return 0;
 	}
 
-	ret = hm5065_read(sensor, HM5065_REG_AF_IN_FOCUS, &in_focus);
-	if (ret)
-		return ret;
-
 	ret = hm5065_read(sensor, HM5065_REG_AF_IS_STABLE, &is_stable);
 	if (ret)
 		return ret;
 
-	if (in_focus && is_stable)
+	if (is_stable)
 		ctrls->af_status->val = V4L2_AUTO_FOCUS_STATUS_REACHED;
-	else if (!in_focus && !is_stable)
+	else if (!is_stable && mode == HM5065_REG_AF_MODE_CONTINUOUS)
 		ctrls->af_status->val = V4L2_AUTO_FOCUS_STATUS_BUSY;
 	else
-		ctrls->af_status->val = V4L2_AUTO_FOCUS_STATUS_FAILED;
+		ctrls->af_status->val = V4L2_AUTO_FOCUS_STATUS_IDLE;
 
 	return 0;
 }
@@ -979,7 +975,7 @@ static int hm5065_set_power_line_frequency(struct hm5065_dev *sensor, s32 val)
 		if (ret)
 			return ret;
 
-		ret = hm5065_write(sensor, HM5065_REG_FD_ENABLE_DETECT, 1);
+		ret = hm5065_write(sensor, HM5065_REG_FD_ENABLE_DETECT, 0);
 		if (ret)
 			return ret;
 
@@ -994,6 +990,15 @@ static int hm5065_set_power_line_frequency(struct hm5065_dev *sensor, s32 val)
 			return ret;
 
 		ret = hm5065_write(sensor, HM5065_REG_ANTI_FLICKER_MODE, 1);
+		if (ret)
+			return ret;
+
+		ret = hm5065_write16(sensor, HM5065_REG_FD_MAX_NUMBER_ATTEMP,
+				     100);
+		if (ret)
+			return ret;
+
+		ret = hm5065_write16(sensor, HM5065_REG_FD_FLICKER_FREQUENCY, 0);
 		if (ret)
 			return ret;
 
