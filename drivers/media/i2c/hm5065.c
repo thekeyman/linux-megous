@@ -1077,6 +1077,12 @@ static int hm5065_set_exposure(struct hm5065_dev *sensor)
 				   HM5065_REG_EXPOSURE_MODE_DIRECT_MANUAL);
 		if (ret)
 			return ret;
+
+		if (ctrls->auto_exposure->cur.val != ctrls->auto_exposure->val && !is_auto) {
+			ctrls->exposure->cur.val = ctrls->exposure->val;
+			ctrls->d_gain->cur.val = ctrls->d_gain->val;
+			ctrls->a_gain->cur.val = ctrls->a_gain->val;
+		}
 	}
 
 	if (!is_auto && ctrls->exposure->is_new) {
