@@ -1078,7 +1078,16 @@ static int hm5065_set_exposure(struct hm5065_dev *sensor)
 		if (ret)
 			return ret;
 
-		if (ctrls->auto_exposure->cur.val != ctrls->auto_exposure->val && !is_auto) {
+		if (ctrls->auto_exposure->cur.val != ctrls->auto_exposure->val &&
+		    !is_auto) {
+			/*
+			 * Hack: At this point, there are current volatile
+			 * values in val, but control framework will not
+			 * update the cur values for our autocluster, as it
+			 * should. I couldn't find the reason. This fixes
+			 * it for our driver. Remove this after the kernel
+			 * is fixed.
+			 */
 			ctrls->exposure->cur.val = ctrls->exposure->val;
 			ctrls->d_gain->cur.val = ctrls->d_gain->val;
 			ctrls->a_gain->cur.val = ctrls->a_gain->val;
