@@ -118,11 +118,27 @@
 		};
 	};
 
+	reg_gps: reg-gps {
+		compatible = "regulator-fixed";
+		regulator-name = "gps";
+		regulator-min-microvolt = <3000000>;
+		regulator-max-microvolt = <3000000>;
+		enable-active-high;
+		gpio = <&pio 3 4 GPIO_ACTIVE_HIGH>; /* PD4 */
+	};
+
 	wifi_pwrseq: wifi_pwrseq {
 		compatible = "mmc-pwrseq-simple";
 		reset-gpios = <&r_pio 0 2 GPIO_ACTIVE_LOW>; /* PL2 WL-PMU-EN */
 		clocks = <&ac100_rtc 1>;
 		clock-names = "ext_clock";
+	};
+
+	gps {
+		compatible = "custom,power-manager";
+		power-supply = <&reg_gps>;
+		reset-duration-ms = <5>;
+		char-device-name = "pwr-gps";
 	};
 };
 
@@ -530,6 +546,13 @@
 &uart1 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&uart1_pg_pins &uart1_rtscts_pins>;
+	status = "okay";
+};
+
+/* GPS NEO-6M */
+&uart2 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&uart2_pb_pins>;
 	status = "okay";
 };
 
