@@ -250,6 +250,7 @@
 
 	/* Magnetic Sensor */
 	ak8963: ak8963@0d {
+		status = "disabled"; /* broken */ 
 		compatible = "asahi-kasei,ak8963";
 		reg = <0x0d>;
 		interrupt-parent = <&pio>;
