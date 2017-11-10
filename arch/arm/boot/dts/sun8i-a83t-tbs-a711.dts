@@ -248,6 +248,14 @@
 		interrupts = <7 10 IRQ_TYPE_EDGE_RISING>; /* PH10 / EINT10 */
 	};
 
+	/* Magnetic Sensor */
+	ak8963: ak8963@0d {
+		compatible = "asahi-kasei,ak8963";
+		reg = <0x0d>;
+		interrupt-parent = <&pio>;
+		interrupts = <1 2 IRQ_TYPE_EDGE_RISING>; /* PB2 */
+	};
+
 	/* Light Sensor */
 	ltr501: ltr501@23 {
 		compatible = "ltr,ltr501";
