@@ -258,6 +258,19 @@
 		reg = <0x0d>;
 		/* TODO configure interrupt */
 	};
+
+	pn547@28 {
+		compatible = "nxp,nxp-nci-i2c";
+		reg = <0x28>;
+
+		interrupt-parent = <&r_pio>;
+		/* XXX Is it really level irq? */
+		interrupts = <0 6 IRQ_TYPE_LEVEL_HIGH>;
+
+		enable-gpios = <&pio 3 2 GPIO_ACTIVE_HIGH>;
+		firmware-gpios = <&pio 3 3 GPIO_ACTIVE_HIGH>;
+		/* and NFC_EN ?? */
+	};
 };
 
 &i2c_gpio {
