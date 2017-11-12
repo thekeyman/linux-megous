@@ -128,6 +128,7 @@
  * @has_chsel_tx_chen: SoC requires that the tx channels are enabled.
  * @has_chsel_offset: SoC uses offset for selecting dai operational mode.
  * @reg_offset_txdata: offset of the tx fifo.
+ * @reg_offset_int_status: offset of the interrupt status register.
  * @sun4i_i2s_regmap: regmap config to use.
  * @mclk_offset: Value by which mclkdiv needs to be adjusted.
  * @bclk_offset: Value by which bclkdiv needs to be adjusted.
@@ -151,6 +152,7 @@ struct sun4i_i2s_quirks {
 	bool				has_chsel_tx_chen;
 	bool				has_chsel_offset;
 	unsigned int			reg_offset_txdata;	/* TX FIFO */
+	unsigned int			reg_offset_int_status;  /* INT STA */
 	const struct regmap_config	*sun4i_i2s_regmap;
 	unsigned int			mclk_offset;
 	unsigned int			bclk_offset;
@@ -715,13 +717,12 @@ static const struct snd_soc_component_driver sun4i_i2s_component = {
 
 static bool sun4i_i2s_rd_reg(struct device *dev, unsigned int reg)
 {
-	switch (reg) {
-	case SUN4I_I2S_FIFO_TX_REG:
+	struct sun4i_i2s *i2s = dev_get_drvdata(dev);
+
+	if (reg == i2s->variant->reg_offset_txdata)
 		return false;
 
-	default:
-		return true;
-	}
+	return true;
 }
 
 static bool sun4i_i2s_wr_reg(struct device *dev, unsigned int reg)
@@ -738,9 +739,13 @@ static bool sun4i_i2s_wr_reg(struct device *dev, unsigned int reg)
 
 static bool sun4i_i2s_volatile_reg(struct device *dev, unsigned int reg)
 {
+	struct sun4i_i2s *i2s = dev_get_drvdata(dev);
+
+	if (reg == i2s->variant->reg_offset_int_status)
+		return true;
+
 	switch (reg) {
 	case SUN4I_I2S_FIFO_RX_REG:
-	case SUN4I_I2S_INT_STA_REG:
 	case SUN4I_I2S_RX_CNT_REG:
 	case SUN4I_I2S_TX_CNT_REG:
 		return true;
@@ -866,6 +871,7 @@ static int sun4i_i2s_runtime_suspend(struct device *dev)
 static const struct sun4i_i2s_quirks sun4i_a10_i2s_quirks = {
 	.has_reset		= false,
 	.reg_offset_txdata	= SUN4I_I2S_FIFO_TX_REG,
+	.reg_offset_int_status	= SUN4I_I2S_INT_STA_REG,
 	.sun4i_i2s_regmap	= &sun4i_i2s_regmap_config,
 	.field_clkdiv_mclk_en	= REG_FIELD(SUN4I_I2S_CLK_DIV_REG, 7, 7),
 	.field_fmt_wss		= REG_FIELD(SUN4I_I2S_FMT0_REG, 2, 3),
@@ -883,6 +889,26 @@ static const struct sun4i_i2s_quirks sun4i_a10_i2s_quirks = {
 static const struct sun4i_i2s_quirks sun6i_a31_i2s_quirks = {
 	.has_reset		= true,
 	.reg_offset_txdata	= SUN4I_I2S_FIFO_TX_REG,
+	.reg_offset_int_status	= SUN4I_I2S_INT_STA_REG,
+	.sun4i_i2s_regmap	= &sun4i_i2s_regmap_config,
+	.field_clkdiv_mclk_en	= REG_FIELD(SUN4I_I2S_CLK_DIV_REG, 7, 7),
+	.field_fmt_wss		= REG_FIELD(SUN4I_I2S_FMT0_REG, 2, 3),
+	.field_fmt_sr		= REG_FIELD(SUN4I_I2S_FMT0_REG, 4, 5),
+	.field_fmt_bclk		= REG_FIELD(SUN4I_I2S_FMT0_REG, 6, 6),
+	.field_fmt_lrclk	= REG_FIELD(SUN4I_I2S_FMT0_REG, 7, 7),
+	.has_slave_select_bit	= true,
+	.field_fmt_mode		= REG_FIELD(SUN4I_I2S_FMT0_REG, 0, 1),
+	.field_txchanmap	= REG_FIELD(SUN4I_I2S_TX_CHAN_MAP_REG, 0, 31),
+	.field_rxchanmap	= REG_FIELD(SUN4I_I2S_RX_CHAN_MAP_REG, 0, 31),
+	.field_txchansel	= REG_FIELD(SUN4I_I2S_TX_CHAN_SEL_REG, 0, 2),
+	.field_rxchansel	= REG_FIELD(SUN4I_I2S_RX_CHAN_SEL_REG, 0, 2),
+};
+
+static const struct sun4i_i2s_quirks sun8i_a83t_i2s_quirks = {
+	.has_reset		= true,
+	/* Not a mistake. Yes, they swapped the registers: */
+	.reg_offset_txdata	= SUN4I_I2S_INT_STA_REG,
+	.reg_offset_int_status	= SUN4I_I2S_FIFO_TX_REG,
 	.sun4i_i2s_regmap	= &sun4i_i2s_regmap_config,
 	.field_clkdiv_mclk_en	= REG_FIELD(SUN4I_I2S_CLK_DIV_REG, 7, 7),
 	.field_fmt_wss		= REG_FIELD(SUN4I_I2S_FMT0_REG, 2, 3),
@@ -900,6 +926,7 @@ static const struct sun4i_i2s_quirks sun6i_a31_i2s_quirks = {
 static const struct sun4i_i2s_quirks sun8i_h3_i2s_quirks = {
 	.has_reset		= true,
 	.reg_offset_txdata	= SUN8I_I2S_FIFO_TX_REG,
+	.reg_offset_int_status	= SUN4I_I2S_INT_STA_REG,
 	.sun4i_i2s_regmap	= &sun8i_i2s_regmap_config,
 	.mclk_offset		= 1,
 	.bclk_offset		= 2,
@@ -1123,6 +1150,10 @@ static const struct of_device_id sun4i_i2s_match[] = {
 	{
 		.compatible = "allwinner,sun8i-h3-i2s",
 		.data = &sun8i_h3_i2s_quirks,
+	},
+	{
+		.compatible = "allwinner,sun8i-a83t-i2s",
+		.data = &sun8i_a83t_i2s_quirks,
 	},
 	{}
 };
