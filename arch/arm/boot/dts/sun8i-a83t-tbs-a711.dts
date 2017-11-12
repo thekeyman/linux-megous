@@ -89,6 +89,10 @@
 		#size-cells = <0>;
 	};
 
+	tbs-a711 {
+		compatible = "tbs,a711";
+	};
+
 	panel {
 		compatible = "tbs,a711-panel", "panel-lvds";
 		backlight = <&backlight>;
