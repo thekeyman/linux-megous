@@ -471,6 +471,13 @@
 			#size-cells = <0>;
 		};
 
+		lradc: lradc@1f03c00 {
+			compatible = "allwinner,sun4i-a10-lradc-keys";
+			reg = <0x01f03c00 0x100>;
+			interrupts = <GIC_SPI 42 IRQ_TYPE_LEVEL_HIGH>;
+			status = "disabled";
+		};
+
 		mmc0: mmc@1c0f000 {
 			compatible = "allwinner,sun7i-a20-mmc";
 			reg = <0x01c0f000 0x1000>;
