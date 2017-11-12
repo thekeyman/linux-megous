@@ -511,6 +511,13 @@
 			status = "disabled";
 		};
 
+		lradc: lradc@1f03c00 {
+			compatible = "allwinner,sun4i-a10-lradc-keys";
+			reg = <0x01f03c00 0x100>;
+			interrupts = <GIC_SPI 42 IRQ_TYPE_LEVEL_HIGH>;
+			status = "disabled";
+		};
+
 		cci: cci@1790000 {
 			compatible = "arm,cci-400";
 			#address-cells = <1>;
