@@ -98,6 +98,9 @@ struct sun4i_i2s {
 
 	unsigned int	mclk_freq;
 
+	unsigned int	fifo_tx_reg;
+	unsigned int	int_sta_reg;
+
 	struct snd_dmaengine_dai_dma_data	capture_dma_data;
 	struct snd_dmaengine_dai_dma_data	playback_dma_data;
 };
@@ -554,13 +557,12 @@ static const struct snd_soc_component_driver sun4i_i2s_component = {
 
 static bool sun4i_i2s_rd_reg(struct device *dev, unsigned int reg)
 {
-	switch (reg) {
-	case SUN4I_I2S_FIFO_TX_REG:
+	struct sun4i_i2s *i2s = dev_get_drvdata(dev);
+
+	if (reg == i2s->fifo_tx_reg)
 		return false;
 
-	default:
-		return true;
-	}
+	return true;
 }
 
 static bool sun4i_i2s_wr_reg(struct device *dev, unsigned int reg)
@@ -577,9 +579,13 @@ static bool sun4i_i2s_wr_reg(struct device *dev, unsigned int reg)
 
 static bool sun4i_i2s_volatile_reg(struct device *dev, unsigned int reg)
 {
+	struct sun4i_i2s *i2s = dev_get_drvdata(dev);
+
+	if (reg == i2s->int_sta_reg)
+		return true;
+
 	switch (reg) {
 	case SUN4I_I2S_FIFO_RX_REG:
-	case SUN4I_I2S_INT_STA_REG:
 	case SUN4I_I2S_RX_CNT_REG:
 	case SUN4I_I2S_TX_CNT_REG:
 		return true;
@@ -656,6 +662,7 @@ static int sun4i_i2s_runtime_suspend(struct device *dev)
 
 struct sun4i_i2s_quirks {
 	bool has_reset;
+	bool has_fifo_tx_swapped;
 };
 
 static const struct sun4i_i2s_quirks sun4i_a10_i2s_quirks = {
@@ -664,6 +671,11 @@ static const struct sun4i_i2s_quirks sun4i_a10_i2s_quirks = {
 
 static const struct sun4i_i2s_quirks sun6i_a31_i2s_quirks = {
 	.has_reset	= true,
+};
+
+static const struct sun4i_i2s_quirks sun8i_a83t_i2s_quirks = {
+	.has_reset	= true,
+	.has_fifo_tx_swapped	= true,
 };
 
 static int sun4i_i2s_probe(struct platform_device *pdev)
@@ -723,6 +735,14 @@ static int sun4i_i2s_probe(struct platform_device *pdev)
 		}
 	}
 
+	if (quirks->has_fifo_tx_swapped) {
+		i2s->int_sta_reg = SUN4I_I2S_FIFO_TX_REG;
+		i2s->fifo_tx_reg = SUN4I_I2S_INT_STA_REG;
+	} else {
+		i2s->int_sta_reg = SUN4I_I2S_INT_STA_REG;
+		i2s->fifo_tx_reg = SUN4I_I2S_FIFO_TX_REG;
+	}
+
 	if (!IS_ERR(i2s->rst)) {
 		ret = reset_control_deassert(i2s->rst);
 		if (ret) {
@@ -732,7 +752,7 @@ static int sun4i_i2s_probe(struct platform_device *pdev)
 		}
 	}
 
-	i2s->playback_dma_data.addr = res->start + SUN4I_I2S_FIFO_TX_REG;
+	i2s->playback_dma_data.addr = res->start + i2s->fifo_tx_reg;
 	i2s->playback_dma_data.maxburst = 8;
 
 	i2s->capture_dma_data.addr = res->start + SUN4I_I2S_FIFO_RX_REG;
@@ -796,6 +816,10 @@ static const struct of_device_id sun4i_i2s_match[] = {
 	{
 		.compatible = "allwinner,sun6i-a31-i2s",
 		.data = &sun6i_a31_i2s_quirks,
+	},
+	{
+		.compatible = "allwinner,sun8i-a83t-i2s",
+		.data = &sun8i_a83t_i2s_quirks,
 	},
 	{}
 };
