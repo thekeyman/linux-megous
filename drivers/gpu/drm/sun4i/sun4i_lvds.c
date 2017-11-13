@@ -74,7 +74,6 @@ sun4i_lvds_connector_destroy(struct drm_connector *connector)
 }
 
 static struct drm_connector_funcs sun4i_lvds_con_funcs = {
-	.dpms			= drm_atomic_helper_connector_dpms,
 	.fill_modes		= drm_helper_probe_single_connector_modes,
 	.destroy		= sun4i_lvds_connector_destroy,
 	.reset			= drm_atomic_helper_connector_reset,
