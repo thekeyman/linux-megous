@@ -162,6 +162,43 @@
 		wakeup-gpios = <&r_pio 0 11 GPIO_ACTIVE_HIGH>;
 		reset-duration-us = <3000>;
 	};
+
+	/*XXX: or how to implement speaker amp? */
+	speaker_amp: speaker-amplifier {
+		compatible = "power-amp-gpio";
+		enable-gpios = <&pio 6 13 GPIO_ACTIVE_HIGH>; /* PG13 */
+	};
+
+	sound: sound {
+		compatible = "simple-audio-card";
+		simple-audio-card,name = "tbs-a711-audio";
+#if 0
+		simple-audio-card,widgets =
+			/* template user-name */
+			"Microphone", "...",
+			"Line", "...",
+			"Headphone", "...",
+			"Speaker", "...";
+#endif
+		simple-audio-card,routing =
+			/* sink, source */
+			"Left DAC", "AIF1 Slot 0 Left",
+			"Right DAC", "AIF1 Slot 0 Right";
+
+		//simple-audio-card,aux-devs = <&speaker_amp>;
+		simple-audio-card,format = "i2s";
+		simple-audio-card,frame-master = <&link_codec>;
+		simple-audio-card,bitclock-master = <&link_codec>;
+		simple-audio-card,mclk-fs = <512>;
+
+		simple-audio-card,cpu {
+			sound-dai = <&dai>;
+		};
+
+		link_codec: simple-audio-card,codec {
+			sound-dai = <&ac100_codec>;
+		};
+	};
 };
 
 &cpu0 {

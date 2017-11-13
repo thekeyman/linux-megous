@@ -184,10 +184,459 @@
 #define AC100_HMIC_KEYDOWN_PENDING		BIT(1)
 #define AC100_HMIC_DATA_PENDING			BIT(0)
 
+#if 0
+#define AC100_SYS_SR_CTRL_AIF1_FS_MASK		GENMASK(15, 12)
+#define AC100_SYS_SR_CTRL_AIF2_FS_MASK		GENMASK(11, 8)
+#define AC100_AIF1CLK_CTRL_AIF1_WORD_SIZ_MASK	GENMASK(5, 4)
+#define AC100_AIF1CLK_CTRL_AIF1_LRCK_DIV_MASK	GENMASK(8, 6)
+#endif
+
 struct ac100_codec {
 	struct device	*dev;
 	struct regmap	*regmap;
 	int 		irq;
+};
+
+#if 0
+static int ac100_codec_runtime_resume(struct device *dev)
+{
+	struct ac100_codec *codec = dev_get_drvdata(dev);
+	int ret;
+
+	ret = clk_prepare_enable(codec->clk_module);
+	if (ret) {
+		dev_err(dev, "Failed to enable the module clock\n");
+		return ret;
+	}
+
+	ret = clk_prepare_enable(codec->clk_bus);
+	if (ret) {
+		dev_err(dev, "Failed to enable the bus clock\n");
+		goto err_disable_modclk;
+	}
+
+	regcache_cache_only(codec->regmap, false);
+
+	ret = regcache_sync(codec->regmap);
+	if (ret) {
+		dev_err(dev, "Failed to sync regmap cache\n");
+		goto err_disable_clk;
+	}
+
+	return 0;
+
+err_disable_clk:
+	clk_disable_unprepare(codec->clk_bus);
+
+err_disable_modclk:
+	clk_disable_unprepare(codec->clk_module);
+
+	return ret;
+}
+
+static int ac100_codec_runtime_suspend(struct device *dev)
+{
+	struct ac100_codec *codec = dev_get_drvdata(dev);
+
+	regcache_cache_only(codec->regmap, true);
+	regcache_mark_dirty(codec->regmap);
+
+	clk_disable_unprepare(codec->clk_module);
+	clk_disable_unprepare(codec->clk_bus);
+
+	return 0;
+}
+#endif
+
+// {{{ DAI
+
+static int ac100_set_fmt(struct snd_soc_dai *dai, unsigned int fmt)
+{
+	struct ac100_codec *codec = snd_soc_codec_get_drvdata(dai->codec);
+	u32 value;
+
+	/* clock masters */
+	switch (fmt & SND_SOC_DAIFMT_MASTER_MASK) {
+	case SND_SOC_DAIFMT_CBS_CFS: /* DAI Slave */
+		value = 0x0; /* Codec Master */
+		break;
+	case SND_SOC_DAIFMT_CBM_CFM: /* DAI Master */
+		value = 0x1; /* Codec Slave */
+		break;
+	default:
+		return -EINVAL;
+	}
+	regmap_update_bits(codec->regmap, AC100_AIF1CLK_CTRL,
+			   BIT(AC100_AIF1CLK_CTRL_AIF1_MSTR_MOD),
+			   value << AC100_AIF1CLK_CTRL_AIF1_MSTR_MOD);
+
+	/* clock inversion */
+	switch (fmt & SND_SOC_DAIFMT_INV_MASK) {
+	case SND_SOC_DAIFMT_NB_NF: /* Normal */
+		value = 0x0;
+		break;
+	case SND_SOC_DAIFMT_IB_IF: /* Inversion */
+		value = 0x1;
+		break;
+	default:
+		return -EINVAL;
+	}
+	regmap_update_bits(codec->regmap, AC100_AIF1CLK_CTRL,
+			   BIT(AC100_AIF1CLK_CTRL_AIF1_BCLK_INV),
+			   value << AC100_AIF1CLK_CTRL_AIF1_BCLK_INV);
+	regmap_update_bits(codec->regmap, AC100_AIF1CLK_CTRL,
+			   BIT(AC100_AIF1CLK_CTRL_AIF1_LRCK_INV),
+			   value << AC100_AIF1CLK_CTRL_AIF1_LRCK_INV);
+
+	/* DAI format */
+	switch (fmt & SND_SOC_DAIFMT_FORMAT_MASK) {
+	case SND_SOC_DAIFMT_I2S:
+		value = 0x0;
+		break;
+	case SND_SOC_DAIFMT_LEFT_J:
+		value = 0x1;
+		break;
+	case SND_SOC_DAIFMT_RIGHT_J:
+		value = 0x2;
+		break;
+	case SND_SOC_DAIFMT_DSP_A:
+	case SND_SOC_DAIFMT_DSP_B:
+		value = 0x3;
+		break;
+	default:
+		return -EINVAL;
+	}
+	regmap_update_bits(codec->regmap, AC100_AIF1CLK_CTRL,
+			   BIT(AC100_AIF1CLK_CTRL_AIF1_DATA_FMT),
+			   value << AC100_AIF1CLK_CTRL_AIF1_DATA_FMT);
+
+	return 0;
+}
+
+static int ac100_codec_hw_params(struct snd_pcm_substream *substream,
+				 struct snd_pcm_hw_params *params,
+				 struct snd_soc_dai *dai)
+{
+	struct ac100_codec *codec = snd_soc_codec_get_drvdata(dai->codec);
+	unsigned int rate = params_rate(params);
+
+	switch (rate) {
+	case 44100:
+	case 48000:
+	default:
+		return -EINVAL;
+	}
+
+	/*
+	 * The CPU DAI handles only a sample of 16 bits. Configure the
+	 * codec to handle this type of sample resolution.
+	 */
+	regmap_update_bits(codec->regmap, AC100_AIF1CLK_CTRL,
+			   AC100_AIF1CLK_CTRL_AIF1_WORD_SIZ_MASK,
+			   AC100_AIF1CLK_CTRL_AIF1_WORD_SIZ_16);
+
+	regmap_update_bits(codec->regmap, AC100_AIF1CLK_CTRL,
+			   AC100_AIF1CLK_CTRL_AIF1_LRCK_DIV_MASK,
+			   AC100_AIF1CLK_CTRL_AIF1_LRCK_DIV_16);
+
+	regmap_update_bits(codec->regmap, AC100_SYS_SR_CTRL,
+			   AC100_SYS_SR_CTRL_AIF1_FS_MASK,
+			   sample_rate << AC100_SYS_SR_CTRL_AIF1_FS);
+	regmap_update_bits(codec->regmap, AC100_SYS_SR_CTRL,
+			   AC100_SYS_SR_CTRL_AIF2_FS_MASK,
+			   sample_rate << AC100_SYS_SR_CTRL_AIF2_FS);
+
+	return 0;
+}
+
+static int ac100_set_sysclk(struct snd_soc_dai *dai, int clk_id,
+			    unsigned int freq, int dir)
+{
+	regmap_update_bits(codec->regmap, AC100_SYSCLK_CTRL,
+			   AC100_SYS_SR_CTRL_AIF2_FS_MASK,
+			   sample_rate << AC100_SYS_SR_CTRL_AIF2_FS);
+	return 0;
+}
+
+static int ac100_set_pll(struct snd_soc_dai *dai, int pll_id, int source,
+			 unsigned int freq_in, unsigned int freq_out)
+{
+	return 0;
+}
+
+static int ac100_set_clkdiv(struct snd_soc_dai *dai, int div_id, int div)
+{
+	return 0;
+}
+
+static int ac100_set_bclk_ratio(struct snd_soc_dai *dai, unsigned int ratio)
+{
+	return 0;
+}
+
+static struct snd_soc_dai_ops ac100_codec_dai_ops = {
+	//.set_sysclk = ac100_set_sysclk,
+	//.set_pll = ac100_set_pll,
+	//.set_clkdiv = ac100_set_clkdiv,
+	//.set_bclk_ratio = ac100_set_bclk_ratio,
+
+	.hw_params = ac100_codec_hw_params,
+	.set_fmt = ac100_set_fmt,
+};
+
+static struct snd_soc_dai_driver ac100_codec_dai = {
+	.name = "ac100",
+	.playback = {
+		.stream_name = "Playback",
+		.channels_min = 1,
+		.channels_max = 2,
+		.rates = SNDRV_PCM_RATE_44100 | SNDRV_PCM_RATE_48000,
+		.formats = SNDRV_PCM_FMTBIT_S16_LE,
+	},
+	.capture = {
+		.stream_name = "Capture",
+		.channels_min = 1,
+		.channels_max = 2,
+		.rates = SNDRV_PCM_RATE_44100 | SNDRV_PCM_RATE_48000,
+		.formats = SNDRV_PCM_FMTBIT_S16_LE,
+	},
+	.ops = &ac100_codec_dai_ops,
+	.symmetric_rates = 1,
+};
+
+// }}}
+// {{{ DAPM
+
+static const struct snd_kcontrol_new ac100_dac_mixer_controls[] = {
+	SOC_DAPM_DOUBLE("AIF1 Slot 0 Digital DAC Playback Switch",
+			AC100_DAC_MXR_SRC,
+			AC100_DAC_MXR_SRC_DACL_MXR_SRC_AIF1DA0L,
+			AC100_DAC_MXR_SRC_DACR_MXR_SRC_AIF1DA0R, 1, 0),
+	SOC_DAPM_DOUBLE("AIF1 Slot 1 Digital DAC Playback Switch",
+			AC100_DAC_MXR_SRC,
+			AC100_DAC_MXR_SRC_DACL_MXR_SRC_AIF1DA1L,
+			AC100_DAC_MXR_SRC_DACR_MXR_SRC_AIF1DA1R, 1, 0),
+	SOC_DAPM_DOUBLE("AIF2 Digital DAC Playback Switch", AC100_DAC_MXR_SRC,
+			AC100_DAC_MXR_SRC_DACL_MXR_SRC_AIF2DACL,
+			AC100_DAC_MXR_SRC_DACR_MXR_SRC_AIF2DACR, 1, 0),
+	SOC_DAPM_DOUBLE("ADC Digital DAC Playback Switch", AC100_DAC_MXR_SRC,
+			AC100_DAC_MXR_SRC_DACL_MXR_SRC_ADCL,
+			AC100_DAC_MXR_SRC_DACR_MXR_SRC_ADCR, 1, 0),
+};
+
+static const struct snd_soc_dapm_widget ac100_codec_dapm_widgets[] = {
+	/* Analogue inputs */
+	SND_SOC_DAPM_INPUT("LINEIN"),
+	SND_SOC_DAPM_INPUT("AXIL"),
+	SND_SOC_DAPM_INPUT("AXIR"),
+	SND_SOC_DAPM_INPUT("MIC1"),
+	SND_SOC_DAPM_INPUT("MIC2"),
+	SND_SOC_DAPM_INPUT("MIC3"),
+
+	/* Analogue outputs */
+	SND_SOC_DAPM_OUTPUT("HPOUTL"),
+	SND_SOC_DAPM_OUTPUT("HPOUTR"),
+	SND_SOC_DAPM_OUTPUT("SPKOUT2"),
+	SND_SOC_DAPM_OUTPUT("SPKOUT1"),
+	SND_SOC_DAPM_OUTPUT("EAROUT"),
+	SND_SOC_DAPM_OUTPUT("LINEOUT"),
+
+	/* AIF for I2S1 port */
+	SND_SOC_DAPM_AIF_IN("I2S1 Slot 0 Left", "Playback", 0,
+			    AC100_AIF1_DACDAT_CTRL,
+			    AC100_AIF1_DACDAT_CTRL_AIF1_DA0L_ENA, 0),
+	SND_SOC_DAPM_AIF_IN("I2S1 Slot 0 Right", "Playback", 0,
+			    AC100_AIF1_DACDAT_CTRL,
+			    AC100_AIF1_DACDAT_CTRL_AIF1_DA0R_ENA, 0),
+	SND_SOC_DAPM_AIF_IN("I2S1 Slot 1 Left", "Playback", 0,
+			    AC100_AIF1_DACDAT_CTRL,
+			    AC100_AIF1_DACDAT_CTRL_AIF1_DA0L_ENA, 0),
+	SND_SOC_DAPM_AIF_IN("I2S1 Slot 1 Right", "Playback", 0,
+			    AC100_AIF1_DACDAT_CTRL,
+			    AC100_AIF1_DACDAT_CTRL_AIF1_DA0R_ENA, 0),
+	SND_SOC_DAPM_AIF_OUT("I2S1 Slot 0 Left", "Capture", 0,
+			    AC100_AIF1_DACDAT_CTRL,
+			    AC100_AIF1_DACDAT_CTRL_AIF1_DA0L_ENA, 0),
+	SND_SOC_DAPM_AIF_OUT("I2S1 Slot 0 Right", "Capture", 0,
+			    AC100_AIF1_DACDAT_CTRL,
+			    AC100_AIF1_DACDAT_CTRL_AIF1_DA0R_ENA, 0),
+	SND_SOC_DAPM_AIF_OUT("I2S1 Slot 1 Left", "Capture", 0,
+			    AC100_AIF1_DACDAT_CTRL,
+			    AC100_AIF1_DACDAT_CTRL_AIF1_DA0L_ENA, 0),
+	SND_SOC_DAPM_AIF_OUT("I2S1 Slot 1 Right", "Capture", 0,
+			    AC100_AIF1_DACDAT_CTRL,
+			    AC100_AIF1_DACDAT_CTRL_AIF1_DA0R_ENA, 0),
+
+	/* AIF for I2S2 port */
+	SND_SOC_DAPM_AIF_IN("I2S2 Left", "Playback", 0,
+			    AC100_AIF1_DACDAT_CTRL,
+			    AC100_AIF1_DACDAT_CTRL_AIF1_DA0L_ENA, 0),
+	SND_SOC_DAPM_AIF_IN("I2S2 Right", "Playback", 0,
+			    AC100_AIF1_DACDAT_CTRL,
+			    AC100_AIF1_DACDAT_CTRL_AIF1_DA0R_ENA, 0),
+	SND_SOC_DAPM_AIF_OUT("I2S2 Left", "Capture", 0,
+			    AC100_AIF1_DACDAT_CTRL,
+			    AC100_AIF1_DACDAT_CTRL_AIF1_DA0L_ENA, 0),
+	SND_SOC_DAPM_AIF_OUT("I2S2 Right", "Capture", 0,
+			    AC100_AIF1_DACDAT_CTRL,
+			    AC100_AIF1_DACDAT_CTRL_AIF1_DA0R_ENA, 0),
+
+	/* AIF for I2S3/PCM port */
+	SND_SOC_DAPM_AIF_IN("I2S3", "Playback", 0,
+			    AC100_AIF1_DACDAT_CTRL,
+			    AC100_AIF1_DACDAT_CTRL_AIF1_DA0L_ENA, 0),
+	SND_SOC_DAPM_AIF_OUT("I2S3", "Capture", 0,
+			    AC100_AIF1_DACDAT_CTRL,
+			    AC100_AIF1_DACDAT_CTRL_AIF1_DA0R_ENA, 0),
+
+	/* muxes */
+	SND_SOC_DAPM_MUX("HOUTL Source",
+			 SND_SOC_NOPM, 0, 0, sun8i_codec_lineout_src),
+	SND_SOC_DAPM_MUX("HOUTR Source",
+			 SND_SOC_NOPM, 0, 0, sun8i_codec_lineout_src),
+	SND_SOC_DAPM_MUX("EAROUT Source",
+			 SND_SOC_NOPM, 0, 0, sun8i_codec_lineout_src),
+
+	/* mixers */
+
+	SND_SOC_DAPM_MUX("SPKOUT1 Source",
+			 SND_SOC_NOPM, 0, 0, sun8i_codec_lineout_src),
+	SND_SOC_DAPM_MUX("SPKOUT2 Source",
+			 SND_SOC_NOPM, 0, 0, sun8i_codec_lineout_src),
+
+	/* It is unclear if this is a buffer or gate, model it as a supply */
+	SND_SOC_DAPM_SUPPLY("Line Out Enable", SUN8I_ADDA_PAEN_HP_CTRL,
+			    SUN8I_ADDA_PAEN_HP_CTRL_LINEOUTEN, 0, NULL, 0),
+
+	SND_SOC_DAPM_MIXER("Left ADC Input Mixer", SUN8I_ADDA_DAC_PA_SRC,
+			   SUN8I_ADDA_DAC_PA_SRC_LMIXEN, 0,
+			   sun8i_codec_mixer_controls,
+			   ARRAY_SIZE(sun8i_codec_mixer_controls)),
+	SND_SOC_DAPM_MIXER("Right ADC Input Mixer", SUN8I_ADDA_DAC_PA_SRC,
+			   SUN8I_ADDA_DAC_PA_SRC_RMIXEN, 0,
+			   sun8i_codec_mixer_controls,
+			   ARRAY_SIZE(sun8i_codec_mixer_controls)),
+	SND_SOC_DAPM_MIXER("Left ADC Ouput Mixer", SUN8I_ADDA_ADC_AP_EN,
+			   SUN8I_ADDA_ADC_AP_EN_ADCLEN, 0,
+			   sun8i_codec_adc_mixer_controls,
+			   ARRAY_SIZE(sun8i_codec_adc_mixer_controls)),
+	SND_SOC_DAPM_MIXER("Right ADC Output Mixer", SUN8I_ADDA_ADC_AP_EN,
+			   SUN8I_ADDA_ADC_AP_EN_ADCREN, 0,
+			   sun8i_codec_adc_mixer_controls,
+			   ARRAY_SIZE(sun8i_codec_adc_mixer_controls)),
+
+	/* digitam muxes */
+
+
+	SND_SOC_DAPM_MUX("Headphone Source Playback Route",
+			 SND_SOC_NOPM, 0, 0, sun8i_codec_hp_src),
+	SND_SOC_DAPM_OUT_DRV_E("Headphone Amp", SUN8I_ADDA_PAEN_HP_CTRL,
+			       SUN8I_ADDA_PAEN_HP_CTRL_HPPAEN, 0, NULL, 0,
+			       sun8i_headphone_amp_event,
+			       SND_SOC_DAPM_PRE_PMU | SND_SOC_DAPM_PRE_PMD),
+	SND_SOC_DAPM_SUPPLY("HPCOM Protection", SUN8I_ADDA_PAEN_HP_CTRL,
+			    SUN8I_ADDA_PAEN_HP_CTRL_COMPTEN, 0, NULL, 0),
+	SND_SOC_DAPM_REG(snd_soc_dapm_supply, "HPCOM", SUN8I_ADDA_PAEN_HP_CTRL,
+			 SUN8I_ADDA_PAEN_HP_CTRL_HPCOM_FC, 0x3, 0x3, 0),
+	SND_SOC_DAPM_OUTPUT("HP"),
+
+
+	/* Digital parts of the DACs */
+	SND_SOC_DAPM_SUPPLY("DAC", AC100_DAC_DIG_CTRL, AC100_DAC_DIG_CTRL_ENDA,
+			    0, NULL, 0),
+
+	/* DAC Mixers */
+	SOC_MIXER_ARRAY("Left Digital DAC Mixer", SND_SOC_NOPM, 0, 0,
+			ac100_dac_mixer_controls),
+	SOC_MIXER_ARRAY("Right Digital DAC Mixer", SND_SOC_NOPM, 0, 0,
+			ac100_dac_mixer_controls),
+
+	/* Clocks */
+	SND_SOC_DAPM_SUPPLY("MODCLK AFI1", AC100_MOD_CLK_ENA,
+			    AC100_MOD_CLK_ENA_AIF1, 0, NULL, 0),
+	SND_SOC_DAPM_SUPPLY("MODCLK DAC", AC100_MOD_CLK_ENA,
+			    AC100_MOD_CLK_ENA_DAC, 0, NULL, 0),
+	SND_SOC_DAPM_SUPPLY("AIF1", AC100_SYSCLK_CTL,
+			    AC100_SYSCLK_CTL_AIF1CLK_ENA, 0, NULL, 0),
+	SND_SOC_DAPM_SUPPLY("SYSCLK", AC100_SYSCLK_CTL,
+			    AC100_SYSCLK_CTL_SYSCLK_ENA, 0, NULL, 0),
+
+	SND_SOC_DAPM_SUPPLY("AIF1 PLL", AC100_SYSCLK_CTL,
+			    AC100_SYSCLK_CTL_AIF1CLK_SRC_PLL, 0, NULL, 0),
+	/* Inversion as 0=AIF1, 1=AIF2 */
+	SND_SOC_DAPM_SUPPLY("SYSCLK AIF1", AC100_SYSCLK_CTL,
+			    AC100_SYSCLK_CTL_SYSCLK_SRC, 1, NULL, 0),
+
+	/* Module reset */
+	SND_SOC_DAPM_SUPPLY("RST AIF1", AC100_MOD_RST_CTL,
+			    AC100_MOD_RST_CTL_AIF1, 0, NULL, 0),
+	SND_SOC_DAPM_SUPPLY("RST DAC", AC100_MOD_RST_CTL,
+			    AC100_MOD_RST_CTL_DAC, 0, NULL, 0),
+
+	SND_SOC_DAPM_SUPPLY("MBIAS", SUN8I_ADDA_MIC1G_MICBIAS_CTRL,
+			    SUN8I_ADDA_MIC1G_MICBIAS_CTRL_MMICBIASEN,
+			    0, NULL, 0),
+
+	SND_SOC_DAPM_SUPPLY("HBIAS", SUN8I_ADDA_MIC1G_MICBIAS_CTRL,
+			    SUN8I_ADDA_MIC1G_MICBIAS_CTRL_HMICBIASEN,
+			    0, NULL, 0),
+
+	SND_SOC_DAPM_INPUT("LINEIN"),
+
+	SND_SOC_DAPM_MUX("Line Out Source Playback Route",
+			 SND_SOC_NOPM, 0, 0, sun8i_codec_lineout_src),
+	/* It is unclear if this is a buffer or gate, model it as a supply */
+	SND_SOC_DAPM_SUPPLY("Line Out Enable", SUN8I_ADDA_PAEN_HP_CTRL,
+			    SUN8I_ADDA_PAEN_HP_CTRL_LINEOUTEN, 0, NULL, 0),
+	SND_SOC_DAPM_OUTPUT("LINEOUT"),
+
+
+	SND_SOC_DAPM_MIC(wname, wevent)
+	SND_SOC_DAPM_HP(wname, wevent)
+	SND_SOC_DAPM_SPK(wname, wevent)
+	SND_SOC_DAPM_LINE(wname, wevent)
+};
+
+static const struct snd_soc_dapm_route ac100_codec_dapm_routes[] = {
+	/* Clock Routes */
+	{ "AIF1", NULL, "SYSCLK AIF1" },
+	{ "AIF1 PLL", NULL, "AIF1" },
+	{ "RST AIF1", NULL, "AIF1 PLL" },
+	{ "MODCLK AFI1", NULL, "RST AIF1" },
+	{ "DAC", NULL, "MODCLK AFI1" },
+
+	{ "RST DAC", NULL, "SYSCLK" },
+	{ "MODCLK DAC", NULL, "RST DAC" },
+	{ "DAC", NULL, "MODCLK DAC" },
+
+	{ "Headphone Source Playback Route", "DAC", "Left DAC" },
+	{ "Headphone Source Playback Route", "DAC", "Right DAC" },
+	{ "Headphone Source Playback Route", "Mixer", "Left Mixer" },
+	{ "Headphone Source Playback Route", "Mixer", "Right Mixer" },
+	{ "Headphone Amp", NULL, "Headphone Source Playback Route" },
+	{ "HPCOM", NULL, "HPCOM Protection" },
+	{ "HP", NULL, "Headphone Amp" },
+
+	/* DAC Routes */
+	{ "AIF1 Slot 0 Right", NULL, "DAC" },
+	{ "AIF1 Slot 0 Left", NULL, "DAC" },
+
+	/* DAC Mixer Routes */
+	{ "Left Digital DAC Mixer", "AIF1 Slot 0 Digital DAC Playback Switch",
+	  "AIF1 Slot 0 Left"},
+	{ "Right Digital DAC Mixer", "AIF1 Slot 0 Digital DAC Playback Switch",
+	  "AIF1 Slot 0 Right"},
+};
+
+// }}}
+
+static struct snd_soc_codec_driver ac100_soc_codec = {
+	.component_driver = {
+		.dapm_widgets		= ac100_codec_dapm_widgets,
+		.num_dapm_widgets	= ARRAY_SIZE(ac100_codec_dapm_widgets),
+		.dapm_routes		= ac100_codec_dapm_routes,
+		.num_dapm_routes	= ARRAY_SIZE(ac100_codec_dapm_routes),
+	},
 };
 
 static irqreturn_t ac100_codec_irq(int irq, void *data)
@@ -233,6 +682,7 @@ static int ac100_codec_probe(struct platform_device *pdev)
 {
 	struct ac100_dev *ac100 = dev_get_drvdata(pdev->dev.parent);
 	struct ac100_codec *codec;
+	unsigned int val = 0;
 	int ret;
 
 	codec = devm_kzalloc(&pdev->dev, sizeof(*codec), GFP_KERNEL);
@@ -258,13 +708,92 @@ static int ac100_codec_probe(struct platform_device *pdev)
 		return ret;
 	}
 
+	/* probe */
+	ret = regmap_read(codec->regmap, AC100_CHIP_AUDIO_RST, &val);
+	if (ret)
+		return ret;
+
+	dev_info(codec->dev, "AC100 codec registered (chip=%04x)\n", val);
+
+	/* reset chip */
+	ret = regmap_write(codec->regmap, AC100_CHIP_AUDIO_RST, 0);
+	if (ret)
+		return ret;
+
+#if 0
+
+	codec->clk_module = devm_clk_get(&pdev->dev, "mod");
+	if (IS_ERR(codec->clk_module)) {
+		dev_err(&pdev->dev, "Failed to get the module clock\n");
+		return PTR_ERR(codec->clk_module);
+	}
+
+	codec->clk_bus = devm_clk_get(&pdev->dev, "bus");
+	if (IS_ERR(codec->clk_bus)) {
+		dev_err(&pdev->dev, "Failed to get the bus clock\n");
+		return PTR_ERR(codec->clk_bus);
+	}
+
+	res_base = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	base = devm_ioremap_resource(&pdev->dev, res_base);
+	if (IS_ERR(base)) {
+		dev_err(&pdev->dev, "Failed to map the registers\n");
+		return PTR_ERR(base);
+	}
+
+	codec->regmap = devm_regmap_init_mmio(&pdev->dev, base,
+					       &ac100_codec_regmap_config);
+	if (IS_ERR(codec->regmap)) {
+		dev_err(&pdev->dev, "Failed to create our regmap\n");
+		return PTR_ERR(codec->regmap);
+	}
+
+	platform_set_drvdata(pdev, codec);
+
+	pm_runtime_enable(&pdev->dev);
+	if (!pm_runtime_enabled(&pdev->dev)) {
+		ret = ac100_codec_runtime_resume(&pdev->dev);
+		if (ret)
+			goto err_pm_disable;
+	}
+
+#endif
+	ret = snd_soc_register_codec(&pdev->dev, &ac100_soc_codec,
+				     &ac100_codec_dai, 1);
+	if (ret) {
+		dev_err(&pdev->dev, "Failed to register codec\n");
+		return ret;
+	}
+
+	return 0;
+#if 0
+
+err_suspend:
+	if (!pm_runtime_status_suspended(&pdev->dev))
+		ac100_codec_runtime_suspend(&pdev->dev);
+
+err_pm_disable:
+	pm_runtime_disable(&pdev->dev);
+
 	return ret;
+#endif
 }
 
 static int ac100_codec_remove(struct platform_device *pdev)
 {
 	struct snd_soc_card *card = platform_get_drvdata(pdev);
 	struct ac100_codec *codec = snd_soc_card_get_drvdata(card);
+
+#if 0
+	pm_runtime_disable(&pdev->dev);
+	if (!pm_runtime_status_suspended(&pdev->dev))
+		ac100_codec_runtime_suspend(&pdev->dev);
+
+	clk_disable_unprepare(codec->clk_module);
+	clk_disable_unprepare(codec->clk_bus);
+#endif
+
+	snd_soc_unregister_codec(&pdev->dev);
 
 	return 0;
 }
@@ -275,10 +804,18 @@ static const struct of_device_id ac100_codec_of_match[] = {
 };
 MODULE_DEVICE_TABLE(of, ac100_codec_of_match);
 
+#if 0
+static const struct dev_pm_ops ac100_codec_pm_ops = {
+	SET_RUNTIME_PM_OPS(ac100_codec_runtime_suspend,
+			   ac100_codec_runtime_resume, NULL)
+};
+#endif
+
 static struct platform_driver ac100_codec_driver = {
 	.driver = {
 		.name = "ac100-codec",
 		.of_match_table = ac100_codec_of_match,
+		//.pm = &ac100_codec_pm_ops,
 	},
 	.probe = ac100_codec_probe,
 	.remove = ac100_codec_remove,
