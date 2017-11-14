@@ -892,6 +892,8 @@ static struct mfd_cell axp813_cells[] = {
 	}, {
 		.name			= "axp813-adc",
 	}, {
+		.name			= "axp813_charger",
+	}, {
 		.name			= "axp20x-battery-power-supply",
 		.of_compatible		= "x-powers,axp813-battery-power-supply",
 	}, {

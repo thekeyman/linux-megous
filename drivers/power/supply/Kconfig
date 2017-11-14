@@ -293,6 +293,13 @@ config AXP288_FUEL_GAUGE
 	  monitoring as well as alerts for battery over/under voltage and
 	  over/under temperature.
 
+config AXP813_CHARGER
+	tristate "X-Powers AXP813 Charger"
+	depends on MFD_AXP20X
+	help
+	  Say yes here to have support X-Powers AXP813 power management IC
+	  (PMIC) integrated charger.
+
 config BATTERY_MAX17040
 	tristate "Maxim MAX17040 Fuel Gauge"
 	depends on I2C
