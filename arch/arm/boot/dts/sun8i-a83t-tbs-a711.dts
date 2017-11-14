@@ -190,6 +190,86 @@
 	cpu-supply = <&reg_dcdc3>;
 };
 
+&cpu0_thermal {
+	trips {
+		cpu0_warm: cpu_warm {
+			temperature = <70000>;
+			hysteresis = <2000>;
+			type = "passive";
+		};
+		cpu0_hot: cpu_hot {
+			temperature = <80000>;
+			hysteresis = <2000>;
+			type = "passive";
+		};
+		cpu0_very_hot: cpu_very_hot {
+			temperature = <90000>;
+			hysteresis = <2000>;
+			type = "passive";
+		};
+		cpu0_crit: cpu_crit {
+			temperature = <105000>;
+			hysteresis = <2000>;
+			type = "critical";
+		};
+	};
+
+	cooling-maps {
+		cpu_warm_limit_cpu {
+			trip = <&cpu0_warm>;
+			cooling-device = <&cpu0 THERMAL_NO_LIMIT 4>;
+		};
+		cpu_hot_limit_cpu {
+			trip = <&cpu0_hot>;
+			cooling-device = <&cpu0 5 5>;
+		};
+		cpu_very_hot_limit_cpu {
+			trip = <&cpu0_very_hot>;
+			cooling-device = <&cpu0 7 THERMAL_NO_LIMIT>;
+		};
+	};
+};
+
+&cpu1_thermal {
+	trips {
+		cpu1_warm: cpu_warm {
+			temperature = <70000>;
+			hysteresis = <2000>;
+			type = "passive";
+		};
+		cpu1_hot: cpu_hot {
+			temperature = <80000>;
+			hysteresis = <2000>;
+			type = "passive";
+		};
+		cpu1_very_hot: cpu_very_hot {
+			temperature = <90000>;
+			hysteresis = <2000>;
+			type = "passive";
+		};
+		cpu1_crit: cpu_crit {
+			temperature = <105000>;
+			hysteresis = <2000>;
+			type = "critical";
+		};
+	};
+
+	cooling-maps {
+		cpu_warm_limit_cpu {
+			trip = <&cpu1_warm>;
+			cooling-device = <&cpu100 THERMAL_NO_LIMIT 4>;
+		};
+		cpu_hot_limit_cpu {
+			trip = <&cpu1_hot>;
+			cooling-device = <&cpu100 5 5>;
+		};
+		cpu_very_hot_limit_cpu {
+			trip = <&cpu1_very_hot>;
+			cooling-device = <&cpu100 7 THERMAL_NO_LIMIT>;
+		};
+	};
+};
+
 &csi0 {
 	status = "okay";
 	pinctrl-names = "default";
