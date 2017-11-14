@@ -32,8 +32,11 @@
 #include <linux/iio/consumer.h>
 #include <linux/mfd/axp20x.h>
 
+#define AXP20X_PWR_STATUS_ACIN_AVAIL    BIT(6)
+#define AXP20X_PWR_STATUS_VBUS_USED     BIT(4)
 #define AXP20X_PWR_STATUS_BAT_CHARGING	BIT(2)
 
+#define AXP813_PWR_OP_CHRG_INDICATION	BIT(6)
 #define AXP20X_PWR_OP_BATT_PRESENT	BIT(5)
 #define AXP20X_PWR_OP_BATT_ACTIVATED	BIT(3)
 
@@ -201,7 +204,7 @@ static int axp20x_battery_get_prop(struct power_supply *psy,
 {
 	struct axp20x_batt_ps *axp20x_batt = power_supply_get_drvdata(psy);
 	struct iio_channel *chan;
-	int ret = 0, reg, val1;
+	int ret = 0, reg, val1, val2;
 
 	switch (psp) {
 	case POWER_SUPPLY_PROP_PRESENT:
@@ -215,15 +218,38 @@ static int axp20x_battery_get_prop(struct power_supply *psy,
 		break;
 
 	case POWER_SUPPLY_PROP_STATUS:
-		ret = regmap_read(axp20x_batt->regmap, AXP20X_PWR_INPUT_STATUS,
+		/* FIXME The reporting is wrong in case of unsufficient power */
+		/* FIXME And if there is no battery? */
+		ret = regmap_read(axp20x_batt->regmap, AXP20X_PWR_OP_MODE,
 				  &reg);
 		if (ret)
 			return ret;
-
-		if (reg & AXP20X_PWR_STATUS_BAT_CHARGING) {
+		/* XXX Test for charging current was here */
+		if (reg & AXP813_PWR_OP_CHRG_INDICATION) {
 			val->intval = POWER_SUPPLY_STATUS_CHARGING;
 			return 0;
 		}
+
+		ret = regmap_read(axp20x_batt->regmap, AXP20X_FG_RES, &val1);
+		if (ret)
+			return ret;
+
+		ret = regmap_read(axp20x_batt->regmap, AXP20X_PWR_INPUT_STATUS, &val2);
+		if (ret)
+			return ret;
+
+		/*
+		 * Fuel Gauge data takes 7 bits but the stored value seems to be
+		 * directly the raw percentage without any scaling to 7 bits.
+		 */
+		if ((val1 & AXP209_FG_PERCENT) == 100
+			&& !(reg & AXP813_PWR_OP_CHRG_INDICATION)
+			&& val2 & (AXP20X_PWR_STATUS_ACIN_AVAIL | AXP20X_PWR_STATUS_VBUS_USED)
+		) {
+			val->intval = POWER_SUPPLY_STATUS_FULL;
+			return 0;
+		}
+
 
 		ret = iio_read_channel_processed(axp20x_batt->batt_dischrg_i,
 						 &val1);
@@ -235,18 +261,9 @@ static int axp20x_battery_get_prop(struct power_supply *psy,
 			return 0;
 		}
 
-		ret = regmap_read(axp20x_batt->regmap, AXP20X_FG_RES, &val1);
-		if (ret)
-			return ret;
+		val->intval = POWER_SUPPLY_STATUS_NOT_CHARGING;
+		return 0;
 
-		/*
-		 * Fuel Gauge data takes 7 bits but the stored value seems to be
-		 * directly the raw percentage without any scaling to 7 bits.
-		 */
-		if ((val1 & AXP209_FG_PERCENT) == 100)
-			val->intval = POWER_SUPPLY_STATUS_FULL;
-		else
-			val->intval = POWER_SUPPLY_STATUS_NOT_CHARGING;
 		break;
 
 	case POWER_SUPPLY_PROP_HEALTH:
