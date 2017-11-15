@@ -175,12 +175,12 @@
 &cpu0_thermal {
 	trips {
 		cpu0_warm: cpu_warm {
-			temperature = <65000>;
+			temperature = <70000>;
 			hysteresis = <2000>;
 			type = "passive";
 		};
 		cpu0_hot: cpu_hot {
-			temperature = <75000>;
+			temperature = <80000>;
 			hysteresis = <2000>;
 			type = "passive";
 		};
@@ -215,12 +215,12 @@
 &cpu1_thermal {
 	trips {
 		cpu1_warm: cpu_warm {
-			temperature = <65000>;
+			temperature = <70000>;
 			hysteresis = <2000>;
 			type = "passive";
 		};
 		cpu1_hot: cpu_hot {
-			temperature = <75000>;
+			temperature = <80000>;
 			hysteresis = <2000>;
 			type = "passive";
 		};
