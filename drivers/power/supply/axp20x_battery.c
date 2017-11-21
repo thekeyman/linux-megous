@@ -700,6 +700,7 @@ static ssize_t axp813_set_chgled_type(struct device *dev,
 	return count;
 }
 
+/* Inspired by https://github.com/zador-blood-stained/axp209-sysfs-interface/blob/master/axp20x-sysfs-interface.patch */
 static ssize_t ocv_curve_read(struct file *filp,
 			struct kobject *kobj,
 			struct bin_attribute *bin_attr,
@@ -719,6 +720,25 @@ static ssize_t ocv_curve_read(struct file *filp,
 	return count;
 }
 
+static ssize_t ocv_curve_write(struct file *filp,
+			struct kobject *kobj,
+			struct bin_attribute *bin_attr,
+			char *buf, loff_t off, size_t count)
+{
+	int ret;
+
+	struct device *dev = container_of(kobj, struct device, kobj);
+	struct power_supply *psy = dev_get_drvdata(dev);
+	struct axp20x_batt_ps *axp20x_batt = power_supply_get_drvdata(psy);
+
+	ret = regmap_bulk_write(axp20x_batt->regmap, AXP20X_OCV(off), buf, count);
+	if (ret < 0) {
+		dev_err(axp20x_batt->dev, "error writing ocv curve: %d\n", ret);
+		return ret;
+	}
+	return count;
+}
+
 static DEVICE_ATTR(charger_enabled, S_IRUGO | S_IWUSR, axp813_get_charger_enabled,
 	axp813_set_charger_enabled);
 static DEVICE_ATTR(chgled_control, S_IRUGO | S_IWUSR, axp813_get_chgled_control,
@@ -727,7 +747,7 @@ static DEVICE_ATTR(chgled_type, S_IRUGO | S_IWUSR, axp813_get_chgled_type,
 	axp813_set_chgled_type);
 static DEVICE_ATTR(chgled_direct_control, S_IRUGO | S_IWUSR,
 	axp813_get_chgled_direct_control, axp813_set_chgled_direct_control);
-static BIN_ATTR_RO(ocv_curve, AXP813_OCV_MAX + 1);
+static BIN_ATTR_RW(ocv_curve, AXP813_OCV_MAX + 1);
 
 static struct attribute *axp20x_attributes[] = {
 	&dev_attr_charger_enabled.attr,
