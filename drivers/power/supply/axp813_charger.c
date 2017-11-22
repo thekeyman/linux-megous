@@ -4,7 +4,7 @@
  * Copyright (C) 2017 Touchless Biometric Systems AG
  * Author: Tomas Novotny <tomas.novotny@tbs-biometrics.com>
  *
- * Updated version of axp288_charger.c, original copyright:
+ * Updated version of axp288_charger.c:
  * Copyright (C) 2014 Intel Corporation
  * Author: Ramakrishna Pallala <ramakrishna.pallala@intel.com>
  *
@@ -22,9 +22,6 @@
  * This driver is mainly a configuration of our (TBS) charger.
  */
 
-// XXX
-//#define DEBUG
-
 #include <linux/module.h>
 #include <linux/device.h>
 #include <linux/regmap.h>
@@ -36,19 +33,19 @@
 
 #define CHRG_CCCV_CHG_EN		(1 << 7)
 
-// TODO Nepouzite, ale melo by se pouzit
-#define CNTL2_CC_TIMEOUT_MASK		0x3	/* 2 bits */
-#define CNTL2_CC_TIMEOUT_OFFSET		6	/* 6 Hrs */
-#define CNTL2_CC_TIMEOUT_LSB_RES	2	/* 2 Hrs */
-#define CNTL2_CC_TIMEOUT_12HRS		0x3	/* 12 Hrs */
-#define CNTL2_CHGLED_TYPEB		(1 << 4)
+#define CNTL2_CC_TIMEOUT_MASK		0x03	/* 2 bits */
+#define CNTL2_CC_TIMEOUT_BIT_POS	0
+#define CNTL2_CC_TIMEOUT_10HRS		0x02	/* 10 Hrs */
+#define CNTL2_CC_TIMEOUT_12HRS		0x03	/* 12 Hrs */
 #define CNTL2_CHG_OUT_TURNON		(1 << 5)
 #define CNTL2_PC_TIMEOUT_MASK		0xC0
-#define CNTL2_PC_TIMEOUT_OFFSET		40	/* 40 mins */
-#define CNTL2_PC_TIMEOUT_LSB_RES	10	/* 10 mins */
-#define CNTL2_PC_TIMEOUT_70MINS		0x3
+#define CNTL2_PC_TIMEOUT_BIT_POS	6
+#define CNTL2_PC_TIMEOUT_60MINS		0x02
+#define CNTL2_PC_TIMEOUT_70MINS		0x03
+#define OFF_CNTL_CHGLED_DIRECT_CONTROL	GENMASK(5, 4)
+#define OFF_CNTL_CHGLED_CONTROL		BIT(3)
+#define CNTL2_CHGLED_TYPE		BIT(4)
 
-// Vychozi hodnoty
 #define CHRG_VLTFC_0C			0xA5	/* 0 DegC */
 #define CHRG_VHTFC_45C			0x1F	/* 45 DegC */
 
@@ -83,7 +80,6 @@ struct axp813_chrg_info {
 };
 
 
-// XXX smazat z meho sysfs u baterky axp20x
 static int axp813_charger_enable_charger(struct axp813_chrg_info *info,
 								bool enable)
 {
@@ -293,7 +289,6 @@ out:
 static int charger_init_hw_regs(struct axp813_chrg_info *info)
 {
 	int ret;
-	unsigned int val;
 
 	/* Program temperature thresholds */
 	ret = regmap_write(info->regmap, AXP20X_V_LTF_CHRG, CHRG_VLTFC_0C);
@@ -312,8 +307,6 @@ static int charger_init_hw_regs(struct axp813_chrg_info *info)
 
 	/* TODO work thresholds? */
 
-	/* TODO enabled, right? */
-	/* XXX Is that reset in some condition? */
 	/* Do not turn-off charger o/p after charge cycle ends */
 	ret = regmap_update_bits(info->regmap,
 				AXP20X_CHRG_CTRL2,
@@ -325,14 +318,6 @@ static int charger_init_hw_regs(struct axp813_chrg_info *info)
 	}
 
 	/* Setup ending condition for charging to be 10% of I(chrg) */
-        ret = regmap_read(info->regmap, AXP20X_CHRG_CTRL1, &val);
-        if (ret < 0)
-                dev_err(&info->pdev->dev, "register(%x) read error(%d)\n",
-                                                        AXP20X_CHRG_CTRL1, ret);
-        else
-                dev_dbg(&info->pdev->dev, "register(%x) old content: 0x%02x\n",
-                                                        AXP20X_CHRG_CTRL1, val);
-
 	// TODO Consider 20%
 	ret = regmap_update_bits(info->regmap,
 				AXP20X_CHRG_CTRL1,
@@ -340,6 +325,44 @@ static int charger_init_hw_regs(struct axp813_chrg_info *info)
 	if (ret < 0) {
 		dev_err(&info->pdev->dev, "register(%x) write error(%d)\n",
 						AXP20X_CHRG_CTRL1, ret);
+		return ret;
+	}
+
+	/* Pre-charge timer */
+	ret = regmap_update_bits(info->regmap,
+				AXP20X_CHRG_CTRL2,
+				CNTL2_PC_TIMEOUT_MASK,
+				CNTL2_PC_TIMEOUT_60MINS << CNTL2_PC_TIMEOUT_BIT_POS);
+	if (ret < 0) {
+		dev_err(&info->pdev->dev, "register(%x) write error(%d)\n",
+						AXP20X_CHRG_CTRL2, ret);
+		return ret;
+	}
+
+	/* Fast charge max time */
+	ret = regmap_update_bits(info->regmap,
+				AXP20X_CHRG_CTRL2,
+				CNTL2_CC_TIMEOUT_MASK,
+				CNTL2_CC_TIMEOUT_12HRS << CNTL2_CC_TIMEOUT_BIT_POS);
+	if (ret < 0) {
+		dev_err(&info->pdev->dev, "register(%x) write error(%d)\n",
+						AXP20X_CHRG_CTRL2, ret);
+		return ret;
+	}
+
+	/* Charger led */
+	ret = regmap_update_bits(info->regmap, AXP20X_OFF_CTRL,
+				OFF_CNTL_CHGLED_CONTROL, OFF_CNTL_CHGLED_CONTROL);
+	if (ret < 0) {
+		dev_err(&info->pdev->dev, "register(%x) write error(%d)\n",
+						AXP20X_OFF_CTRL, ret);
+		return ret;
+	}
+	ret = regmap_update_bits(info->regmap, AXP20X_CHRG_CTRL2,
+				CNTL2_CHGLED_TYPE, CNTL2_CHGLED_TYPE);
+	if (ret < 0) {
+		dev_err(&info->pdev->dev, "register(%x) write error(%d)\n",
+						AXP20X_CHRG_CTRL2, ret);
 		return ret;
 	}
 
