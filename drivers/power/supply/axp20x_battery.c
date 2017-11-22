@@ -40,6 +40,12 @@
 #define AXP20X_PWR_OP_BATT_PRESENT	BIT(5)
 #define AXP20X_PWR_OP_BATT_ACTIVATED	BIT(3)
 
+#define AXP288_RDC1_CALC		BIT(7)
+#define AXP288_RDC1_RIGHT		BIT(6)
+#define AXP288_RDC1_RDC_H		GENMASK(4, 0)
+#define AXP288_FG_T4_RDC_VOLT		GENMASK(4, 3)
+#define AXP288_FG_T4_RDC_VOLT_3V6	(1 << 3)
+
 #define AXP209_FG_PERCENT		GENMASK(6, 0)
 #define AXP22X_FG_VALID			BIT(7)
 
@@ -506,6 +512,47 @@ static int axp20x_battery_prop_writeable(struct power_supply *psy,
 	       psp == POWER_SUPPLY_PROP_CONSTANT_CHARGE_CURRENT_MAX;
 }
 
+static int axp813_setup_battery_rdc(struct axp20x_batt_ps *axp)
+{
+	int ret;
+	unsigned int rdc, rdc1, rdc0;
+
+	ret = regmap_update_bits(axp->regmap, AXP288_FG_RDC1_REG,
+				AXP288_RDC1_CALC, AXP288_RDC1_CALC);
+	if (ret)
+		return ret;
+
+	/*
+	 * Set higher voltage for calibration. The default 3.5V is
+	 * a bit low, because calibration may be triggered at
+	 * a very low baterry levels (causing shutdown at 1% of
+	 * battery capacity).
+	 */
+	ret = regmap_update_bits(axp->regmap, AXP288_FG_TUNE4,
+				AXP288_FG_T4_RDC_VOLT,
+				AXP288_FG_T4_RDC_VOLT_3V6);
+	if (ret)
+		return ret;
+
+	ret = regmap_read(axp->regmap, AXP288_FG_RDC1_REG, &rdc1);
+	if (ret)
+		return ret;
+
+	ret = regmap_read(axp->regmap, AXP288_FG_RDC0_REG, &rdc0);
+	if (ret)
+		return ret;
+
+	if (!(rdc1 & AXP288_RDC1_RIGHT)) {
+		dev_warn(axp->dev, "rdc not yet calibrated\n");
+	}
+
+	rdc = ((((rdc1 & AXP288_RDC1_RDC_H) << 8) | rdc0) *
+		10742 - 5371) / 10000;
+	dev_info(axp->dev, "current rdc: %u\n", rdc);
+
+	return 0;
+}
+
 /* Inspired by https://github.com/zador-blood-stained/axp209-sysfs-interface/blob/master/axp20x-sysfs-interface.patch */
 static ssize_t ocv_curve_read(struct file *filp,
 			struct kobject *kobj,
@@ -677,6 +724,13 @@ static int axp20x_power_probe(struct platform_device *pdev)
 	 */
 	axp20x_get_constant_charge_current(axp20x_batt,
 					   &axp20x_batt->max_ccc);
+
+	if (axp20x_batt->axp_id == AXP813_ID) {
+		ret = axp813_setup_battery_rdc(axp20x_batt);
+		if (ret)
+			dev_err(&pdev->dev,
+				"couldn't setup battery rdc, error %d\n", ret);
+	}
 
 	return 0;
 }
