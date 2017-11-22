@@ -621,6 +621,14 @@ static int axp20x_usb_power_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "failed to create sysfs group\n");
 	}
 
+	/* Ensure that the default value is set */
+	if (power->axp20x_id == AXP813_ID) {
+		ret = axp813_usb_power_set_current_max(power, 1500000);
+		if (ret)
+			dev_err(&pdev->dev,
+				"error setting default current: %d\n", ret);
+	}
+
 	/* Request irqs after registering, as irqs may trigger immediately */
 	for (i = 0; irq_names[i]; i++) {
 		irq = platform_get_irq_byname(pdev, irq_names[i]);
