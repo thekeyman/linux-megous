@@ -46,9 +46,6 @@
 #define OFF_CNTL_CHGLED_CONTROL		BIT(3)
 #define CNTL2_CHGLED_TYPE		BIT(4)
 
-#define CHRG_VLTFC_0C			0xA5	/* 0 DegC */
-#define CHRG_VHTFC_45C			0x1F	/* 45 DegC */
-
 #define FG_CNTL_FG_EN			(1 << 7)
 #define FG_CNTL_C_MTR_EN		(1 << 6)
 #define FG_CNTL_BATT_CAP_CAL_EN		(1 << 5)
@@ -293,22 +290,15 @@ static int charger_init_hw_regs(struct axp813_chrg_info *info)
 {
 	int ret;
 
-	/* Program temperature thresholds */
-	ret = regmap_write(info->regmap, AXP20X_V_LTF_CHRG, CHRG_VLTFC_0C);
-	if (ret < 0) {
-		dev_err(&info->pdev->dev, "register(%x) write error(%d)\n",
-							AXP20X_V_LTF_CHRG, ret);
-		return ret;
-	}
-
-	ret = regmap_write(info->regmap, AXP20X_V_HTF_CHRG, CHRG_VHTFC_45C);
-	if (ret < 0) {
-		dev_err(&info->pdev->dev, "register(%x) write error(%d)\n",
-							AXP20X_V_HTF_CHRG, ret);
-		return ret;
-	}
-
-	/* TODO work thresholds? */
+	/*
+	 * Initialization of external battery temperature sensor:
+	 * TODO
+	 * We have resistor instead of external battery temperature
+	 * sensor, so the operation can be disabled. So:
+	 * 84[2] -> 1
+	 * 82[0] -> 0
+	 * (84[1:0] -> 00)
+	 */
 
 	/* Do not turn-off charger o/p after charge cycle ends */
 	ret = regmap_update_bits(info->regmap,
