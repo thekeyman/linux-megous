@@ -31,6 +31,7 @@
 #include <linux/iio/iio.h>
 #include <linux/iio/consumer.h>
 #include <linux/mfd/axp20x.h>
+#include <asm/unaligned.h>
 
 #define AXP20X_PWR_STATUS_ACIN_AVAIL    BIT(6)
 #define AXP20X_PWR_STATUS_VBUS_USED     BIT(4)
@@ -48,6 +49,12 @@
 
 #define AXP209_FG_PERCENT		GENMASK(6, 0)
 #define AXP22X_FG_VALID			BIT(7)
+
+#define FG_15BIT_WORD_VALID			(1 << 15)
+#define FG_15BIT_VAL_MASK			0x7fff
+
+#define FG_DES_CAP_RES_LSB			1456    /* 1.456mAhr */
+#define FG_DES_CC_RES_LSB			1456    /* 1.456mAhr */
 
 #define AXP20X_CHRG_CTRL1_TGT_VOLT	GENMASK(6, 5)
 #define AXP20X_CHRG_CTRL1_TGT_4_1V	(0 << 5)
@@ -199,6 +206,34 @@ static int axp20x_get_constant_charge_current(struct axp20x_batt_ps *axp,
 	return 0;
 }
 
+/* Copy&pasted from axp288_fuel_gauge.c */
+static int fuel_gauge_read_15bit_word(struct axp20x_batt_ps *info, int reg)
+{
+	unsigned char buf[2];
+	int ret;
+
+	ret = regmap_bulk_read(info->regmap, reg, buf, 2);
+	if (ret < 0) {
+		dev_err(info->dev, "Error reading reg 0x%02x err: %d\n",
+			reg, ret);
+		return ret;
+	}
+
+	ret = get_unaligned_be16(buf);
+	if (!(ret & FG_15BIT_WORD_VALID)) {
+		dev_err(info->dev, "Error reg 0x%02x contents not valid\n",
+			reg);
+		/*
+		 * Original fuel gauge driver uses ENXIO here. But if the
+		 * value isn't valid, kernel hangs repeating reading error.
+		 * ENODEV has special handling.
+		 */
+		return -ENODEV;
+	}
+
+	return ret & FG_15BIT_VAL_MASK;
+}
+
 static int axp20x_battery_get_prop(struct power_supply *psy,
 				   enum power_supply_property psp,
 				   union power_supply_propval *val)
@@ -337,6 +372,22 @@ static int axp20x_battery_get_prop(struct power_supply *psy,
 		 * directly the raw percentage without any scaling to 7 bits.
 		 */
 		val->intval = reg & AXP209_FG_PERCENT;
+		break;
+
+	case POWER_SUPPLY_PROP_CHARGE_NOW:
+		ret = fuel_gauge_read_15bit_word(axp20x_batt, AXP288_FG_CC_MTR1_REG);
+		if (ret < 0)
+			return ret;
+
+		val->intval = ret * FG_DES_CAP_RES_LSB;
+		break;
+
+	case POWER_SUPPLY_PROP_CHARGE_FULL:
+		ret = fuel_gauge_read_15bit_word(axp20x_batt, AXP288_FG_DES_CAP1_REG);
+		if (ret < 0)
+			return ret;
+
+		val->intval = ret * FG_DES_CAP_RES_LSB;
 		break;
 
 	case POWER_SUPPLY_PROP_VOLTAGE_MAX_DESIGN:
@@ -498,6 +549,8 @@ static enum power_supply_property axp20x_battery_props[] = {
 	POWER_SUPPLY_PROP_CONSTANT_CHARGE_CURRENT,
 	POWER_SUPPLY_PROP_CONSTANT_CHARGE_CURRENT_MAX,
 	POWER_SUPPLY_PROP_HEALTH,
+	POWER_SUPPLY_PROP_CHARGE_FULL,
+	POWER_SUPPLY_PROP_CHARGE_NOW,
 	POWER_SUPPLY_PROP_VOLTAGE_MAX_DESIGN,
 	POWER_SUPPLY_PROP_VOLTAGE_MIN_DESIGN,
 	POWER_SUPPLY_PROP_CAPACITY,
