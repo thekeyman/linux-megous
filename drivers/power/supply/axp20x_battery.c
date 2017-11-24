@@ -39,6 +39,7 @@
 
 #define AXP813_PWR_OP_CHRG_INDICATION	BIT(6)
 #define AXP20X_PWR_OP_BATT_PRESENT	BIT(5)
+#define AXP813_PWR_OP_BATT_VALID	BIT(4)
 #define AXP20X_PWR_OP_BATT_ACTIVATED	BIT(3)
 
 #define AXP288_RDC1_CALC		BIT(7)
@@ -254,14 +255,23 @@ static int axp20x_battery_get_prop(struct power_supply *psy,
 		break;
 
 	case POWER_SUPPLY_PROP_STATUS:
-		/* FIXME The reporting is wrong in case of unsufficient power */
-		/* FIXME And if there is no battery? */
 		ret = regmap_read(axp20x_batt->regmap, AXP20X_PWR_OP_MODE,
 				  &reg);
 		if (ret)
 			return ret;
-		/* XXX Test for charging current was here */
-		if (reg & AXP813_PWR_OP_CHRG_INDICATION) {
+
+		if (reg & AXP813_PWR_OP_BATT_VALID &&
+		    !(reg & AXP20X_PWR_OP_BATT_PRESENT)) {
+			val->intval = POWER_SUPPLY_STATUS_NOT_CHARGING;
+			return 0;
+		}
+
+		ret = iio_read_channel_processed(axp20x_batt->batt_chrg_i,
+						 &val1);
+		if (ret)
+			return ret;
+
+		if (reg & AXP813_PWR_OP_CHRG_INDICATION && val1) {
 			val->intval = POWER_SUPPLY_STATUS_CHARGING;
 			return 0;
 		}
