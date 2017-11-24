@@ -49,6 +49,9 @@
 #define CHRG_VLTFC_0C			0xA5	/* 0 DegC */
 #define CHRG_VHTFC_45C			0x1F	/* 45 DegC */
 
+#define FG_CNTL_FG_EN			(1 << 7)
+#define FG_CNTL_C_MTR_EN		(1 << 6)
+#define FG_CNTL_BATT_CAP_CAL_EN		(1 << 5)
 #define FG_CNTL_OCV_ADJ_EN		(1 << 3)
 
 /*
@@ -366,10 +369,19 @@ static int charger_init_hw_regs(struct axp813_chrg_info *info)
 		return ret;
 	}
 
-	/* Disable OCV-SOC curve calibration */
+	/*
+	 * Enable fuel gauge, coulomb meter, battery calibration
+	 * and disable OCV-SOC curve calibration.
+	 */
 	ret = regmap_update_bits(info->regmap,
 				AXP20X_CC_CTRL,
-				FG_CNTL_OCV_ADJ_EN, 0);
+				FG_CNTL_FG_EN |
+				FG_CNTL_C_MTR_EN |
+				FG_CNTL_BATT_CAP_CAL_EN |
+				FG_CNTL_OCV_ADJ_EN,
+				FG_CNTL_FG_EN |
+				FG_CNTL_C_MTR_EN |
+				FG_CNTL_BATT_CAP_CAL_EN);
 	if (ret < 0) {
 		dev_err(&info->pdev->dev, "register(%x) write error(%d)\n",
 						AXP20X_CC_CTRL, ret);
