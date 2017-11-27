@@ -27,7 +27,13 @@
 #define AXP20X_ADC_EN1_MASK			GENMASK(7, 0)
 
 #define AXP20X_ADC_EN2_MASK			(GENMASK(3, 2) | BIT(7))
-#define AXP22X_ADC_EN1_MASK			(GENMASK(7, 5) | BIT(0))
+/*
+ * TBS A711 configuration: disable the TS ADC, we have plain resistor instead
+ * of a sensor.
+ */
+#define AXP22X_ADC_EN1_MASK			GENMASK(7, 5)
+#define AXP813_ADC_TS_FUNC			BIT(2)
+#define AXP813_ADC_TS_CURRENT_SOURCE		GENMASK(1, 0)
 
 #define AXP20X_GPIO10_IN_RANGE_GPIO0		BIT(0)
 #define AXP20X_GPIO10_IN_RANGE_GPIO1		BIT(1)
@@ -681,6 +687,11 @@ static int axp20x_probe(struct platform_device *pdev)
 		/* Enable GPIO0/1 and internal temperature ADCs */
 		regmap_update_bits(info->regmap, AXP20X_ADC_EN2,
 				   AXP20X_ADC_EN2_MASK, AXP20X_ADC_EN2_MASK);
+
+	/* TBS A711 configuration: disable TS pin */
+	regmap_update_bits(info->regmap, AXP288_ADC_TS_PIN_CTRL,
+			   AXP813_ADC_TS_FUNC | AXP813_ADC_TS_CURRENT_SOURCE,
+			   AXP813_ADC_TS_FUNC);
 
 	/* Configure ADCs rate */
 	info->data->adc_rate(info, 100);

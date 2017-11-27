@@ -290,16 +290,6 @@ static int charger_init_hw_regs(struct axp813_chrg_info *info)
 {
 	int ret;
 
-	/*
-	 * Initialization of external battery temperature sensor:
-	 * TODO
-	 * We have resistor instead of external battery temperature
-	 * sensor, so the operation can be disabled. So:
-	 * 84[2] -> 1
-	 * 82[0] -> 0
-	 * (84[1:0] -> 00)
-	 */
-
 	/* Do not turn-off charger o/p after charge cycle ends */
 	ret = regmap_update_bits(info->regmap,
 				AXP20X_CHRG_CTRL2,
