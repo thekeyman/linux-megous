@@ -41,6 +41,7 @@
 #define AXP20X_PWR_OP_BATT_PRESENT	BIT(5)
 #define AXP813_PWR_OP_BATT_VALID	BIT(4)
 #define AXP20X_PWR_OP_BATT_ACTIVATED	BIT(3)
+#define AXP813_OFF_CNTL_BATT_DET_EN	BIT(6)
 
 #define AXP288_RDC1_CALC		BIT(7)
 #define AXP288_RDC1_RIGHT		BIT(6)
@@ -788,11 +789,17 @@ static int axp20x_power_probe(struct platform_device *pdev)
 	axp20x_get_constant_charge_current(axp20x_batt,
 					   &axp20x_batt->max_ccc);
 
+	/* TBS A711 configuration */
 	if (axp20x_batt->axp_id == AXP813_ID) {
 		ret = axp813_setup_battery_rdc(axp20x_batt);
 		if (ret)
 			dev_err(&pdev->dev,
 				"couldn't setup battery rdc, error %d\n", ret);
+		ret = regmap_update_bits(axp20x_batt->regmap, AXP20X_OFF_CTRL,
+			AXP813_OFF_CNTL_BATT_DET_EN, AXP813_OFF_CNTL_BATT_DET_EN);
+		if (ret)
+			dev_err(&pdev->dev,
+				"couldn't enable battery detection, error %d\n", ret);
 	}
 
 	return 0;
