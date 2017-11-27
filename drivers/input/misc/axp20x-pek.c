@@ -28,6 +28,8 @@
 
 #define AXP20X_PEK_STARTUP_MASK		(0xc0)
 #define AXP20X_PEK_SHUTDOWN_MASK	(0x03)
+#define AXP813_PEK_POK_SHUTDOWN_EN	BIT(3)
+#define AXP813_PEK_AUTO_TURN_ON_POK	BIT(2)
 
 struct axp20x_info {
 	const struct axp20x_time *startup_time;
@@ -376,6 +378,20 @@ static int axp20x_pek_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "Failed to add sysfs cleanup action: %d\n",
 			error);
 		return error;
+	}
+
+	/* TBS configuration. These are defaults anyway. */
+	/* TODO It would be nicer to export it through sysfs */
+	if (axp20x_pek->axp20x->variant == AXP813_ID) {
+		error = regmap_update_bits(axp20x_pek->axp20x->regmap,
+			AXP20X_PEK_KEY,
+			AXP813_PEK_POK_SHUTDOWN_EN | AXP813_PEK_AUTO_TURN_ON_POK,
+			AXP813_PEK_POK_SHUTDOWN_EN);
+		if (error) {
+			dev_err(&pdev->dev, "Failed to set register %02x: %d\n",
+				AXP20X_PEK_KEY, error);
+			return error;
+		}
 	}
 
 	platform_set_drvdata(pdev, axp20x_pek);
