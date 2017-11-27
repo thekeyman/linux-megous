@@ -45,11 +45,24 @@
 #define OFF_CNTL_CHGLED_DIRECT_CONTROL	GENMASK(5, 4)
 #define OFF_CNTL_CHGLED_CONTROL		BIT(3)
 #define CNTL2_CHGLED_TYPE		BIT(4)
+#define CNTL3_CHRG_TMP_LOOP_EN		BIT(3)
 
 #define FG_CNTL_FG_EN			(1 << 7)
 #define FG_CNTL_C_MTR_EN		(1 << 6)
 #define FG_CNTL_BATT_CAP_CAL_EN		(1 << 5)
 #define FG_CNTL_OCV_ADJ_EN		(1 << 3)
+
+/*
+ * Some of these fields of 0x8f are not docummented. They are taken from
+ * Allwinner 3.4 kernel. TMP_N_VBUS_OUTPUT is handled (under different name)
+ * in axp20x-regulator.c.
+ */
+#define TMP_IRQ_WAKEUP			BIT(7)
+#define TMP_N_VBUS_OUTPUT		BIT(4)
+#define TMP_16S_POK_RST			BIT(3)
+#define TMP_HOT_SHUTDOWN		BIT(2)
+#define TMP_VOLT_RECOVERY		BIT(1)
+#define TMP_RESTART_REGS		BIT(0)
 
 /*
 enum {
@@ -365,6 +378,29 @@ static int charger_init_hw_regs(struct axp813_chrg_info *info)
 	if (ret < 0) {
 		dev_err(&info->pdev->dev, "register(%x) write error(%d)\n",
 						AXP20X_CC_CTRL, ret);
+		return ret;
+	}
+
+	/*
+	 * Hot shutdown, voltage recovery, disable 16s POK reset and restart
+	 * regulators.
+	 */
+	ret = regmap_update_bits(info->regmap, AXP20X_OVER_TMP,
+		TMP_IRQ_WAKEUP | TMP_16S_POK_RST | TMP_HOT_SHUTDOWN |
+		TMP_VOLT_RECOVERY | TMP_RESTART_REGS,
+		TMP_HOT_SHUTDOWN | TMP_RESTART_REGS);
+	if (ret < 0) {
+		dev_err(&info->pdev->dev, "register(%x) write error(%d)\n",
+						AXP20X_OVER_TMP, ret);
+		return ret;
+	}
+
+	/* Enable charger temperature loop */
+	ret = regmap_update_bits(info->regmap, AXP22X_CHRG_CTRL3,
+		CNTL3_CHRG_TMP_LOOP_EN, CNTL3_CHRG_TMP_LOOP_EN);
+	if (ret < 0) {
+		dev_err(&info->pdev->dev, "register(%x) write error(%d)\n",
+						AXP22X_CHRG_CTRL3, ret);
 		return ret;
 	}
 
