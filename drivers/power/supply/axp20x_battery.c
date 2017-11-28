@@ -559,7 +559,14 @@ static enum power_supply_property axp20x_battery_props[] = {
 	POWER_SUPPLY_PROP_CURRENT_NOW,
 	POWER_SUPPLY_PROP_CONSTANT_CHARGE_CURRENT,
 	POWER_SUPPLY_PROP_CONSTANT_CHARGE_CURRENT_MAX,
-	POWER_SUPPLY_PROP_HEALTH,
+	/*
+	 * TBS A711 configuration: don't show battery health. We have
+	 * the health information in the charger (along with more
+	 * health information). So disable it here to avoid confusion.
+	 * It makes sense to add more information (like undervoltage)
+	 * here and start using it as well.
+	 */
+	/* POWER_SUPPLY_PROP_HEALTH, */
 	POWER_SUPPLY_PROP_CHARGE_FULL,
 	POWER_SUPPLY_PROP_CHARGE_NOW,
 	POWER_SUPPLY_PROP_VOLTAGE_MAX_DESIGN,
