@@ -44,10 +44,7 @@
 #define AXP813_VBUC_CLIMIT_1500mA	1
 #define AXP813_VBUC_CLIMIT_2000mA	2
 #define AXP813_VBUC_CLIMIT_2500mA	3
-#define AXP813_VBUS_CLIMIT_SELECT	GENMASK(7, 4)
 #define AXP813_BC_RUN_STOP		BIT(0)
-#define AXP813_BC_DETECT		GENMASK(7, 5)
-#define AXP813_ACIN_VBUS_SHORT		BIT(1)
 
 #define AXP20X_ADC_EN1_VBUS_CURR	BIT(2)
 #define AXP20X_ADC_EN1_VBUS_VOLT	BIT(3)
@@ -351,24 +348,6 @@ static enum power_supply_property axp22x_usb_power_properties[] = {
 	POWER_SUPPLY_PROP_CURRENT_MAX,
 };
 
-/* TODO Check if it is in more AXP variants */
-static ssize_t axp813_get_acin_vbus_short(struct device *dev,
-	struct device_attribute *attr,
-	char *buf)
-{
-	int reg, ret;
-
-	struct power_supply *psy = dev_get_drvdata(dev);
-	struct axp20x_usb_power *power = power_supply_get_drvdata(psy);
-
-	ret = regmap_read(power->regmap, 0x00, &reg);
-	if (ret)
-		return ret;
-
-	return sprintf(buf, "%d\n",
-		!!(reg & AXP813_ACIN_VBUS_SHORT));
-}
-
 static ssize_t axp813_get_bc_run_stop(struct device *dev,
         struct device_attribute *attr,
         char *buf)
@@ -378,12 +357,11 @@ static ssize_t axp813_get_bc_run_stop(struct device *dev,
 	struct power_supply *psy = dev_get_drvdata(dev);
 	struct axp20x_usb_power *power = power_supply_get_drvdata(psy);
 
-	ret = regmap_read(power->regmap, 0x2c, &reg);
+	ret = regmap_read(power->regmap, AXP288_BC_GLOBAL, &reg);
 	if (ret)
 		return ret;
 
-	return sprintf(buf, "%d\n",
-		!!(reg & AXP813_BC_RUN_STOP));
+	return sprintf(buf, "%d\n", !!(reg & AXP813_BC_RUN_STOP));
 }
 
 static ssize_t axp813_set_bc_run_stop(struct device *dev,
@@ -402,11 +380,11 @@ static ssize_t axp813_set_bc_run_stop(struct device *dev,
 		return ret;
 
 	if ((val != 0) && (val != 1)) {
-		dev_err(dev, "mas to blbe\n");
+		dev_err(dev, "valid values are 0 or 1\n");
 		return -EINVAL;
 	}
 
-	ret = regmap_update_bits(power->regmap, 0x2c,
+	ret = regmap_update_bits(power->regmap, AXP288_BC_GLOBAL,
 				 AXP813_BC_RUN_STOP,
 				 val);
 	if (ret < 0)
@@ -415,81 +393,11 @@ static ssize_t axp813_set_bc_run_stop(struct device *dev,
 	return count;
 }
 
-static ssize_t axp813_get_bc_detect(struct device *dev,
-        struct device_attribute *attr,
-        char *buf)
-{
-	int reg, ret;
-
-	struct power_supply *psy = dev_get_drvdata(dev);
-	struct axp20x_usb_power *power = power_supply_get_drvdata(psy);
-
-	ret = regmap_read(power->regmap, 0x2f, &reg);
-	if (ret)
-		return ret;
-
-	return sprintf(buf, "%lu 0x%02x\n",
-		(reg & AXP813_BC_DETECT) >> 5, reg);
-}
-
-static ssize_t axp813_get_vbus_climit(struct device *dev,
-        struct device_attribute *attr,
-        char *buf)
-{
-	int reg, ret;
-
-	struct power_supply *psy = dev_get_drvdata(dev);
-	struct axp20x_usb_power *power = power_supply_get_drvdata(psy);
-
-	ret = regmap_read(power->regmap, AXP22X_CHRG_CTRL3, &reg);
-	if (ret)
-		return ret;
-
-	return sprintf(buf, "%lu\n",
-		(reg & AXP813_VBUS_CLIMIT_SELECT) >> 4);
-}
-
-static ssize_t axp813_set_vbus_climit(struct device *dev,
-	struct device_attribute *attr,
-	const char *buf,
-	size_t count)
-{
-	int ret;
-	u8 val;
-
-	struct power_supply *psy = dev_get_drvdata(dev);
-	struct axp20x_usb_power *power = power_supply_get_drvdata(psy);
-
-	ret = kstrtou8(buf, 0, &val);
-	if (ret < 0)
-		return ret;
-
-	if (val > 15) {
-		dev_err(dev, "mas to blbe\n");
-		return -EINVAL;
-	}
-
-	ret = regmap_update_bits(power->regmap, AXP22X_CHRG_CTRL3,
-				 AXP813_VBUS_CLIMIT_SELECT,
-				 val << 4);
-	if (ret < 0)
-		return ret;
-
-	return count;
-}
-
-static DEVICE_ATTR(acin_vbus_short, S_IRUGO, axp813_get_acin_vbus_short, NULL);
 static DEVICE_ATTR(bc_run_stop, S_IRUGO | S_IWUSR, axp813_get_bc_run_stop,
 	axp813_set_bc_run_stop);
-static DEVICE_ATTR(bc_detect, S_IRUGO, axp813_get_bc_detect, NULL);
-static DEVICE_ATTR(vbus_current_limit, S_IRUGO | S_IWUSR,
-	axp813_get_vbus_climit, axp813_set_vbus_climit);
 
 static struct attribute *axp20x_attributes[] = {
-	&dev_attr_acin_vbus_short.attr,
 	&dev_attr_bc_run_stop.attr,
-	&dev_attr_bc_detect.attr,
-	&dev_attr_vbus_current_limit.attr,
 	NULL
 };
 
@@ -546,6 +454,14 @@ static int configure_adc_registers(struct axp20x_usb_power *power)
 				  AXP20X_ADC_EN1_VBUS_CURR |
 				  AXP20X_ADC_EN1_VBUS_VOLT);
 }
+
+static void axp813_remove_sysfs_group(void *data)
+{
+	struct device *dev = data;
+
+	sysfs_remove_group(&dev->kobj, &axp20x_attr_group);
+}
+
 
 static int axp20x_usb_power_probe(struct platform_device *pdev)
 {
@@ -615,10 +531,24 @@ static int axp20x_usb_power_probe(struct platform_device *pdev)
 	if (IS_ERR(power->supply))
 		return PTR_ERR(power->supply);
 
-	/* FIXME This is never freed and ret code is almost ignored */
-	ret = sysfs_create_group(&power->supply->dev.kobj, &axp20x_attr_group);
-	if (ret) {
-		dev_err(&pdev->dev, "failed to create sysfs group\n");
+	/* It is applicable for more AXP chips. */
+	if (power->axp20x_id == AXP813_ID) {
+		ret = sysfs_create_group(&power->supply->dev.kobj,
+			&axp20x_attr_group);
+		if (ret) {
+			dev_err(&pdev->dev,
+				"failed to create sysfs attributes: %d\n", ret);
+			return ret;
+		}
+
+		ret = devm_add_action(&pdev->dev, axp813_remove_sysfs_group,
+				&pdev->dev);
+		if (ret) {
+			axp813_remove_sysfs_group(&pdev->dev);
+			dev_err(&pdev->dev, "failed to add sysfs cleanup: %d\n",
+					ret);
+			return ret;
+		}
 	}
 
 	/* Ensure that the default value is set */
