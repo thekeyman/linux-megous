@@ -658,17 +658,12 @@ static ssize_t ocv_curve_write(struct file *filp,
 
 static BIN_ATTR_RW(ocv_curve, AXP813_OCV_MAX + 1);
 
-static struct attribute *axp20x_attributes[] = {
-	NULL
-};
-
 static struct bin_attribute *axp20x_bin_attributes[] = {
 	&bin_attr_ocv_curve,
 	NULL
 };
 
 static const struct attribute_group axp20x_attr_group = {
-	.attrs = axp20x_attributes,
 	.bin_attrs = axp20x_bin_attributes,
 };
 
@@ -695,6 +690,13 @@ static const struct of_device_id axp20x_battery_ps_id[] = {
 	}, { /* sentinel */ },
 };
 MODULE_DEVICE_TABLE(of, axp20x_battery_ps_id);
+
+static void axp813_remove_sysfs_group(void *data)
+{
+        struct device *dev = data;
+
+        sysfs_remove_group(&dev->kobj, &axp20x_attr_group);
+}
 
 static int axp20x_power_probe(struct platform_device *pdev)
 {
@@ -753,11 +755,24 @@ static int axp20x_power_probe(struct platform_device *pdev)
 		return PTR_ERR(axp20x_batt->batt);
 	}
 
-	/* FIXME This is never freed and ret code is almost ignored */
-	ret = sysfs_create_group(&axp20x_batt->batt->dev.kobj,
-		&axp20x_attr_group);
-	if (ret) {
-		dev_err(&pdev->dev, "failed to create sysfs group\n");
+	/* It is applicable for more AXP chips. */
+	if (axp20x_batt->axp_id == AXP813_ID) {
+		ret = sysfs_create_group(&axp20x_batt->batt->dev.kobj,
+			&axp20x_attr_group);
+		if (ret) {
+			dev_err(&pdev->dev,
+				"failed to create sysfs attributes: %d\n", ret);
+			return ret;
+		}
+
+		ret = devm_add_action(&pdev->dev, axp813_remove_sysfs_group,
+				      &pdev->dev);
+		if (ret) {
+			axp813_remove_sysfs_group(&pdev->dev);
+			dev_err(&pdev->dev, "failed to add sysfs cleanup: %d\n",
+				ret);
+			return ret;
+		}
 	}
 
 	if (!power_supply_get_battery_info(axp20x_batt->batt, &info)) {
