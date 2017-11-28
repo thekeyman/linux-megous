@@ -47,6 +47,11 @@
 #define CNTL2_CHGLED_TYPE		BIT(4)
 #define CNTL3_CHRG_TMP_LOOP_EN		BIT(3)
 
+#define CHRG_STAT_PMIC_OTP		(1 << 7)
+#define CHRG_STAT_BAT_SAFE_MODE		(1 << 3)
+/* The cold bit is not in the datasheet. It is taken from Allwinner's 3.4 kernel. */
+#define CHRG_STAT_PMIC_UTP		(1 << 0)
+
 #define FG_CNTL_FG_EN			(1 << 7)
 #define FG_CNTL_C_MTR_EN		(1 << 6)
 #define FG_CNTL_BATT_CAP_CAL_EN		(1 << 5)
@@ -115,43 +120,27 @@ static int axp813_charger_enable_charger(struct axp813_chrg_info *info,
 	return ret;
 }
 
-/*
- * TODO: extend the USB power source with the overheat sensing
-#define PS_STAT_VBUS_VALID		(1 << 4)
-#define PS_STAT_VBUS_PRESENT		(1 << 5)
-#define CHRG_STAT_BAT_SAFE_MODE		(1 << 3)
-#define CHRG_STAT_PMIC_OTP		(1 << 7)
 static int axp813_get_charger_health(struct axp813_chrg_info *info)
 {
-	int ret, pwr_stat, chrg_stat;
+	int ret;
 	int health = POWER_SUPPLY_HEALTH_UNKNOWN;
 	unsigned int val;
 
-	ret = regmap_read(info->regmap, AXP20X_PWR_INPUT_STATUS, &val);
-	if ((ret < 0) || !(val & PS_STAT_VBUS_PRESENT))
-		goto health_read_fail;
-	else
-		pwr_stat = val;
-
 	ret = regmap_read(info->regmap, AXP20X_PWR_OP_MODE, &val);
 	if (ret < 0)
-		goto health_read_fail;
-	else
-		chrg_stat = val;
+		return health;
 
-	if (!(pwr_stat & PS_STAT_VBUS_VALID))
-		health = POWER_SUPPLY_HEALTH_DEAD;
-	else if (chrg_stat & CHRG_STAT_PMIC_OTP)
+	if (val & CHRG_STAT_PMIC_OTP)
 		health = POWER_SUPPLY_HEALTH_OVERHEAT;
-	else if (chrg_stat & CHRG_STAT_BAT_SAFE_MODE)
+	else if (val & CHRG_STAT_BAT_SAFE_MODE)
 		health = POWER_SUPPLY_HEALTH_SAFETY_TIMER_EXPIRE;
+	else if (val & CHRG_STAT_PMIC_UTP)
+		health = POWER_SUPPLY_HEALTH_COLD;
 	else
 		health = POWER_SUPPLY_HEALTH_GOOD;
 
-health_read_fail:
 	return health;
 }
-*/
 
 static int axp813_charger_usb_set_property(struct power_supply *psy,
                                     enum power_supply_property psp,
@@ -191,10 +180,9 @@ static int axp813_charger_usb_get_property(struct power_supply *psy,
 	mutex_lock(&info->lock);
 
 	switch (psp) {
-/*
 	case POWER_SUPPLY_PROP_HEALTH:
 		val->intval = axp813_get_charger_health(info);
-		break; */
+		break;
 	default:
 		ret = -EINVAL;
 		goto psy_get_prop_fail;
@@ -224,7 +212,7 @@ static int axp813_charger_property_is_writeable(struct power_supply *psy,
 
 static enum power_supply_property axp813_usb_props[] = {
 	POWER_SUPPLY_PROP_TYPE,
-/*	POWER_SUPPLY_PROP_HEALTH, */
+	POWER_SUPPLY_PROP_HEALTH,
 };
 
 static const struct power_supply_desc axp813_charger_desc = {
