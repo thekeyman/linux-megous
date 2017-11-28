@@ -142,34 +142,6 @@ static int axp813_get_charger_health(struct axp813_chrg_info *info)
 	return health;
 }
 
-static int axp813_charger_usb_set_property(struct power_supply *psy,
-                                    enum power_supply_property psp,
-                                    const union power_supply_propval *val)
-{
-	struct axp813_chrg_info *info = power_supply_get_drvdata(psy);
-	int ret = 0;
-	//int scaled_val;
-
-	mutex_lock(&info->lock);
-
-	switch (psp) {
-/*		case POWER_SUPPLY_PROP_CONSTANT_CHARGE_CURRENT:
-			scaled_val = min(val->intval, info->max_cc);
-			scaled_val = DIV_ROUND_CLOSEST(scaled_val, 1000);
-			ret = axp813_charger_set_cc(info, scaled_val);
-			if (ret < 0)
-				dev_warn(&info->pdev->dev, "set charge current failed\n");
-			break; */
-		default:
-			ret = -EINVAL;
-	}
-
-	mutex_unlock(&info->lock);
-	return ret;
-}
-
-
-
 static int axp813_charger_usb_get_property(struct power_supply *psy,
 				    enum power_supply_property psp,
 				    union power_supply_propval *val)
@@ -193,23 +165,6 @@ psy_get_prop_fail:
 	return ret;
 }
 
-static int axp813_charger_property_is_writeable(struct power_supply *psy,
-		enum power_supply_property psp)
-{
-	int ret;
-
-	switch (psp) {
-/*	case POWER_SUPPLY_PROP_CONSTANT_CHARGE_CURRENT:
-	case POWER_SUPPLY_PROP_CONSTANT_CHARGE_VOLTAGE:
-		ret = 1;
-		break; */
-	default:
-		ret = 0;
-	}
-
-	return ret;
-}
-
 static enum power_supply_property axp813_usb_props[] = {
 	POWER_SUPPLY_PROP_TYPE,
 	POWER_SUPPLY_PROP_HEALTH,
@@ -222,8 +177,6 @@ static const struct power_supply_desc axp813_charger_desc = {
 	.properties		= axp813_usb_props,
 	.num_properties		= ARRAY_SIZE(axp813_usb_props),
 	.get_property		= axp813_charger_usb_get_property,
-	.set_property           = axp813_charger_usb_set_property,
-	.property_is_writeable	= axp813_charger_property_is_writeable,
 };
 
 /*
@@ -302,7 +255,6 @@ static int charger_init_hw_regs(struct axp813_chrg_info *info)
 	}
 
 	/* Setup ending condition for charging to be 10% of I(chrg) */
-	// TODO Consider 20%
 	ret = regmap_update_bits(info->regmap,
 				AXP20X_CHRG_CTRL1,
 				CHRG_CCCV_ITERM_20P, 0);
