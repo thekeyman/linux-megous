@@ -125,16 +125,6 @@
 		regulator-max-microvolt = <3700000>;
 	};
 
-	reg_vmain: reg-vmain {
-		compatible = "regulator-fixed";
-		regulator-name = "vmain";
-		regulator-min-microvolt = <5000000>;
-		regulator-max-microvolt = <5000000>;
-		gpio = <&r_pio 0 9 GPIO_ACTIVE_HIGH>;
-		enable-active-high;
-		vin-supply = <&reg_vbat>;
-	};
-
 	wifi_pwrseq: wifi_pwrseq {
 		compatible = "mmc-pwrseq-simple";
 		reset-gpios = <&r_pio 0 2 GPIO_ACTIVE_LOW>; /* PL2 WL-PMU-EN */
@@ -199,15 +189,6 @@
 
 &ehci1 {
 	status = "okay";
-
-	modem@0 {
-		compatible = "zte,pwrseq-mg3732";
-		reg = <1>;
-		power-gpios = <&r_pio 0 8 GPIO_ACTIVE_HIGH>;
-		reset-gpios = <&r_pio 0 10 GPIO_ACTIVE_HIGH>;
-		reset-duration-us = <3000>;
-		vbus-supply = <&reg_vmain>;
-	};
 };
 
 &i2c0 {
