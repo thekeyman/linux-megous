@@ -158,10 +158,6 @@
 	cpu-supply = <&reg_dcdc2>;
 };
 
-&cpu100 {
-	cpu-supply = <&reg_dcdc3>;
-};
-
 &csi0 {
 	status = "okay";
 	pinctrl-names = "default";
@@ -402,7 +398,7 @@
 &reg_dcdc3 {
 	regulator-min-microvolt = <700000>;
 	regulator-max-microvolt = <1100000>;
-	regulator-always-on;
+	/* That regulator should be always on if the CPUs are used. */
 	regulator-name = "vdd-cpu-B";
 };
 

@@ -107,59 +107,6 @@
 		};
 	};
 
-	cpu1_opp_table: opp_table1 {
-		compatible = "operating-points-v2";
-		opp-shared;
-
-		opp-480000000 {
-			opp-hz = /bits/ 64 <480000000>;
-			opp-microvolt = <840000>;
-			clock-latency-ns = <244144>; /* 8 32k periods */
-		};
-
-		opp-600000000 {
-			opp-hz = /bits/ 64 <600000000>;
-			opp-microvolt = <840000>;
-			clock-latency-ns = <244144>; /* 8 32k periods */
-		};
-
-		opp-720000000 {
-			opp-hz = /bits/ 64 <720000000>;
-			opp-microvolt = <840000>;
-			clock-latency-ns = <244144>; /* 8 32k periods */
-		};
-
-		opp-864000000 {
-			opp-hz = /bits/ 64 <864000000>;
-			opp-microvolt = <840000>;
-			clock-latency-ns = <244144>; /* 8 32k periods */
-		};
-
-		opp-912000000 {
-			opp-hz = /bits/ 64 <912000000>;
-			opp-microvolt = <840000>;
-			clock-latency-ns = <244144>; /* 8 32k periods */
-		};
-
-		opp-1008000000 {
-			opp-hz = /bits/ 64 <1008000000>;
-			opp-microvolt = <840000>;
-			clock-latency-ns = <244144>; /* 8 32k periods */
-		};
-
-		opp-1128000000 {
-			opp-hz = /bits/ 64 <1128000000>;
-			opp-microvolt = <840000>;
-			clock-latency-ns = <244144>; /* 8 32k periods */
-		};
-
-		opp-1200000000 {
-			opp-hz = /bits/ 64 <1200000000>;
-			opp-microvolt = <840000>;
-			clock-latency-ns = <244144>; /* 8 32k periods */
-		};
-	};
-
 	cpus {
 		#address-cells = <1>;
 		#size-cells = <0>;
@@ -196,40 +143,6 @@
 			operating-points-v2 = <&cpu0_opp_table>;
 			cci-control-port = <&cci_control0>;
 			reg = <3>;
-		};
-
-		cpu100: cpu@100 {
-			clocks = <&ccu CLK_C1CPUX>;
-			clock-names = "cpu";
-			compatible = "arm,cortex-a7";
-			device_type = "cpu";
-			operating-points-v2 = <&cpu1_opp_table>;
-			cci-control-port = <&cci_control1>;
-			reg = <0x100>;
-		};
-
-		cpu@101 {
-			compatible = "arm,cortex-a7";
-			device_type = "cpu";
-			operating-points-v2 = <&cpu1_opp_table>;
-			cci-control-port = <&cci_control1>;
-			reg = <0x101>;
-		};
-
-		cpu@102 {
-			compatible = "arm,cortex-a7";
-			device_type = "cpu";
-			operating-points-v2 = <&cpu1_opp_table>;
-			cci-control-port = <&cci_control1>;
-			reg = <0x102>;
-		};
-
-		cpu@103 {
-			compatible = "arm,cortex-a7";
-			device_type = "cpu";
-			operating-points-v2 = <&cpu1_opp_table>;
-			cci-control-port = <&cci_control1>;
-			reg = <0x103>;
 		};
 	};
 
