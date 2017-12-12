@@ -686,5 +686,6 @@
 &usbphy {
 	usb0_id_det-gpios = <&pio 7 11 GPIO_ACTIVE_HIGH>; /* PH11 */
 	usb0_vbus-supply = <&reg_drivevbus>;
+	force-poll-vbus-id-det;
 	status = "okay";
 };
