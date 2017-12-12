@@ -702,5 +702,6 @@
 	usb0_vbus-supply = <&reg_drivevbus>;
 	usb1_vbus_supply = <&reg_vmain>;
 	usb2_vbus_supply = <&reg_vmain>;
+	force-poll-vbus-id-det;
 	status = "okay";
 };
