@@ -572,7 +572,6 @@ static const struct iio_info axp22x_adc_iio_info = {
 
 static const struct iio_info axp813_adc_iio_info = {
 	.read_raw = axp813_read_raw,
-	.driver_module = THIS_MODULE,
 };
 
 static int axp20x_adc_rate(struct axp20x_adc_iio *info, int rate)
