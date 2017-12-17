@@ -993,6 +993,12 @@ static int sun6i_csi_parse_subdev_endpoint(struct device *dev,
 	}
 }
 
+static const struct v4l2_async_notifier_operations sun6i_csi_notifier_ops = {
+	.bound = sun6i_csi_notify_bound,
+	.unbind = sun6i_csi_notify_unbind,
+	.complete = sun6i_csi_notify_complete,
+};
+
 int sun6i_csi_init(struct sun6i_csi *csi)
 {
 	int ret;
@@ -1035,9 +1041,7 @@ int sun6i_csi_init(struct sun6i_csi *csi)
 	if (ret)
 		goto video_clean;
 
-	csi->notifier.bound = sun6i_csi_notify_bound;
-	csi->notifier.unbind = sun6i_csi_notify_unbind;
-	csi->notifier.complete = sun6i_csi_notify_complete;
+	csi->notifier.ops = &sun6i_csi_notifier_ops;
 	ret = v4l2_async_notifier_register(&csi->v4l2_dev, &csi->notifier);
 	if (ret < 0) {
 		dev_err(csi->dev, "Notifier registration failed\n");
