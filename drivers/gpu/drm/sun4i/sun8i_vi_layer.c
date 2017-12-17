@@ -261,9 +261,9 @@ static int sun8i_vi_layer_atomic_check(struct drm_plane *plane,
 		max_scale = SUN8I_VI_SCALER_SCALE_MAX;
 	}
 
-	return drm_atomic_helper_check_plane_state(state, crtc_state, &clip,
-						   min_scale, max_scale,
-						   true, true);
+	return drm_plane_helper_check_state(state, &clip,
+					    min_scale, max_scale,
+					    true, true);
 }
 
 static void sun8i_vi_layer_atomic_disable(struct drm_plane *plane,
