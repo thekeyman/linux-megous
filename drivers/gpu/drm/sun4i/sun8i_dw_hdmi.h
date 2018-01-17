@@ -145,6 +145,7 @@
 struct sun8i_hdmi_phy;
 
 struct sun8i_hdmi_phy_variant {
+	bool has_phy_clk;
 	void (*phy_init)(struct sun8i_hdmi_phy *phy);
 	void (*phy_disable)(struct dw_hdmi *hdmi,
 			    struct sun8i_hdmi_phy *phy);
@@ -156,7 +157,10 @@ struct sun8i_hdmi_phy_variant {
 struct sun8i_hdmi_phy {
 	struct clk			*clk_bus;
 	struct clk			*clk_mod;
+	struct clk			*clk_phy;
+	struct clk			*clk_pll0;
 	struct clk			*clk_tmds;
+	unsigned int			rcal;
 	struct regmap			*regs;
 	struct reset_control		*rst_phy;
 	struct sun8i_hdmi_phy_variant	*variant;
@@ -184,5 +188,7 @@ void sun8i_hdmi_phy_init(struct sun8i_hdmi_phy *phy);
 const struct dw_hdmi_phy_ops *sun8i_hdmi_phy_get_ops(void);
 void sun8i_hdmi_phy_update_clock(struct sun8i_hdmi_phy *phy,
 				 unsigned long rate);
+
+int sun8i_phy_clk_create(struct sun8i_hdmi_phy *phy, struct device *dev);
 
 #endif /* _SUN8I_DW_HDMI_H_ */
