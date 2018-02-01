@@ -20,6 +20,7 @@
 #include <linux/integrity.h>
 #include <linux/ima.h>
 #include <linux/evm.h>
+#include <linux/fivm.h>
 #include <linux/fsnotify.h>
 #include <linux/mman.h>
 #include <linux/mount.h>
@@ -508,6 +509,7 @@ int security_path_chown(const struct path *path, kuid_t uid, kgid_t gid)
 		return 0;
 	return call_int_hook(path_chown, 0, path, uid, gid);
 }
+EXPORT_SYMBOL(security_path_chown);
 
 int security_path_chroot(const struct path *path)
 {
@@ -833,7 +835,10 @@ int security_mmap_file(struct file *file, unsigned long prot,
 {
 	int ret;
 	ret = call_int_hook(mmap_file, 0, file, prot,
-					mmap_prot(file, prot), flags);
+	mmap_prot(file, prot), flags);
+	if (ret)
+		return ret;
+	ret = fivm_mmap_verify(file, prot);
 	if (ret)
 		return ret;
 	return ima_file_mmap(file, prot);

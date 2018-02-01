@@ -2,6 +2,7 @@
 obj-y					+= pinctrl-sunxi.o
 
 # SoC Drivers
+obj-$(CONFIG_PINCTRL_SUNXI_TEST)	+= pinctrl-sunxi-test.o
 obj-$(CONFIG_PINCTRL_SUN4I_A10)		+= pinctrl-sun4i-a10.o
 obj-$(CONFIG_PINCTRL_SUN5I_A10S)	+= pinctrl-sun5i-a10s.o
 obj-$(CONFIG_PINCTRL_SUN5I_A13)		+= pinctrl-sun5i-a13.o
@@ -19,3 +20,13 @@ obj-$(CONFIG_PINCTRL_SUN8I_H3)		+= pinctrl-sun8i-h3.o
 obj-$(CONFIG_PINCTRL_SUN8I_H3_R)	+= pinctrl-sun8i-h3-r.o
 obj-$(CONFIG_PINCTRL_SUN9I_A80)		+= pinctrl-sun9i-a80.o
 obj-$(CONFIG_PINCTRL_SUN9I_A80_R)	+= pinctrl-sun9i-a80-r.o
+obj-$(CONFIG_PINCTRL_SUN8IW6P1)         += pinctrl-sun8iw6p1.o
+obj-$(CONFIG_PINCTRL_SUN8IW6P1_R)       += pinctrl-sun8iw6p1-r.o
+obj-$(CONFIG_PINCTRL_SUN8IW15P1)	+= pinctrl-sun8iw15p1.o
+obj-$(CONFIG_PINCTRL_SUN8IW15P1_R)	+= pinctrl-sun8iw15p1-r.o
+obj-$(CONFIG_PINCTRL_SUN50IW1P1)	+= pinctrl-sun50iw1p1.o
+obj-$(CONFIG_PINCTRL_SUN50IW1P1_R)	+= pinctrl-sun50iw1p1-r.o
+obj-$(CONFIG_PINCTRL_SUN50IW3P1)	+= pinctrl-sun50iw3p1.o
+obj-$(CONFIG_PINCTRL_SUN50IW3P1_R)	+= pinctrl-sun50iw3p1-r.o
+obj-$(CONFIG_PINCTRL_SUN50IW6P1)        += pinctrl-sun50iw6p1.o
+obj-$(CONFIG_PINCTRL_SUN50IW6P1_R)      += pinctrl-sun50iw6p1-r.o

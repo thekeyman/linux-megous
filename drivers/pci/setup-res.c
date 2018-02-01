@@ -25,6 +25,11 @@
 #include <linux/slab.h>
 #include "pci.h"
 
+#ifdef CONFIG_ARCH_SUN50IW6
+#define PCIE_MEM_BASE	0x05410000
+static int barnum;
+static unsigned char bar[6];
+#endif
 static void pci_std_update_resource(struct pci_dev *dev, int resno)
 {
 	struct pci_bus_region region;
@@ -303,6 +308,12 @@ int pci_assign_resource(struct pci_dev *dev, int resno)
 	struct resource *res = dev->resource + resno;
 	resource_size_t align, size;
 	int ret;
+#ifdef CONFIG_ARCH_SUN50IW6
+	resource_size_t len;
+	u32 bardata;
+	int regno = 0;
+	int i;
+#endif
 
 	if (res->flags & IORESOURCE_PCI_FIXED)
 		return 0;
@@ -317,7 +328,6 @@ int pci_assign_resource(struct pci_dev *dev, int resno)
 
 	size = resource_size(res);
 	ret = _pci_assign_resource(dev, resno, size, align);
-
 	/*
 	 * If we failed to assign anything, let's try the address
 	 * where firmware left it.  That at least has a chance of
@@ -339,6 +349,27 @@ int pci_assign_resource(struct pci_dev *dev, int resno)
 	dev_info(&dev->dev, "BAR %d: assigned %pR\n", resno, res);
 	if (resno < PCI_BRIDGE_RESOURCES)
 		pci_update_resource(dev, resno);
+
+#ifdef CONFIG_ARCH_SUN50IW6
+	if (res->flags & IORESOURCE_MEM_64) {
+		if (!barnum) {
+			for (i = 0; i < 6; i++) {
+				pci_read_config_dword(dev, PCI_BASE_ADDRESS_0 + i*4, &bardata);
+				if (bardata & 0x4) {
+					bar[regno] = i;
+					regno++;
+				}
+			}
+			barnum = 1;
+		}
+		if (bar[0] == resno) {
+			len = res->end - res->start;
+			res->start = PCIE_MEM_BASE;
+			res->end = res->start + len;
+			dev_info(&dev->dev, "BAR %d: assigned %pR\n", resno, res);
+		}
+	}
+#endif
 
 	return 0;
 }

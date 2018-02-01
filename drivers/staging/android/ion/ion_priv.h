@@ -386,6 +386,10 @@ struct ion_heap *ion_chunk_heap_create(struct ion_platform_heap *);
 void ion_chunk_heap_destroy(struct ion_heap *);
 struct ion_heap *ion_cma_heap_create(struct ion_platform_heap *);
 void ion_cma_heap_destroy(struct ion_heap *);
+int dma_contiguous_area_maps(struct seq_file *s);
+struct device *get_ion_dev(void);
+
+struct ion_heap *ion_secure_heap_create(struct ion_platform_heap *heap_data);
 
 /**
  * functions for creating and destroying a heap pool -- allows you

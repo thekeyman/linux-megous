@@ -40,6 +40,7 @@ enum ion_heap_type {
 	ION_HEAP_TYPE_CARVEOUT,
 	ION_HEAP_TYPE_CHUNK,
 	ION_HEAP_TYPE_DMA,
+	ION_HEAP_TYPE_SECURE, /* allwinner add */
 	ION_HEAP_TYPE_CUSTOM, /*
 			       * must be last so device specific heaps always
 			       * are at the end of this enum

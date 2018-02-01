@@ -276,7 +276,7 @@ int __init mcpm_sync_init(
  */
 int __init mcpm_loopback(void (*cache_disable)(void));
 
-void __init mcpm_smp_set_ops(void);
+extern void __init mcpm_smp_set_ops(void);
 
 /*
  * Synchronisation structures for coordinating safe cluster setup/teardown.

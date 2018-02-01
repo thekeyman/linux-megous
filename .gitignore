@@ -25,7 +25,6 @@
 *.elf
 *.bin
 *.tar
-*.gz
 *.bz2
 *.lzma
 *.xz
@@ -114,3 +113,6 @@ all.config
 
 # Kdevelop4
 *.kdev4
+
+# Do not track output folder.
+/output

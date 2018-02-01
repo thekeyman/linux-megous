@@ -548,7 +548,12 @@ static void ir_do_keyup(struct rc_dev *dev, bool sync)
 		return;
 
 	IR_dprintk(1, "keyup key 0x%04x\n", dev->last_keycode);
+/*sunxi_multi ir only care scancode, not really keycode*/
+#ifdef CONFIG_SUNXI_MULTI_IR_SUPPORT
+	input_event(dev->input_dev, EV_MSC, MSC_SCAN, (dev->last_scancode & (~(0x1 << 24))));
+#else
 	input_report_key(dev->input_dev, dev->last_keycode, 0);
+#endif
 	led_trigger_event(led_feedback, LED_OFF);
 	if (sync)
 		input_sync(dev->input_dev);
@@ -644,11 +649,28 @@ static void ir_do_keydown(struct rc_dev *dev, enum rc_type protocol,
 {
 	bool new_event = (!dev->keypressed		 ||
 			  dev->last_protocol != protocol ||
-			  dev->last_scancode != scancode ||
+			  ((dev->last_scancode & 0xffffffUL) != (scancode & 0xffffffUL)) ||
 			  dev->last_toggle   != toggle);
 
 	if (new_event && dev->keypressed)
 		ir_do_keyup(dev, false);
+#ifdef CONFIG_SUNXI_MULTI_IR_SUPPORT
+	if (new_event) {
+		/* Register a keypress */
+		dev->keypressed = true;
+		dev->last_protocol = protocol;
+		dev->last_scancode = scancode;
+		dev->last_toggle = toggle;
+		dev->last_keycode = keycode;
+		input_event(dev->input_dev, EV_MSC, MSC_SCAN, scancode | (0x01 << 24));
+
+		IR_dprintk(1, "%s: key down event, "
+			   "key 0x%04x, protocol 0x%04x, scancode 0x%08x\n",
+			   dev->input_name, keycode, protocol, scancode);
+
+		led_trigger_event(led_feedback, LED_FULL);
+	}
+#else
 
 	input_event(dev->input_dev, EV_MSC, MSC_SCAN, scancode);
 
@@ -667,7 +689,7 @@ static void ir_do_keydown(struct rc_dev *dev, enum rc_type protocol,
 
 		led_trigger_event(led_feedback, LED_FULL);
 	}
-
+#endif
 	input_sync(dev->input_dev);
 }
 

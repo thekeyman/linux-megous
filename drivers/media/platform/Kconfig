@@ -121,6 +121,22 @@ source "drivers/media/platform/xilinx/Kconfig"
 source "drivers/media/platform/rcar-vin/Kconfig"
 source "drivers/media/platform/atmel/Kconfig"
 
+config VIDEO_SUNXI_VIN
+	tristate "sunxi video input (camera csi/mipi isp vipp)driver"
+	default n
+
+if VIDEO_SUNXI_VIN
+source "drivers/media/platform/sunxi-vin/Kconfig"
+endif
+
+config VIDEO_SUNXI_VFE
+	tristate "sunxi video front end (camera and etc)driver"
+	default n
+
+if VIDEO_SUNXI_VFE
+source "drivers/media/platform/sunxi-vfe/Kconfig"
+endif
+
 config VIDEO_TI_CAL
 	tristate "TI CAL (Camera Adaptation Layer) driver"
 	depends on VIDEO_DEV && VIDEO_V4L2 && VIDEO_V4L2_SUBDEV_API

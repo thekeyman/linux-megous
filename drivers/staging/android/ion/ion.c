@@ -1153,7 +1153,7 @@ int ion_sync_for_device(struct ion_client *client, int fd)
 	}
 	buffer = dmabuf->priv;
 
-	dma_sync_sg_for_device(NULL, buffer->sg_table->sgl,
+	dma_sync_sg_for_device(get_ion_dev(), buffer->sg_table->sgl,
 			       buffer->sg_table->nents, DMA_BIDIRECTIONAL);
 	dma_buf_put(dmabuf);
 	return 0;
