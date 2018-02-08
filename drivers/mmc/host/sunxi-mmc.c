@@ -260,7 +260,11 @@ struct sunxi_mmc_cfg {
 	/* Does DATA0 needs to be masked while the clock is updated */
 	bool mask_data0;
 
-	bool has_new_timings;
+	/* hardware only supports new timing mode */
+	bool needs_new_timings;
+
+	/* hardware can switch between old and new timing modes */
+	bool has_timings_switch;
 };
 
 struct sunxi_mmc_host {
@@ -718,7 +722,12 @@ static int sunxi_mmc_clk_set_phase(struct sunxi_mmc_host *host,
 {
 	int index;
 
+	/* clk controller delays not used under new timings mode */
 	if (host->use_new_timings)
+		return 0;
+
+	/* some old controllers don't support delays */
+	if (!host->cfg->clk_delays)
 		return 0;
 
 	/* determine delays */
@@ -780,7 +789,7 @@ static int sunxi_mmc_clk_set_rate(struct sunxi_mmc_host *host,
 		clock <<= 1;
 	}
 
-	if (host->use_new_timings) {
+	if (host->use_new_timings && host->cfg->has_timings_switch) {
 		ret = sunxi_ccu_set_mmc_timing_mode(host->clk_mmc, true);
 		if (ret) {
 			dev_err(mmc_dev(mmc),
@@ -812,6 +821,9 @@ static int sunxi_mmc_clk_set_rate(struct sunxi_mmc_host *host,
 	rval |= div - 1;
 	mmc_writel(host, REG_CLKCR, rval);
 
+	/* update card clock rate to account for internal divider */
+	rate /= div;
+
 	if (host->use_new_timings) {
 		/* Don't touch the delay bits */
 		rval = mmc_readl(host, REG_SD_NTSR);
@@ -819,6 +831,7 @@ static int sunxi_mmc_clk_set_rate(struct sunxi_mmc_host *host,
 		mmc_writel(host, REG_SD_NTSR, rval);
 	}
 
+	/* sunxi_mmc_clk_set_phase expects the actual card clock rate */
 	ret = sunxi_mmc_clk_set_phase(host, ios, rate);
 	if (ret)
 		return ret;
@@ -840,7 +853,7 @@ static int sunxi_mmc_clk_set_rate(struct sunxi_mmc_host *host,
 		return ret;
 
 	/* And we just enabled our clock back */
-	mmc->actual_clock = rate / div;
+	mmc->actual_clock = rate;
 
 	return 0;
 }
@@ -1067,7 +1080,7 @@ static int sunxi_mmc_card_busy(struct mmc_host *mmc)
 	return !!(mmc_readl(host, REG_STAS) & SDXC_CARD_DATA_BUSY);
 }
 
-static struct mmc_host_ops sunxi_mmc_ops = {
+static const struct mmc_host_ops sunxi_mmc_ops = {
 	.request	 = sunxi_mmc_request,
 	.set_ios	 = sunxi_mmc_set_ios,
 	.get_ro		 = mmc_gpio_get_ro,
@@ -1117,7 +1130,7 @@ static const struct sunxi_mmc_cfg sun8i_a83t_emmc_cfg = {
 	.idma_des_size_bits = 16,
 	.clk_delays = sunxi_mmc_clk_delays,
 	.can_calibrate = false,
-	.has_new_timings = true,
+	.has_timings_switch = true,
 };
 
 static const struct sunxi_mmc_cfg sun9i_a80_cfg = {
@@ -1131,7 +1144,7 @@ static const struct sunxi_mmc_cfg sun50i_a64_cfg = {
 	.clk_delays = NULL,
 	.can_calibrate = true,
 	.mask_data0 = true,
-	.has_new_timings = true,
+	.needs_new_timings = true,
 };
 
 static const struct sunxi_mmc_cfg sun50i_a64_emmc_cfg = {
@@ -1162,11 +1175,8 @@ static int sunxi_mmc_resource_request(struct sunxi_mmc_host *host,
 		return -EINVAL;
 
 	ret = mmc_regulator_get_supply(host->mmc);
-	if (ret) {
-		if (ret != -EPROBE_DEFER)
-			dev_err(&pdev->dev, "Could not get vmmc supply\n");
+	if (ret)
 		return ret;
-	}
 
 	host->reg_base = devm_ioremap_resource(&pdev->dev,
 			      platform_get_resource(pdev, IORESOURCE_MEM, 0));
@@ -1199,7 +1209,8 @@ static int sunxi_mmc_resource_request(struct sunxi_mmc_host *host,
 		}
 	}
 
-	host->reset = devm_reset_control_get_optional(&pdev->dev, "ahb");
+	host->reset = devm_reset_control_get_optional_exclusive(&pdev->dev,
+								"ahb");
 	if (PTR_ERR(host->reset) == -EPROBE_DEFER)
 		return PTR_ERR(host->reset);
 
@@ -1228,7 +1239,7 @@ static int sunxi_mmc_resource_request(struct sunxi_mmc_host *host,
 	}
 
 	if (!IS_ERR(host->reset)) {
-		ret = reset_control_deassert(host->reset);
+		ret = reset_control_reset(host->reset);
 		if (ret) {
 			dev_err(&pdev->dev, "reset err %d\n", ret);
 			goto error_disable_clk_sample;
@@ -1289,15 +1300,26 @@ static int sunxi_mmc_probe(struct platform_device *pdev)
 		goto error_free_host;
 	}
 
-	if (host->cfg->clk_delays && host->cfg->has_new_timings) {
+	if (host->cfg->has_timings_switch) {
 		/*
 		 * Supports both old and new timing modes.
 		 * Try setting the clk to new timing mode.
 		 */
-		ret = sunxi_ccu_set_mmc_timing_mode(host->clk_mmc, true);
-		if (!ret)
-			host->use_new_timings = true;
-	} else if (host->cfg->has_new_timings) {
+		sunxi_ccu_set_mmc_timing_mode(host->clk_mmc, true);
+
+		/* And check the result */
+		ret = sunxi_ccu_get_mmc_timing_mode(host->clk_mmc);
+		if (ret < 0) {
+			/*
+			 * For whatever reason we were not able to get
+			 * the current active mode. Default to old mode.
+			 */
+			dev_warn(&pdev->dev, "MMC clk timing mode unknown\n");
+			host->use_new_timings = false;
+		} else {
+			host->use_new_timings = !!ret;
+		}
+	} else if (host->cfg->needs_new_timings) {
 		/* Supports new timing mode only */
 		host->use_new_timings = true;
 	}
