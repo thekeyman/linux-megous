@@ -1,23 +1,6 @@
-/* Copyright (C) 2015-2017 Jason A. Donenfeld <Jason@zx2c4.com>. All Rights Reserved.
+/* SPDX-License-Identifier: ((GPL-2.0 WITH Linux-syscall-note) OR MIT)
  *
- * The following MIT license applies only to this file:
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this file, to deal in this file without restriction, including without
- * limitation the rights to use, copy, modify, merge, publish, distribute,
- * sublicense, and/or sell copies of this file, and to permit persons to
- * whom this file is furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in all
- * copies or substantial portions of this file.
- *
- * THIS FILE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THIS FILE OR THE USE OR OTHER DEALINGS IN THIS
- * FILE.
+ * Copyright (C) 2015-2018 Jason A. Donenfeld <Jason@zx2c4.com>. All Rights Reserved.
  *
  * Documentation
  * =============
@@ -51,7 +34,7 @@
  *			WGPEER_A_PRESHARED_KEY: len WG_KEY_LEN
  *			WGPEER_A_ENDPOINT: struct sockaddr_in or struct sockaddr_in6
  *			WGPEER_A_PERSISTENT_KEEPALIVE_INTERVAL: NLA_U16
- *			WGPEER_A_LAST_HANDSHAKE_TIME: struct timeval
+ *			WGPEER_A_LAST_HANDSHAKE_TIME: struct timespec
  *			WGPEER_A_RX_BYTES: NLA_U64
  *			WGPEER_A_TX_BYTES: NLA_U64
  *			WGPEER_A_ALLOWEDIPS: NLA_NESTED

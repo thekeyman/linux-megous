@@ -1,5 +1,7 @@
-/*
- * Copyright (C) 2017 Jason A. Donenfeld <Jason@zx2c4.com>. All Rights Reserved.
+/* SPDX-License-Identifier: GPL-2.0
+ *
+ * Copyright (C) 2015-2018 Jason A. Donenfeld <Jason@zx2c4.com>. All Rights Reserved.
+ *
  * Based on algorithms from Tung Chou <blueprint@crypto.tw>
  */
 
@@ -24,6 +26,7 @@ curve25519_sandy2x_REDMASK51: .quad 0x0007FFFFFFFFFFFF
 
 .text
 .align 32
+#ifdef CONFIG_AS_AVX
 ENTRY(curve25519_sandy2x_fe51_mul)
 	push %rbp
 	mov %rsp,%rbp
@@ -3255,3 +3258,4 @@ ENTRY(curve25519_sandy2x_ladder_base)
 	leave
 	ret
 ENDPROC(curve25519_sandy2x_ladder_base)
+#endif /* CONFIG_AS_AVX */

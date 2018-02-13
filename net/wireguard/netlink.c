@@ -1,4 +1,7 @@
-/* Copyright (C) 2015-2017 Jason A. Donenfeld <Jason@zx2c4.com>. All Rights Reserved. */
+/* SPDX-License-Identifier: GPL-2.0
+ *
+ * Copyright (C) 2015-2018 Jason A. Donenfeld <Jason@zx2c4.com>. All Rights Reserved.
+ */
 
 #include "netlink.h"
 #include "device.h"
@@ -30,7 +33,7 @@ static const struct nla_policy peer_policy[WGPEER_A_MAX + 1] = {
 	[WGPEER_A_FLAGS]			= { .type = NLA_U32 },
 	[WGPEER_A_ENDPOINT]			= { .len = sizeof(struct sockaddr) },
 	[WGPEER_A_PERSISTENT_KEEPALIVE_INTERVAL]= { .type = NLA_U16 },
-	[WGPEER_A_LAST_HANDSHAKE_TIME]		= { .len = sizeof(struct timeval) },
+	[WGPEER_A_LAST_HANDSHAKE_TIME]		= { .len = sizeof(struct timespec) },
 	[WGPEER_A_RX_BYTES]			= { .type = NLA_U64 },
 	[WGPEER_A_TX_BYTES]			= { .type = NLA_U64 },
 	[WGPEER_A_ALLOWEDIPS]			= { .type = NLA_NESTED }
@@ -107,7 +110,7 @@ static int get_peer(struct wireguard_peer *peer, unsigned int index, struct allo
 		if (fail)
 			goto err;
 
-		if (nla_put(skb, WGPEER_A_LAST_HANDSHAKE_TIME, sizeof(struct timeval), &peer->walltime_last_handshake) || nla_put_u16(skb, WGPEER_A_PERSISTENT_KEEPALIVE_INTERVAL, peer->persistent_keepalive_interval / HZ) ||
+		if (nla_put(skb, WGPEER_A_LAST_HANDSHAKE_TIME, sizeof(struct timespec), &peer->walltime_last_handshake) || nla_put_u16(skb, WGPEER_A_PERSISTENT_KEEPALIVE_INTERVAL, peer->persistent_keepalive_interval / HZ) ||
 				nla_put_u64_64bit(skb, WGPEER_A_TX_BYTES, peer->tx_bytes, WGPEER_A_UNSPEC) || nla_put_u64_64bit(skb, WGPEER_A_RX_BYTES, peer->rx_bytes, WGPEER_A_UNSPEC))
 			goto err;
 
@@ -177,7 +180,7 @@ static int get_device_dump(struct sk_buff *skb, struct netlink_callback *cb)
 	hdr = genlmsg_put(skb, NETLINK_CB(cb->skb).portid, cb->nlh->nlmsg_seq, &genl_family, NLM_F_MULTI, WG_CMD_GET_DEVICE);
 	if (!hdr)
 		goto out;
-	genl_dump_check_consistent(cb, hdr, &genl_family);
+	genl_dump_check_consistent(cb, hdr);
 
 	if (!last_peer_cursor) {
 		if (nla_put_u16(skb, WGDEVICE_A_LISTEN_PORT, wg->incoming_port) || nla_put_u32(skb, WGDEVICE_A_FWMARK, wg->fwmark) || nla_put_u32(skb, WGDEVICE_A_IFINDEX, wg->dev->ifindex) || nla_put_string(skb, WGDEVICE_A_IFNAME, wg->dev->name))
@@ -260,13 +263,13 @@ static int set_port(struct wireguard_device *wg, u16 port)
 
 	if (wg->incoming_port == port)
 		return 0;
-	socket_uninit(wg);
-	wg->incoming_port = port;
 	list_for_each_entry(peer, &wg->peer_list, peer_list)
 		socket_clear_peer_endpoint_src(peer);
-	if (!netif_running(wg->dev))
+	if (!netif_running(wg->dev)) {
+		wg->incoming_port = port;
 		return 0;
-	return socket_init(wg);
+	}
+	return socket_init(wg, port);
 }
 
 static int set_allowedip(struct wireguard_peer *peer, struct nlattr **attrs)
@@ -465,7 +468,12 @@ out_nodev:
 	return ret;
 }
 
-static const struct genl_ops genl_ops[] = {
+#ifndef COMPAT_CANNOT_USE_CONST_GENL_OPS
+static const
+#else
+static
+#endif
+struct genl_ops genl_ops[] = {
 	{
 		.cmd = WG_CMD_GET_DEVICE,
 #ifndef COMPAT_CANNOT_USE_NETLINK_START
@@ -498,12 +506,12 @@ __ro_after_init = {
 	.netnsok = true
 };
 
-int __init netlink_init(void)
+int __init genetlink_init(void)
 {
 	return genl_register_family(&genl_family);
 }
 
-void __exit netlink_uninit(void)
+void __exit genetlink_uninit(void)
 {
 	genl_unregister_family(&genl_family);
 }
