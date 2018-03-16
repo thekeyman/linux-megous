@@ -1752,6 +1752,8 @@ static int mmc_init_card(struct mmc_host *host, u32 ocr,
 	 */
 	mmc_select_powerclass(card);
 
+	msleep(20);
+
 	/*
 	 * Enable HPI feature (if supported)
 	 */
@@ -1768,6 +1770,8 @@ static int mmc_init_card(struct mmc_host *host, u32 ocr,
 		} else
 			card->ext_csd.hpi_en = 1;
 	}
+
+	msleep(20);
 
 	/*
 	 * If cache size is higher than 0, this indicates
