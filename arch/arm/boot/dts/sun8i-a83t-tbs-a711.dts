@@ -402,12 +402,12 @@
 		interrupts = <6 12 IRQ_TYPE_EDGE_FALLING>; /* PG12 */
 	};
 
-	/* NFC */
-	pn544: pn544@28 {
+	/* NFC (NPC 100) */
+	npc100: nfc@28 {
 		compatible = "nxp,nxp-nci-i2c";
 		reg = <0x28>;
 		interrupt-parent = <&r_pio>;
-		interrupts = <0 6 IRQ_TYPE_LEVEL_LOW>; /* PL6 */
+		interrupts = <0 6 IRQ_TYPE_LEVEL_HIGH>; /* PL6 */
 		enable-gpios = <&pio 3 2 GPIO_ACTIVE_HIGH>; /* PD2 */
 		firmware-gpios = <&pio 3 3 GPIO_ACTIVE_HIGH>; /* PD3 */
 	};
