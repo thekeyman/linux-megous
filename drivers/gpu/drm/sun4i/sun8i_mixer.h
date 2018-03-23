@@ -91,6 +91,39 @@
 #define SUN8I_MIXER_FBFMT_YUV411	14
 
 /*
+ * VI channels are not used now, but the support of them may be introduced in
+ * the future.
+ */
+
+#define SUN8I_MIXER_CHAN_UI_LAYER_ATTR(ch, layer) \
+			(0x2000 + 0x1000 * (ch) + 0x20 * (layer) + 0x0)
+#define SUN8I_MIXER_CHAN_UI_LAYER_SIZE(ch, layer) \
+			(0x2000 + 0x1000 * (ch) + 0x20 * (layer) + 0x4)
+#define SUN8I_MIXER_CHAN_UI_LAYER_COORD(ch, layer) \
+			(0x2000 + 0x1000 * (ch) + 0x20 * (layer) + 0x8)
+#define SUN8I_MIXER_CHAN_UI_LAYER_PITCH(ch, layer) \
+			(0x2000 + 0x1000 * (ch) + 0x20 * (layer) + 0xc)
+#define SUN8I_MIXER_CHAN_UI_LAYER_TOP_LADDR(ch, layer) \
+			(0x2000 + 0x1000 * (ch) + 0x20 * (layer) + 0x10)
+#define SUN8I_MIXER_CHAN_UI_LAYER_BOT_LADDR(ch, layer) \
+			(0x2000 + 0x1000 * (ch) + 0x20 * (layer) + 0x14)
+#define SUN8I_MIXER_CHAN_UI_LAYER_FCOLOR(ch, layer) \
+			(0x2000 + 0x1000 * (ch) + 0x20 * (layer) + 0x18)
+#define SUN8I_MIXER_CHAN_UI_TOP_HADDR(ch)	(0x2000 + 0x1000 * (ch) + 0x80)
+#define SUN8I_MIXER_CHAN_UI_BOT_HADDR(ch)	(0x2000 + 0x1000 * (ch) + 0x84)
+#define SUN8I_MIXER_CHAN_UI_OVL_SIZE(ch)	(0x2000 + 0x1000 * (ch) + 0x88)
+
+#define SUN8I_MIXER_CHAN_UI_LAYER_ATTR_EN		BIT(0)
+#define SUN8I_MIXER_CHAN_UI_LAYER_ATTR_ALPHA_MODE_MASK	GENMASK(2, 1)
+#define SUN8I_MIXER_CHAN_UI_LAYER_ATTR_FBFMT_MASK	GENMASK(12, 8)
+#define SUN8I_MIXER_CHAN_UI_LAYER_ATTR_ALPHA_MASK	GENMASK(31, 24)
+#define SUN8I_MIXER_CHAN_UI_LAYER_ATTR_ALPHA_MODE_DEF	(1 << 1)
+#define SUN8I_MIXER_CHAN_UI_LAYER_ATTR_FBFMT_ARGB8888	(0 << 8)
+#define SUN8I_MIXER_CHAN_UI_LAYER_ATTR_FBFMT_XRGB8888	(4 << 8)
+#define SUN8I_MIXER_CHAN_UI_LAYER_ATTR_FBFMT_RGB888	(8 << 8)
+#define SUN8I_MIXER_CHAN_UI_LAYER_ATTR_ALPHA_DEF	(0xff << 24)
+
+/*
  * These sub-engines are still unknown now, the EN registers are here only to
  * be used to disable these sub-engines.
  */
