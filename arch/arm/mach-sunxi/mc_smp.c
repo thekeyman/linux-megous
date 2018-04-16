@@ -74,6 +74,7 @@ static void __iomem *sram_b_smp_base;
 
 extern void sunxi_mc_smp_secondary_startup(void);
 extern void sunxi_mc_smp_resume(void);
+static int is_sun8i;
 
 static bool sunxi_core_is_cortex_a15(unsigned int core, unsigned int cluster)
 {
@@ -624,6 +625,7 @@ struct sunxi_mc_smp_nodes {
 struct sunxi_mc_smp_data {
 	const char *enable_method;
 	int (*get_smp_nodes)(struct sunxi_mc_smp_nodes *nodes);
+	int is_sun8i;
 };
 
 static void __init sunxi_mc_smp_put_nodes(struct sunxi_mc_smp_nodes *nodes)
@@ -664,6 +666,7 @@ static const struct sunxi_mc_smp_data sunxi_mc_smp_data[] __initconst = {
 	{
 		.enable_method	= "allwinner,sun9i-a80-smp",
 		.get_smp_nodes	= sun9i_a80_get_smp_nodes,
+		.is_sun8i	= false,
 	},
 };
 
@@ -696,6 +699,8 @@ static int __init sunxi_mc_smp_init(void)
 		if (!ret)
 			break;
 	}
+
+	is_sun8i = sunxi_mc_smp_data[i].is_sun8i;
 
 	of_node_put(node);
 	if (ret)
