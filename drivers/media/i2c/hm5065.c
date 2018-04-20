@@ -1801,46 +1801,6 @@ found:
 	return 0;
 }
 
-static int hm5065_g_parm(struct v4l2_subdev *sd, struct v4l2_streamparm *parms)
-{
-	struct v4l2_captureparm *cp = &parms->parm.capture;
-	struct v4l2_subdev_frame_interval fi;
-	int ret;
-
-	if (parms->type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
-		return -EINVAL;
-
-	cp->capability = V4L2_CAP_TIMEPERFRAME;
-	fi.pad = 0;
-	ret = hm5065_g_frame_interval(sd, &fi);
-	if (ret)
-		return ret;
-
-	cp->timeperframe = fi.interval;
-	return 0;
-}
-
-static int hm5065_s_parm(struct v4l2_subdev *sd, struct v4l2_streamparm *parms)
-{
-	struct v4l2_captureparm *cp = &parms->parm.capture;
-	struct v4l2_subdev_frame_interval fi;
-	int ret;
-
-	if (parms->type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
-		return -EINVAL;
-
-	fi.pad = 0;
-	fi.interval = cp->timeperframe;
-	cp->capability = V4L2_CAP_TIMEPERFRAME;
-
-	ret = hm5065_s_frame_interval(sd, &fi);
-	if (ret)
-		return ret;
-
-	cp->timeperframe = fi.interval;
-	return 0;
-}
-
 static int hm5065_get_fmt(struct v4l2_subdev *sd,
 			  struct v4l2_subdev_pad_config *cfg,
 			  struct v4l2_subdev_format *format)
@@ -2125,8 +2085,6 @@ static const struct v4l2_subdev_pad_ops hm5065_pad_ops = {
 static const struct v4l2_subdev_video_ops hm5065_video_ops = {
 	.g_frame_interval = hm5065_g_frame_interval,
 	.s_frame_interval = hm5065_s_frame_interval,
-	.g_parm = hm5065_g_parm,
-	.s_parm = hm5065_s_parm,
 	.s_stream = hm5065_s_stream,
 };
 
