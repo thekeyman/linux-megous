@@ -454,21 +454,16 @@ static int sun6i_enum_frameintervals(struct file *file, void *priv,
 	return 0;
 }
 
-
 static int sun6i_g_parm(struct file *file, void *fh, struct v4l2_streamparm *a)
 {
 	struct sun6i_csi *csi = video_drvdata(file);
 	struct sun6i_csi_subdev *csi_sd;
 
-	if (a->type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
-		return -EINVAL;
-
 	csi_sd = sun6i_get_enabled_subdev(csi);
 	if (csi_sd == NULL)
 		return -ENXIO;
 
-	a->parm.capture.readbuffers = 0;
-	return v4l2_subdev_call(csi_sd->sd, video, g_parm, a);
+	return v4l2_g_parm_cap(video_devdata(file), csi_sd->sd, a);
 }
 
 static int sun6i_s_parm(struct file *file, void *fh, struct v4l2_streamparm *a)
@@ -476,15 +471,11 @@ static int sun6i_s_parm(struct file *file, void *fh, struct v4l2_streamparm *a)
 	struct sun6i_csi *csi = video_drvdata(file);
 	struct sun6i_csi_subdev *csi_sd;
 
-	if (a->type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
-		return -EINVAL;
-
 	csi_sd = sun6i_get_enabled_subdev(csi);
 	if (csi_sd == NULL)
 		return -ENXIO;
 
-	a->parm.capture.readbuffers = 0;
-	return v4l2_subdev_call(csi_sd->sd, video, s_parm, a);
+	return v4l2_g_parm_cap(video_devdata(file), csi_sd->sd, a);
 }
 
 static int sun6i_enum_input(struct file *file, void *priv,
