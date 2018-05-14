@@ -39,6 +39,7 @@
 #include <linux/input/mt.h>
 #include <linux/input/touchscreen.h>
 #include <linux/of_device.h>
+#include <linux/regulator/consumer.h>
 
 #define WORK_REGISTER_THRESHOLD		0x00
 #define WORK_REGISTER_REPORT_RATE	0x08
@@ -91,6 +92,7 @@ struct edt_ft5x06_ts_data {
 	struct touchscreen_properties prop;
 	u16 num_x;
 	u16 num_y;
+	struct regulator *supply;
 
 	struct gpio_desc *reset_gpio;
 	struct gpio_desc *wake_gpio;
@@ -991,6 +993,22 @@ static int edt_ft5x06_ts_probe(struct i2c_client *client,
 
 	tsdata->max_support_points = chip_data->max_support_points;
 
+	tsdata->supply = devm_regulator_get_optional(&client->dev, "power");
+	if (IS_ERR(tsdata->supply)) {
+		error = PTR_ERR(tsdata->supply);
+		dev_err(&client->dev, "failed to request regulator: %d\n", error);
+		return error;
+	};
+
+	if (tsdata->supply) {
+		error = regulator_enable(tsdata->supply);
+		mdelay(20);
+		if (error < 0) {
+			dev_err(&client->dev, "failed to enable supply: %d\n", error);
+			return error;
+		}
+	}
+
 	tsdata->reset_gpio = devm_gpiod_get_optional(&client->dev,
 						     "reset", GPIOD_OUT_HIGH);
 	if (IS_ERR(tsdata->reset_gpio)) {
@@ -1120,9 +1138,13 @@ static int edt_ft5x06_ts_remove(struct i2c_client *client)
 static int __maybe_unused edt_ft5x06_ts_suspend(struct device *dev)
 {
 	struct i2c_client *client = to_i2c_client(dev);
+	struct edt_ft5x06_ts_data *tsdata = i2c_get_clientdata(client);
 
 	if (device_may_wakeup(dev))
 		enable_irq_wake(client->irq);
+
+	if (tsdata->supply)
+		regulator_disable(tsdata->supply);
 
 	return 0;
 }
@@ -1130,9 +1152,18 @@ static int __maybe_unused edt_ft5x06_ts_suspend(struct device *dev)
 static int __maybe_unused edt_ft5x06_ts_resume(struct device *dev)
 {
 	struct i2c_client *client = to_i2c_client(dev);
+	struct edt_ft5x06_ts_data *tsdata = i2c_get_clientdata(client);
 
 	if (device_may_wakeup(dev))
 		disable_irq_wake(client->irq);
+
+	if (tsdata->supply) {
+		int err = regulator_enable(tsdata->supply);
+		if (err < 0) {
+			dev_err(dev, "failed to enable supply: %d\n", err);
+			return err;
+		}
+	}
 
 	return 0;
 }

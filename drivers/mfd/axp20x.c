@@ -24,6 +24,7 @@
 #include <linux/pm_runtime.h>
 #include <linux/regmap.h>
 #include <linux/regulator/consumer.h>
+#include <linux/regulator/userspace-consumer.h>
 #include <linux/mfd/axp20x.h>
 #include <linux/mfd/core.h>
 #include <linux/of_device.h>
@@ -130,6 +131,7 @@ static const struct regmap_range axp288_volatile_ranges[] = {
 	regmap_reg_range(AXP288_BC_GLOBAL, AXP288_BC_GLOBAL),
 	regmap_reg_range(AXP288_BC_DET_STAT, AXP288_BC_DET_STAT),
 	regmap_reg_range(AXP20X_CHRG_BAK_CTRL, AXP20X_CHRG_BAK_CTRL),
+	regmap_reg_range(AXP22X_CHRG_CTRL3, AXP22X_CHRG_CTRL3),
 	regmap_reg_range(AXP20X_IRQ1_EN, AXP20X_IPSOUT_V_HIGH_L),
 	regmap_reg_range(AXP20X_TIMER_CTRL, AXP20X_TIMER_CTRL),
 	regmap_reg_range(AXP22X_GPIO_STATE, AXP22X_GPIO_STATE),
@@ -875,6 +877,16 @@ static struct mfd_cell axp809_cells[] = {
 	},
 };
 
+static struct regulator_bulk_data vcc_vb = {
+	.supply = "vcc-vb",
+};
+
+static struct regulator_userspace_consumer_data vcc_vb_data = {
+	.name = "vcc-vb",
+	.num_supplies = 1,
+	.supplies = &vcc_vb,
+};
+
 static struct mfd_cell axp813_cells[] = {
 	{
 		.name			= "axp221-pek",
@@ -891,6 +903,16 @@ static struct mfd_cell axp813_cells[] = {
 	}, {
 		.name		= "axp20x-battery-power-supply",
 		.of_compatible	= "x-powers,axp813-battery-power-supply",
+	}, {
+		.name			= "axp20x-usb-power-supply",
+		.of_compatible		= "x-powers,axp813-usb-power-supply",
+	}, {
+		.name			= "axp20x-leds",
+		.of_compatible		= "x-powers,axp813-leds",
+	}, {
+		.name			= "reg-userspace-consumer",
+		.platform_data		= &vcc_vb_data,
+		.pdata_size		= sizeof(vcc_vb_data),
 	},
 };
 

@@ -46,6 +46,7 @@
 
 #include <dt-bindings/gpio/gpio.h>
 #include <dt-bindings/pwm/pwm.h>
+#include <dt-bindings/input/input.h>
 
 / {
 	model = "TBS A711 Tablet";
@@ -60,13 +61,35 @@
 		stdout-path = "serial0:115200n8";
 	};
 
+	leds {
+		compatible = "gpio-leds";
+
+		flash_led {
+			label = "flash";
+			gpios = <&pio 1 3 GPIO_ACTIVE_HIGH>;
+		};
+	};
+
 	backlight: backlight {
 		compatible = "pwm-backlight";
 		pwms = <&pwm 0 50000 PWM_POLARITY_INVERTED>;
 		enable-gpios = <&pio 3 29 GPIO_ACTIVE_HIGH>;
 
-		brightness-levels = <0 1 2 4 8 16 32 64 128 255>;
-		default-brightness-level = <9>;
+		brightness-levels = <0 8 9 10 11 13 15 17 19 21 23 25 28
+				     31 34 37 40 44 48 52 56 61 67 72 78
+				     84 91 98 106 115 124 133 143 154
+				     166 179 192 207 223 239 255>;
+		default-brightness-level = <39>;
+	};
+
+	i2c_gpio: i2c-gpio {
+		compatible = "i2c-gpio";
+		/* PE15 = sda, PE14 = scl */
+		sda-gpios = <&pio 4 15 (GPIO_ACTIVE_HIGH | GPIO_OPEN_DRAIN)>;
+		scl-gpios = <&pio 4 14 (GPIO_ACTIVE_HIGH | GPIO_OPEN_DRAIN)>;
+		i2c-gpio,delay-us = <1>; /* ~100 kHz */
+		#address-cells = <1>;
+		#size-cells = <0>;
 	};
 
 	panel {
@@ -98,6 +121,17 @@
 		};
 	};
 
+	reg_gps: reg-gps {
+		compatible = "regulator-fixed";
+		regulator-name = "gps";
+		regulator-min-microvolt = <3000000>;
+		regulator-max-microvolt = <3000000>;
+		enable-active-high;
+		/*XXX: this doesn't control GPS regulator, shematics show FLAG
+		 * pin */
+		//gpio = <&pio 3 4 GPIO_ACTIVE_HIGH>; /* PD4 */
+	};
+
 	reg_vbat: reg-vbat {
 		compatible = "regulator-fixed";
 		regulator-name = "vbat";
@@ -110,8 +144,10 @@
 		regulator-name = "vmain";
 		regulator-min-microvolt = <5000000>;
 		regulator-max-microvolt = <5000000>;
-		gpio = <&r_pio 0 9 GPIO_ACTIVE_HIGH>;
+		gpio = <&r_pio 0 9 GPIO_ACTIVE_HIGH>; /* PL9 */
 		enable-active-high;
+		//megi: See modem for comments
+		regulator-always-on;
 		vin-supply = <&reg_vbat>;
 	};
 
@@ -126,6 +162,26 @@
 		clocks = <&ac100_rtc 1>;
 		clock-names = "ext_clock";
 	};
+
+	modem {
+		compatible = "custom,power-manager";
+		//megi: switching Q5 MOSFET probably leads to brownouts on
+		//VBAT due to larger capacities on VMAIN. Only use PL8 to
+		//enable/disable the modem
+		//power-supply = <&reg_vmain>;
+		enable-gpios = <&r_pio 0 8 GPIO_ACTIVE_HIGH>; /* PL8 */
+		reset-gpios = <&r_pio 0 10 GPIO_ACTIVE_HIGH>; /* PL10 */
+		wakeup-gpios = <&r_pio 0 11 GPIO_ACTIVE_HIGH>; /* PL11 */
+		reset-duration-ms = <5>;
+		char-device-name = "pwr-modem";
+	};
+
+	gps {
+		compatible = "custom,power-manager";
+		power-supply = <&reg_gps>;
+		reset-duration-ms = <5>;
+		char-device-name = "pwr-gps";
+	};
 };
 
 &cpu0 {
@@ -134,6 +190,73 @@
 
 &cpu100 {
 	cpu-supply = <&reg_dcdc3>;
+};
+
+&cpu0_thermal {
+	trips {
+		cpu0_hot: cpu_hot {
+			temperature = <65000>;
+			hysteresis = <2000>;
+			type = "passive";
+		};
+		cpu0_very_hot: cpu_very_hot {
+			temperature = <90000>;
+			hysteresis = <2000>;
+			type = "critical";
+		};
+	};
+
+	cooling-maps {
+		cpu_hot_limit {
+			trip = <&cpu0_hot>;
+			cooling-device = <&cpu0 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
+		};
+	};
+};
+
+&cpu1_thermal {
+	trips {
+		cpu1_hot: cpu_hot {
+			temperature = <65000>;
+			hysteresis = <2000>;
+			type = "passive";
+		};
+		cpu1_very_hot: cpu_very_hot {
+			temperature = <90000>;
+			hysteresis = <2000>;
+			type = "critical";
+		};
+	};
+
+	cooling-maps {
+		cpu_hot_limit {
+			trip = <&cpu1_hot>;
+			cooling-device = <&cpu100 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
+		};
+	};
+};
+
+&csi0 {
+	status = "okay";
+	pinctrl-names = "default";
+	pinctrl-0 = <&csi0_pins>;
+
+	port {
+		csi0_hm5065_ep: endpoint {
+			remote-endpoint = <&hm5065_ep>;
+			bus-width = <8>;
+			data-active = <1>;
+			pclk-sample = <1>;
+			hsync-active = <1>;
+			vsync-active = <0>;
+		};
+	};
+};
+
+&dai {
+	status = "okay";
+	pinctrl-names = "default";
+	pinctrl-0 = <&i2s0_pins>;
 };
 
 &de {
@@ -154,6 +277,123 @@
  */
 &ehci1 {
 	status = "okay";
+};
+
+&i2c0 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&i2c0_pins>;
+	clock-frequency = <400000>;
+	status = "okay";
+
+	polytouch: edt-ft5x06@38 {
+		compatible = "edt,edt-ft5x06";
+		reg = <0x38>;
+		//pinctrl-names = "default";
+		//pinctrl-0 = <&lcd0_pins>;
+		interrupt-parent = <&r_pio>;
+		interrupts = <0 7 IRQ_TYPE_EDGE_FALLING>;
+		reset-gpios = <&pio 3 5 GPIO_ACTIVE_LOW>;
+		power-supply = <&reg_ldo_io0>;
+		touchscreen-size-x = <1024>;
+		touchscreen-size-y = <600>;
+	};
+};
+
+&i2c_gpio {
+	hm5065: camera@1f {
+		compatible = "himax,hm5065";
+		reg = <0x1f>;
+		clocks = <&ccu CLK_CSI_MCLK>;
+		clock-names = "xclk";
+		IOVDD-supply = <&reg_dldo3>;
+		AVDD-supply = <&reg_dldo4>;
+		DVDD-supply = <&reg_eldo3>;
+		AFVDD-supply = <&reg_dldo3>;
+		reset-gpios = <&pio 4 18 GPIO_ACTIVE_LOW>; /* PE18 */
+		chipenable-gpios = <&pio 4 19 GPIO_ACTIVE_HIGH>; /* PE19 */
+
+		port {
+			hm5065_ep: endpoint {
+				remote-endpoint = <&csi0_hm5065_ep>;
+				bus-width = <8>;
+				data-active = <1>;
+				pclk-sample = <1>;
+				hsync-active = <1>;
+				vsync-active = <0>;
+			};
+		};
+	};
+};
+
+&i2c1 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&i2c1_pins>;
+	clock-frequency = <400000>;
+	status = "okay";
+
+	/* Accelerometer */
+	bma250@18 {
+		compatible = "bosch,bma250";
+		reg = <0x18>;
+		interrupt-parent = <&pio>;
+		interrupts = <7 10 IRQ_TYPE_EDGE_RISING>; /* PH10 / EINT10 */
+	};
+
+	/* Magnetic Sensor */
+	ak8963: ak8963@0d {
+		status = "disabled"; /* broken */ 
+		compatible = "asahi-kasei,ak8963";
+		reg = <0x0d>;
+		interrupt-parent = <&pio>;
+		interrupts = <1 2 IRQ_TYPE_EDGE_RISING>; /* PB2 */
+		mount-matrix =  /* x0 */ "-0.984807753012208",
+				/* y0 */ "0",
+				/* z0 */ "-0.173648177666930",
+				/* x1 */ "0",
+				/* y1 */ "-1",
+				/* z1 */ "0",
+				/* x2 */ "-0.173648177666930",
+				/* y2 */ "0",
+				/* z2 */ "0.984807753012208";
+	};
+
+	/* Light Sensor */
+	ltr501: ltr501@23 {
+		status = "disabled"; /* no output */ 
+		compatible = "ltr,ltr501";
+		reg = <0x23>;
+		interrupt-parent = <&pio>;
+		interrupts = <6 12 IRQ_TYPE_EDGE_FALLING>; /* PG12 */
+	};
+
+	/* NFC (NPC 100) */
+	npc100: nfc@28 {
+		compatible = "nxp,nxp-nci-i2c";
+		reg = <0x28>;
+		interrupt-parent = <&r_pio>;
+		interrupts = <0 6 IRQ_TYPE_LEVEL_HIGH>; /* PL6 */
+		enable-gpios = <&pio 3 2 GPIO_ACTIVE_HIGH>; /* PD2 */
+		firmware-gpios = <&pio 3 3 GPIO_ACTIVE_HIGH>; /* PD3 */
+	};
+};
+
+&lradc {
+	vref-supply = <&reg_aldo2>;
+	status = "okay";
+
+	button@200 {
+		label = "Volume Up";
+		linux,code = <KEY_VOLUMEUP>;
+		channel = <0>;
+		voltage = <210000>;
+	};
+
+	button@400 {
+		label = "Volume Down";
+		linux,code = <KEY_VOLUMEDOWN>;
+		channel = <0>;
+		voltage = <410000>;
+	};
 };
 
 &mmc0 {
@@ -311,14 +551,15 @@
 };
 
 &reg_dldo2 {
-	regulator-min-microvolt = <2800000>;
+	regulator-min-microvolt = <3300000>;
 	regulator-max-microvolt = <4200000>;
-	regulator-name = "vcc-mipi";
+	regulator-name = "vbat-nfc";
+	regulator-always-on;
 };
 
 &reg_dldo3 {
-	regulator-min-microvolt = <2800000>;
-	regulator-max-microvolt = <2800000>;
+	regulator-min-microvolt = <2600000>;
+	regulator-max-microvolt = <2600000>;
 	regulator-name = "vdd-csi";
 };
 
@@ -334,9 +575,10 @@
 };
 
 &reg_eldo1 {
-	regulator-min-microvolt = <1200000>;
+	regulator-min-microvolt = <1800000>;
 	regulator-max-microvolt = <1800000>;
-	regulator-name = "dvdd-csi-r";
+	regulator-name = "pvdd-nfc";
+	regulator-always-on;
 };
 
 &reg_eldo2 {
@@ -346,7 +588,7 @@
 };
 
 &reg_eldo3 {
-	regulator-min-microvolt = <1200000>;
+	regulator-min-microvolt = <1800000>;
 	regulator-max-microvolt = <1800000>;
 	regulator-name = "dvdd-csi-f";
 };
@@ -372,8 +614,8 @@
 };
 
 &reg_ldo_io1 {
-	regulator-min-microvolt = <3100000>;
-	regulator-max-microvolt = <3100000>;
+	regulator-min-microvolt = <3300000>;
+	regulator-max-microvolt = <3300000>;
 	regulator-name = "vcc-vb";
 	status = "okay";
 };
@@ -396,6 +638,10 @@
 	};
 };
 
+&ths {
+	status = "okay";
+};
+
 &uart0 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&uart0_pb_pins>;
@@ -406,6 +652,23 @@
 &uart1 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&uart1_pins>, <&uart1_rts_cts_pins>;
+	status = "okay";
+
+/*
+	bluetooth {
+		compatible = "brcm,bcm43438-bt";
+		//max-speed = <921600>;
+		shutdown-gpios = <&r_pio 0 4 GPIO_ACTIVE_HIGH>;
+		device-wakeup-gpios = <&pio 7 5 GPIO_ACTIVE_HIGH>;
+		//host-wakeup-gpios = <&r_pio 0 5 GPIO_ACTIVE_HIGH>;
+	};
+	*/
+};
+
+/* GPS NEO-6M */
+&uart2 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&uart2_pb_pins>;
 	status = "okay";
 };
 
@@ -419,5 +682,6 @@
 	usb0_vbus-supply = <&reg_drivevbus>;
 	usb1_vbus_supply = <&reg_vmain>;
 	usb2_vbus_supply = <&reg_vmain>;
+	force-poll-vbus-id-det;
 	status = "okay";
 };
