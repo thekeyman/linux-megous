@@ -1435,8 +1435,7 @@ static int sunxi_mmc_remove(struct platform_device *pdev)
 	return 0;
 }
 
-#ifdef CONFIG_PM
-static int sunxi_mmc_runtime_resume(struct device *dev)
+static int __maybe_unused sunxi_mmc_runtime_resume(struct device *dev)
 {
 	struct mmc_host	*mmc = dev_get_drvdata(dev);
 	struct sunxi_mmc_host *host = mmc_priv(mmc);
@@ -1453,7 +1452,7 @@ static int sunxi_mmc_runtime_resume(struct device *dev)
 	return 0;
 }
 
-static int sunxi_mmc_runtime_suspend(struct device *dev)
+static int __maybe_unused sunxi_mmc_runtime_suspend(struct device *dev)
 {
 	struct mmc_host	*mmc = dev_get_drvdata(dev);
 	struct sunxi_mmc_host *host = mmc_priv(mmc);
@@ -1463,7 +1462,6 @@ static int sunxi_mmc_runtime_suspend(struct device *dev)
 
 	return 0;
 }
-#endif
 
 static const struct dev_pm_ops sunxi_mmc_pm_ops = {
 	SET_RUNTIME_PM_OPS(sunxi_mmc_runtime_suspend,
