@@ -1435,7 +1435,7 @@ static int sunxi_mmc_remove(struct platform_device *pdev)
 	return 0;
 }
 
-static int __maybe_unused sunxi_mmc_runtime_resume(struct device *dev)
+static int sunxi_mmc_runtime_resume(struct device *dev)
 {
 	struct mmc_host	*mmc = dev_get_drvdata(dev);
 	struct sunxi_mmc_host *host = mmc_priv(mmc);
@@ -1452,7 +1452,7 @@ static int __maybe_unused sunxi_mmc_runtime_resume(struct device *dev)
 	return 0;
 }
 
-static int __maybe_unused sunxi_mmc_runtime_suspend(struct device *dev)
+static int sunxi_mmc_runtime_suspend(struct device *dev)
 {
 	struct mmc_host	*mmc = dev_get_drvdata(dev);
 	struct sunxi_mmc_host *host = mmc_priv(mmc);
