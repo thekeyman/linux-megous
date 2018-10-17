@@ -18,6 +18,7 @@ obj-$(CONFIG_PCI)		+= pci/
 obj-$(CONFIG_PARISC)		+= parisc/
 obj-$(CONFIG_RAPIDIO)		+= rapidio/
 obj-y				+= video/
+obj-$(CONFIG_LCDKIT_DRIVER)     += devkit/lcdkit/
 obj-y				+= idle/
 
 # IPMI must come before ACPI in order to provide IPMI opregion support
@@ -60,17 +61,20 @@ obj-$(CONFIG_FB_I810)           += video/fbdev/i810/
 obj-$(CONFIG_FB_INTEL)          += video/fbdev/intelfb/
 
 obj-$(CONFIG_PARPORT)		+= parport/
-obj-y				+= base/ block/ misc/ mfd/ nfc/
+obj-y				+= base/ block/ misc/ mfd/ nfc/ soc/
 obj-$(CONFIG_DMA_SHARED_BUFFER) += dma-buf/
 obj-$(CONFIG_NUBUS)		+= nubus/
 obj-y				+= macintosh/
 obj-$(CONFIG_IDE)		+= ide/
+obj-$(CONFIG_CRYPTO)		+= crypto/
 obj-$(CONFIG_SCSI)		+= scsi/
 obj-$(CONFIG_ATA)		+= ata/
 obj-$(CONFIG_TARGET_CORE)	+= target/
 obj-$(CONFIG_MTD)		+= mtd/
 obj-$(CONFIG_SPI)		+= spi/
 obj-$(CONFIG_SPMI)		+= spmi/
+obj-$(CONFIG_SLIMBUS)           += slimbus/
+obj-$(CONFIG_SOUNDWIRE)		+= soundwire/
 obj-y				+= hsi/
 obj-y				+= net/
 obj-$(CONFIG_ATM)		+= atm/
@@ -117,10 +121,10 @@ obj-$(CONFIG_CPU_IDLE)		+= cpuidle/
 obj-y				+= mmc/
 obj-$(CONFIG_MEMSTICK)		+= memstick/
 obj-y				+= leds/
+obj-$(CONFIG_SWITCH)		+= switch/
 obj-$(CONFIG_INFINIBAND)	+= infiniband/
 obj-$(CONFIG_SGI_SN)		+= sn/
 obj-y				+= firmware/
-obj-$(CONFIG_CRYPTO)		+= crypto/
 obj-$(CONFIG_SUPERH)		+= sh/
 obj-$(CONFIG_ARCH_SHMOBILE)	+= sh/
 ifndef CONFIG_ARCH_USES_GETTIMEOFFSET
@@ -161,3 +165,31 @@ obj-$(CONFIG_POWERCAP)		+= powercap/
 obj-$(CONFIG_MCB)		+= mcb/
 obj-$(CONFIG_RAS)		+= ras/
 obj-$(CONFIG_THUNDERBOLT)	+= thunderbolt/
+obj-$(CONFIG_CORESIGHT)		+= coresight/
+obj-$(CONFIG_ESOC)		+= esoc/
+
+obj-$(CONFIG_BIF)		+= bif/
+
+obj-$(CONFIG_SENSORS_SSC)	+= sensors/
+obj-y				+= huawei/
+obj-$(CONFIG_HUAWEI_CC_DRV)		+= huawei_cc/
+
+obj-$(CONFIG_HUAWEI_HW_DEV_DCT) += devdetect/
+# <t-base drivers
+obj-$(CONFIG_MOBICORE_DRIVER)	+= gud/
+obj-y     += dsm/
+obj-$(CONFIG_HUAWEI_DRIVERS)	+=huawei_platform/
+obj-$(CONFIG_LOG_EXCEPTION) += log_usertype/
+obj-$(CONFIG_HW_GADGET)     += hwusb/
+
+obj-$(CONFIG_HUAWEI_BFM)     += hwbfm/
+
+obj-$(CONFIG_HUAWEI_FACTORY_INFO)	+= hw_fac_info/
+
+obj-$(CONFIG_SRECORDER)     += srecorder/
+obj-$(CONFIG_KRETPROBES) += rphone/
+obj-$(CONFIG_HUAWEI_TS_KIT) += devkit/tpkit/
+obj-$(CONFIG_CPU_STRESS_TEST) += cpu_stress/
+# DTS_EAGLE START
+obj-$(CONFIG_DTS_EAGLE)     += dts_eagle/
+# DTS_EAGLE END

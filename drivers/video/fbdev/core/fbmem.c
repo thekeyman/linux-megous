@@ -33,14 +33,49 @@
 #include <linux/efi.h>
 #include <linux/fb.h>
 
+#ifndef CONFIG_LCDKIT_DRIVER
+#ifdef CONFIG_HUAWEI_KERNEL_LCD
+#include <huawei_platform/touchscreen/hw_tp_common.h>
+#endif
+#endif
+
 #include <asm/fb.h>
 
+#ifdef CONFIG_LCDKIT_DRIVER
+extern int tp_reset_enable;
+extern int lcdkit_msg_level ;
+extern u32 lcdkit_get_panel_off_reset_high(void);
+
+#ifndef LCDKIT_INFO
+#define LCDKIT_INFO(msg, ...)    \
+    do { if (lcdkit_msg_level > 6)  \
+        printk(KERN_INFO "[lcdkit]%s: "msg, __func__, ## __VA_ARGS__); } while (0)
+#endif
+#else
+#ifdef CONFIG_HUAWEI_KERNEL_LCD
+extern int lcd_debug_mask ;
+extern int tp_reset_enable;
+#define LCD_INFO 2
+
+#ifndef LCD_LOG_INFO
+#define LCD_LOG_INFO( x...)			\
+do{			\
+	if( lcd_debug_mask >= LCD_INFO )			\
+	{			\
+		printk(KERN_ERR "[LCD_INFO] " x);			\
+	}			\
+			\
+}while(0)
+#endif
+#endif
+#endif
 
     /*
      *  Frame buffer device initialization and setup routines
      */
 
 #define FBPIXMAPSIZE	(1024 * 8)
+
 
 static DEFINE_MUTEX(registration_lock);
 
@@ -1052,11 +1087,14 @@ fb_set_var(struct fb_info *info, struct fb_var_screeninfo *var)
 }
 EXPORT_SYMBOL(fb_set_var);
 
-int
-fb_blank(struct fb_info *info, int blank)
-{	
+#ifdef CONFIG_LCDKIT_DRIVER
+int fb_blank(struct fb_info *info, int blank)
+{
 	struct fb_event event;
 	int ret = -EINVAL, early_ret;
+
+	unsigned long timeout ;
+	LCDKIT_INFO("Enter %s, blank_mode = [%d].\n", __func__, blank);
 
  	if (blank > FB_BLANK_POWERDOWN)
  		blank = FB_BLANK_POWERDOWN;
@@ -1066,11 +1104,43 @@ fb_blank(struct fb_info *info, int blank)
 
 	early_ret = fb_notifier_call_chain(FB_EARLY_EVENT_BLANK, &event);
 
+    if (lcdkit_get_panel_off_reset_high())
+    {
+    	if((blank == FB_BLANK_UNBLANK) || (blank == FB_BLANK_POWERDOWN))
+    	{
+    		fb_notifier_call_chain(FB_EVENT_BLANK, &event);
+    		LCDKIT_INFO(":when power on wake tp pre lcd.\n");
+    	}
+    }
+    else
+    {
+    	if(blank == FB_BLANK_UNBLANK)
+    	{
+    		fb_notifier_call_chain(FB_EVENT_BLANK, &event);
+    		LCDKIT_INFO(":when power on wake tp pre lcd.\n");
+    	}
+    }
+
+	timeout = jiffies ;
+
 	if (info->fbops->fb_blank)
  		ret = info->fbops->fb_blank(blank, info);
 
+    LCDKIT_INFO(": fb blank time = %u\n", jiffies_to_msecs(jiffies-timeout));
+
 	if (!ret)
-		fb_notifier_call_chain(FB_EVENT_BLANK, &event);
+	{
+        if (lcdkit_get_panel_off_reset_high())
+        {
+            if ((blank != FB_BLANK_UNBLANK) && (blank != FB_BLANK_POWERDOWN))
+                fb_notifier_call_chain(FB_EVENT_BLANK, &event);
+        }
+        else
+        {
+            if (blank != FB_BLANK_UNBLANK)
+                fb_notifier_call_chain(FB_EVENT_BLANK, &event);
+        }
+	}
 	else {
 		/*
 		 * if fb_blank is failed then revert effects of
@@ -1080,12 +1150,72 @@ fb_blank(struct fb_info *info, int blank)
 			fb_notifier_call_chain(FB_R_EARLY_EVENT_BLANK, &event);
 	}
 
+    LCDKIT_INFO("Exit %s, blank_mode = [%d].\n",__func__,blank);
+
  	return ret;
 }
+#else
+int
+fb_blank(struct fb_info *info, int blank)
+{
+	struct fb_event event;
+	int ret = -EINVAL, early_ret;
+#ifdef CONFIG_HUAWEI_KERNEL_LCD
+	bool touch_pre_lcd = 0;
+	unsigned long timeout ;
+	LCD_LOG_INFO("Enter %s, blank_mode = [%d].\n",__func__,blank);
+#endif
+
+ 	if (blank > FB_BLANK_POWERDOWN)
+ 		blank = FB_BLANK_POWERDOWN;
+
+	event.info = info;
+	event.data = &blank;
+
+	early_ret = fb_notifier_call_chain(FB_EARLY_EVENT_BLANK, &event);
+#ifdef CONFIG_HUAWEI_KERNEL_LCD
+	touch_pre_lcd = get_tp_pre_lcd_flag();
+	if(touch_pre_lcd&& blank == FB_BLANK_UNBLANK)
+	{
+		fb_notifier_call_chain(FB_EVENT_BLANK, &event);
+		LCD_LOG_INFO("%s:when power on wake tp pre lcd.\n",__func__);
+	}
+	timeout = jiffies ;
+#endif
+	if (info->fbops->fb_blank)
+ 		ret = info->fbops->fb_blank(blank, info);
+#ifdef CONFIG_HUAWEI_KERNEL_LCD
+	LCD_LOG_INFO("%s: fb blank time = %u\n",
+			__func__,jiffies_to_msecs(jiffies-timeout));
+#endif
+	if (!ret)
+#ifdef CONFIG_HUAWEI_KERNEL_LCD
+	{
+				if (!touch_pre_lcd||blank != FB_BLANK_UNBLANK)
+#endif
+					fb_notifier_call_chain(FB_EVENT_BLANK, &event);
+#ifdef CONFIG_HUAWEI_KERNEL_LCD
+	}
+#endif
+	else {
+		/*
+		 * if fb_blank is failed then revert effects of
+		 * the early blank event.
+		 */
+		if (!early_ret)
+			fb_notifier_call_chain(FB_R_EARLY_EVENT_BLANK, &event);
+	}
+#ifdef CONFIG_HUAWEI_KERNEL_LCD
+	LCD_LOG_INFO("Exit %s, blank_mode = [%d].\n",__func__,blank);
+#endif
+
+ 	return ret;
+}
+#endif
 EXPORT_SYMBOL(fb_blank);
 
 static long do_fb_ioctl(struct fb_info *info, unsigned int cmd,
-			unsigned long arg)
+			unsigned long arg, struct file *file)
 {
 	struct fb_ops *fb;
 	struct fb_var_screeninfo var;
@@ -1212,14 +1342,13 @@ static long do_fb_ioctl(struct fb_info *info, unsigned int cmd,
 		console_unlock();
 		break;
 	default:
-		if (!lock_fb_info(info))
-			return -ENODEV;
 		fb = info->fbops;
-		if (fb->fb_ioctl)
+		if (fb->fb_ioctl_v2)
+			ret = fb->fb_ioctl_v2(info, cmd, arg, file);
+		else if (fb->fb_ioctl)
 			ret = fb->fb_ioctl(info, cmd, arg);
 		else
 			ret = -ENOTTY;
-		unlock_fb_info(info);
 	}
 	return ret;
 }
@@ -1230,7 +1359,7 @@ static long fb_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
 	if (!info)
 		return -ENODEV;
-	return do_fb_ioctl(info, cmd, arg);
+	return do_fb_ioctl(info, cmd, arg, file);
 }
 
 #ifdef CONFIG_COMPAT
@@ -1261,7 +1390,7 @@ struct fb_cmap32 {
 };
 
 static int fb_getput_cmap(struct fb_info *info, unsigned int cmd,
-			  unsigned long arg)
+			  unsigned long arg, struct file *file)
 {
 	struct fb_cmap_user __user *cmap;
 	struct fb_cmap32 __user *cmap32;
@@ -1284,7 +1413,7 @@ static int fb_getput_cmap(struct fb_info *info, unsigned int cmd,
 	    put_user(compat_ptr(data), &cmap->transp))
 		return -EFAULT;
 
-	err = do_fb_ioctl(info, cmd, (unsigned long) cmap);
+	err = do_fb_ioctl(info, cmd, (unsigned long) cmap, file);
 
 	if (!err) {
 		if (copy_in_user(&cmap32->start,
@@ -1329,7 +1458,7 @@ static int do_fscreeninfo_to_user(struct fb_fix_screeninfo *fix,
 }
 
 static int fb_get_fscreeninfo(struct fb_info *info, unsigned int cmd,
-			      unsigned long arg)
+			      unsigned long arg, struct file *file)
 {
 	mm_segment_t old_fs;
 	struct fb_fix_screeninfo fix;
@@ -1340,7 +1469,7 @@ static int fb_get_fscreeninfo(struct fb_info *info, unsigned int cmd,
 
 	old_fs = get_fs();
 	set_fs(KERNEL_DS);
-	err = do_fb_ioctl(info, cmd, (unsigned long) &fix);
+	err = do_fb_ioctl(info, cmd, (unsigned long) &fix, file);
 	set_fs(old_fs);
 
 	if (!err)
@@ -1367,20 +1496,22 @@ static long fb_compat_ioctl(struct file *file, unsigned int cmd,
 	case FBIOPUT_CON2FBMAP:
 		arg = (unsigned long) compat_ptr(arg);
 	case FBIOBLANK:
-		ret = do_fb_ioctl(info, cmd, arg);
+		ret = do_fb_ioctl(info, cmd, arg, file);
 		break;
 
 	case FBIOGET_FSCREENINFO:
-		ret = fb_get_fscreeninfo(info, cmd, arg);
+		ret = fb_get_fscreeninfo(info, cmd, arg, file);
 		break;
 
 	case FBIOGETCMAP:
 	case FBIOPUTCMAP:
-		ret = fb_getput_cmap(info, cmd, arg);
+		ret = fb_getput_cmap(info, cmd, arg, file);
 		break;
 
 	default:
-		if (fb->fb_compat_ioctl)
+		if (fb->fb_compat_ioctl_v2)
+			ret = fb->fb_compat_ioctl_v2(info, cmd, arg, file);
+		else if (fb->fb_compat_ioctl)
 			ret = fb->fb_compat_ioctl(info, cmd, arg);
 		break;
 	}
@@ -1460,6 +1591,7 @@ __releases(&info->lock)
 		goto out;
 	}
 	file->private_data = info;
+	info->file = file;
 	if (info->fbops->fb_open) {
 		res = info->fbops->fb_open(info,1);
 		if (res)
@@ -1484,6 +1616,7 @@ __releases(&info->lock)
 	struct fb_info * const info = file->private_data;
 
 	mutex_lock(&info->lock);
+	info->file = file;
 	if (info->fbops->fb_release)
 		info->fbops->fb_release(info,1);
 	module_put(info->fbops->owner);
@@ -1824,6 +1957,7 @@ void fb_set_suspend(struct fb_info *info, int state)
 	struct fb_event event;
 
 	event.info = info;
+	event.data = NULL;
 	if (state) {
 		fb_notifier_call_chain(FB_EVENT_SUSPEND, &event);
 		info->state = FBINFO_STATE_SUSPENDED;

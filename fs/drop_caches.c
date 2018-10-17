@@ -13,7 +13,7 @@
 /* A global variable is a bit ugly, but it keeps the code simple */
 int sysctl_drop_caches;
 
-static void drop_pagecache_sb(struct super_block *sb, void *unused)
+void drop_pagecache_sb(struct super_block *sb, void *unused)
 {
 	struct inode *inode, *toput_inode = NULL;
 
@@ -36,6 +36,12 @@ static void drop_pagecache_sb(struct super_block *sb, void *unused)
 	spin_unlock(&inode_sb_list_lock);
 	iput(toput_inode);
 }
+/* For TuxOnIce */
+void drop_pagecache(void)
+{
+      iterate_supers(drop_pagecache_sb, NULL);
+}
+EXPORT_SYMBOL_GPL(drop_pagecache);
 
 static void drop_slab(void)
 {

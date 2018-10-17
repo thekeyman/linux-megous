@@ -1,0 +1,8 @@
+&other_ext_mem{
+              reg = <0x0 0x85b00000 0x0 0xd00000>;
+              };
+
+
+&qcom_seecom{
+            reg = <0x92300000 0x1900000>;
+            };

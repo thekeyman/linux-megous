@@ -1,0 +1,10 @@
+/{
+		huawei_fac_info {
+		compatible = "huawei,hw_fac_info";
+		fac,product_name = "DLI-TL20";
+		fac,hardware_ver = "HL1DLIM-TL20";
+		fac,software_ver = "DLI_TL20_VA";
+		fac,simcard_adapt = "support";
+		status = "ok";
+	};
+};

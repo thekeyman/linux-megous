@@ -788,8 +788,14 @@ sg_common_write(Sg_fd * sfp, Sg_request * srp,
 		return k;	/* probably out of space --> ENOMEM */
 	}
 	if (atomic_read(&sdp->detaching)) {
-		if (srp->bio)
+		if (srp->bio) {
+			if (srp->rq->cmd != srp->rq->__cmd)
+				kfree(srp->rq->cmd);
+
 			blk_end_request_all(srp->rq, -EIO);
+			srp->rq = NULL;
+		}
+
 		sg_finish_rem_req(srp);
 		return -ENODEV;
 	}
@@ -1550,9 +1556,6 @@ sg_add_device(struct device *cl_dev, struct class_interface *cl_intf)
 			       "to sg%d\n", __func__, sdp->index);
 	} else
 		pr_warn("%s: sg_sys Invalid\n", __func__);
-
-	sdev_printk(KERN_NOTICE, scsidp, "Attached scsi generic sg%d "
-		    "type %d\n", sdp->index, scsidp->type);
 
 	dev_set_drvdata(cl_dev, sdp);
 

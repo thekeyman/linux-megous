@@ -1,0 +1,48 @@
+qcom,batterydata-delhi-sunwoda-4v4-3020mah {
+	/* #2468660_Wingtech_HB405979_3020mAh_averaged_MasterSlave_Jun30th2016*/
+	qcom,max-voltage-uv = <4400000>;
+	qcom,nom-batt-capacity-mah = <3020>;
+	qcom,batt-id-kohm = <110>;
+	qcom,battery-beta = <3435>;
+	qcom,battery-type = "batterydata-delhi-sunwoda-4v4-3020mah";
+	qcom,chg-rslow-comp-c1 = <2179256>;
+	qcom,chg-rslow-comp-c2 = <2256989>;
+	qcom,chg-rs-to-rslow = <1116338>;
+	qcom,chg-rslow-comp-thr = <0x99>;
+	qcom,checksum = <0xB135>;
+	qcom,gui-version = "PMI8950GUI - 2.0.0.16";
+	qcom,fg-profile-data = [
+		 DE 83 AF 7C 
+		 E2 80 AE 76 
+		 2B 83 EC 72 
+		 92 77 A4 6A 
+		 D3 81 C0 9A 
+		 5F BD F1 C9 
+		 53 0F E1 82 
+		 B0 73 B6 6E 
+		 A4 6A 20 83 
+		 78 7A CB 87 
+		 8F 83 1E 82 
+		 D1 99 EB BC 
+		 01 CA 8D 0D 
+		 2B 0C DF 5A 
+		 14 70 B2 FD 
+		 7E 3A 99 45 
+		 1E 2A 00 00 
+		 01 4C 44 40 
+		 5F 28 00 00 
+		 00 00 00 00 
+		 00 00 00 00 
+		 7F 71 80 70 
+		 03 7C 2D 78 
+		 06 7C 01 70 
+		 CE 65 E8 7B 
+		 AA 77 33 6B 
+		 AA 61 63 B1 
+		 20 60 61 FF 
+		 54 A0 71 0C 
+		 28 00 FF 36 
+		 F0 11 30 03 
+		 00 00 00 0C 
+	];
+};

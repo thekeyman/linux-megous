@@ -1,0 +1,48 @@
+qcom,batterydata-delhi-sucd-4v4-3020mah {
+	/* #2503882_Wingtech_Delhi_Scud_3020mAh_averaged_MasterSlave_Jul25th2016*/
+	qcom,max-voltage-uv = <4400000>;
+	qcom,nom-batt-capacity-mah = <3020>;
+	qcom,batt-id-kohm = <200>;
+	qcom,battery-beta = <3435>;
+	qcom,battery-type = "batterydata-delhi-sucd-4v4-3020mah";
+	qcom,chg-rslow-comp-c1 = <3560566>;
+	qcom,chg-rslow-comp-c2 = <5923454>;
+	qcom,chg-rs-to-rslow = <1719186>;
+	qcom,chg-rslow-comp-thr = <0xB2>;
+	qcom,checksum = <0xA054>;
+	qcom,gui-version = "PMI8950GUI - 2.0.0.16";
+	qcom,fg-profile-data = [
+		 DC 83 AA 7C 
+		 00 81 2B 77 
+		 65 83 CA 74 
+		 B8 89 B6 94 
+		 4B 82 24 98 
+		 56 B5 A0 C0 
+		 52 16 EC 83 
+		 C0 7C EB 80 
+		 C6 76 50 83 
+		 0D 6B 6A 78 
+		 58 86 31 82 
+		 4C 9A 8D BD 
+		 B1 CA 58 0D 
+		 CD 0B B6 58 
+		 14 70 B2 FD 
+		 BE 37 19 47 
+		 E6 41 00 00 
+		 CE 47 09 22 
+		 07 39 00 00 
+		 00 00 00 00 
+		 00 00 00 00 
+		 DC 72 AA 71 
+		 81 5F B3 82 
+		 71 75 E6 62 
+		 C7 29 B2 78 
+		 BB 6F 6F 58 
+		 8C 67 B2 A8 
+		 21 37 69 77 
+		 67 A0 71 0C 
+		 28 00 FF 36 
+		 F0 11 30 03 
+		 00 00 00 0C 
+	];
+};

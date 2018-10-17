@@ -75,6 +75,12 @@
 #include <linux/ipsec.h>
 #include <asm/unaligned.h>
 #include <linux/errqueue.h>
+#ifdef CONFIG_HW_WIFIPRO
+#include "wifipro_tcp_monitor.h"
+#endif
+#ifdef  CONFIG_HW_WIFI
+#include "wifi_tcp_statistics.h"
+#endif
 
 int sysctl_tcp_timestamps __read_mostly = 1;
 int sysctl_tcp_window_scaling __read_mostly = 1;
@@ -88,7 +94,7 @@ int sysctl_tcp_adv_win_scale __read_mostly = 1;
 EXPORT_SYMBOL(sysctl_tcp_adv_win_scale);
 
 /* rfc5961 challenge ack rate limiting */
-int sysctl_tcp_challenge_ack_limit = 100;
+int sysctl_tcp_challenge_ack_limit = 1000;
 
 int sysctl_tcp_stdurg __read_mostly;
 int sysctl_tcp_rfc1337 __read_mostly;
@@ -99,6 +105,7 @@ int sysctl_tcp_thin_dupack __read_mostly;
 
 int sysctl_tcp_moderate_rcvbuf __read_mostly = 1;
 int sysctl_tcp_early_retrans __read_mostly = 3;
+int sysctl_tcp_default_init_rwnd __read_mostly = TCP_INIT_CWND * 2;
 
 #define FLAG_DATA		0x01 /* Incoming frame contained data.		*/
 #define FLAG_WIN_UPDATE		0x02 /* Incoming ACK was a window update.	*/
@@ -121,6 +128,11 @@ int sysctl_tcp_early_retrans __read_mostly = 3;
 
 #define TCP_REMNANT (TCP_FLAG_FIN|TCP_FLAG_URG|TCP_FLAG_SYN|TCP_FLAG_PSH)
 #define TCP_HP_BITS (~(TCP_RESERVED_BITS|TCP_FLAG_PSH))
+
+#ifdef CONFIG_CHR_NETLINK_MODULE
+extern void notify_chr_thread_to_send_msg(unsigned int dst_addr, unsigned int src_addr);
+extern void notify_chr_thread_to_update_rtt(u32 rtt);
+#endif
 
 /* Adapt the MSS value used to make delayed ack decision to the
  * real world.
@@ -683,7 +695,9 @@ static void tcp_rtt_estimator(struct sock *sk, long mrtt_us)
 	struct tcp_sock *tp = tcp_sk(sk);
 	long m = mrtt_us; /* RTT */
 	u32 srtt = tp->srtt_us;
-
+#if defined(CONFIG_HW_WIFIPRO) || defined(CONFIG_HW_WIFI)
+	unsigned int rtt_jiffies = usecs_to_jiffies(mrtt_us);
+#endif
 	/*	The following amusing code comes from Jacobson's
 	 *	article in SIGCOMM '88.  Note that rtt and mdev
 	 *	are scaled versions of rtt and mean deviation.
@@ -700,6 +714,15 @@ static void tcp_rtt_estimator(struct sock *sk, long mrtt_us)
 	 * does not matter how to _calculate_ it. Seems, it was trap
 	 * that VJ failed to avoid. 8)
 	 */
+#ifdef CONFIG_HW_WIFIPRO
+	if ((is_wifipro_on || wifi_is_on()) && mrtt_us != 0) {
+		wifipro_update_rtt(rtt_jiffies<<3, sk);
+	}
+#endif
+#ifdef CONFIG_HW_WIFI
+	wifi_update_rtt(rtt_jiffies, sk);
+#endif
+
 	if (srtt != 0) {
 		m -= (srtt >> 3);	/* m is now error in rtt est */
 		srtt += m;		/* rtt = 7/8 rtt + 1/8 new */
@@ -3155,6 +3178,21 @@ static int tcp_clean_rtx_queue(struct sock *sk, int prior_fackets,
 		ca_seq_rtt_us = skb_mstamp_us_delta(&now, &last_ackt);
 	}
 
+#ifdef CONFIG_CHR_NETLINK_MODULE
+	if (flag & FLAG_SYN_ACKED) {
+
+		tp->first_data_flag = true;
+		tp->data_net_flag = false;
+	}
+
+	if (flag & FLAG_DATA_ACKED && tp->first_data_flag &&
+		tp->data_net_flag) {
+
+		notify_chr_thread_to_update_rtt((u32)seq_rtt_us);
+		tp->first_data_flag = false;
+	}
+#endif
+
 	rtt_update = tcp_ack_update_rtt(sk, flag, seq_rtt_us, sack_rtt_us);
 
 	if (flag & FLAG_ACKED) {
@@ -3324,13 +3362,20 @@ static void tcp_send_challenge_ack(struct sock *sk)
 	/* unprotected vars, we dont care of overwrites */
 	static u32 challenge_timestamp;
 	static unsigned int challenge_count;
-	u32 now = jiffies / HZ;
+	u32 count, now;
 
+	/* Then check host-wide RFC 5961 rate limit. */
+ 	now = jiffies / HZ;
 	if (now != challenge_timestamp) {
+		u32 half = (sysctl_tcp_challenge_ack_limit + 1) >> 1;
+
 		challenge_timestamp = now;
-		challenge_count = 0;
+		WRITE_ONCE(challenge_count, half +
+			   prandom_u32_max(sysctl_tcp_challenge_ack_limit));
 	}
-	if (++challenge_count <= sysctl_tcp_challenge_ack_limit) {
+	count = READ_ONCE(challenge_count);
+	if (count > 0) {
+		WRITE_ONCE(challenge_count, count - 1);
 		NET_INC_STATS_BH(sock_net(sk), LINUX_MIB_TCPCHALLENGEACK);
 		tcp_send_ack(sk);
 	}
@@ -3998,7 +4043,17 @@ static void tcp_send_dupack(struct sock *sk, const struct sk_buff *skb)
 			tcp_dsack_set(sk, TCP_SKB_CB(skb)->seq, end_seq);
 		}
 	}
-
+#ifdef CONFIG_HW_WIFI
+	if ( tp->dack_rcv_nxt == tp->rcv_nxt ) {
+		tp->dack_seq_num++;
+		if ( tp->dack_seq_num == 3 ) {
+			wifi_IncrRcvDupAcksSegs(sk, 1);
+		}
+	} else {
+		tp->dack_rcv_nxt  = tp->rcv_nxt;
+		tp->dack_seq_num = 0;
+	}
+#endif
 	tcp_send_ack(sk);
 }
 
@@ -4822,7 +4877,8 @@ static void __tcp_ack_snd_check(struct sock *sk, int ofo_possible)
 	struct tcp_sock *tp = tcp_sk(sk);
 
 	    /* More than one full frame received... */
-	if (((tp->rcv_nxt - tp->rcv_wup) > inet_csk(sk)->icsk_ack.rcv_mss &&
+	if (((tp->rcv_nxt - tp->rcv_wup) > (inet_csk(sk)->icsk_ack.rcv_mss) *
+					sysctl_tcp_delack_seg &&
 	     /* ... and right edge of window advances far enough.
 	      * (tcp_recvmsg() will send ACK otherwise). Or...
 	      */
@@ -5375,6 +5431,9 @@ static int tcp_rcv_synsent_state_process(struct sock *sk, struct sk_buff *skb,
 	struct tcp_sock *tp = tcp_sk(sk);
 	struct tcp_fastopen_cookie foc = { .len = -1 };
 	int saved_clamp = tp->rx_opt.mss_clamp;
+#ifdef CONFIG_CHR_NETLINK_MODULE
+	struct inet_sock *inet = inet_sk(sk);
+#endif
 
 	tcp_parse_options(skb, &tp->rx_opt, 0, &foc);
 	if (tp->rx_opt.saw_tstamp && tp->rx_opt.rcv_tsecr)
@@ -5431,6 +5490,14 @@ static int tcp_rcv_synsent_state_process(struct sock *sk, struct sk_buff *skb,
 		 */
 
 		tcp_ecn_rcv_synack(tp, th);
+#ifdef CONFIG_CHR_NETLINK_MODULE
+		if (icsk->icsk_retransmits > 2) {
+			SOCK_DEBUG(sk, "tcp_rcv_synsent_state_process:icsk_retransmits=%d,notify_chr_thread_to_send_msg()!\n", icsk->icsk_retransmits);
+			notify_chr_thread_to_send_msg(inet->inet_daddr, inet->inet_saddr);
+		} else {
+			SOCK_DEBUG(sk, "tcp_rcv_synsent_state_process:icsk_retransmits=%d\n", icsk->icsk_retransmits);
+		}
+#endif
 
 		tcp_init_wl(tp, TCP_SKB_CB(skb)->seq);
 		tcp_ack(sk, skb, FLAG_SLOWPATH);

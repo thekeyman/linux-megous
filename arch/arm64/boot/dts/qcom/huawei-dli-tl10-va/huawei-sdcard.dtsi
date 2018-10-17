@@ -1,0 +1,12 @@
+&sdhc_2 {
+	cd-gpios = <&tlmm 67 0x0>;
+};
+
+&pm8937_l8 {
+	regulator-min-microvolt = <2950000>;
+};
+&sdhc_1 {
+	/* device core power supply */
+	qcom,vdd-always-on;
+	qcom,vdd-voltage-level = <2950000 2950000>;
+};

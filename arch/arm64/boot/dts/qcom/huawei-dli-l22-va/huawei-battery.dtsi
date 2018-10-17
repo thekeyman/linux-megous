@@ -1,0 +1,96 @@
+&qrd_batterydata {
+	qcom,batt-id-range-pct = <15>;
+
+	/*
+	qcom,itech-3000mah {
+		qcom,batt-id-kohm = <1000>;
+		qcom,max-voltage-uv = <4400000>;
+		qcom,fg-cc-cv-threshold-mv = <4380>;
+	};
+	*/
+	//#include "../HB406689ECW_ATL_Desay_4v4_4000mah.dtsi"
+	//#include "../batterydata-delhi-costlight-4v4-3020mah.dtsi"
+	#include "../batterydata-delhi-sunwoda-4v4-3020mah.dtsi"
+	#include "../batterydata-delhi-desay-4v4-3020mah.dtsi"
+	//#include "../batterydata-delhi-sucd-4v4-3020mah.dtsi"
+	#include "../batterydata-delhi-sucd-costlight-4v4-3020mah.dtsi"
+	// /delete-property/ #include "batterydata-qrd-sku2-4v35-2590mah.dtsi"
+	/delete-node/ qcom,qrd_msm8937_sku2_2590mah;
+};
+
+&pmi8937_charger {
+	qcom,float-voltage-mv = <4400>;
+	qcom,fastchg-current-ma = <1500>;
+	//qcom,chg-led-sw-controls;
+	//qcom,chg-led-support;
+	status = "okay";
+	qcom,jeita-temp-hard-limit = <1>;
+	qcom,fastchg-current-batt-warm = <500>;
+	qcom,fastchg-current-batt-cool = <500>;
+	qcom,vfloat-batt-warm = <4100>;
+	qcom,device-not-support-hvdcp;
+	qcom,float-voltage-comp = <16>;
+	qcom,fastchg-current-customize-cool = <300>;
+	qcom,customize-cool-lower-limit = <0>;
+	qcom,customize-cool-upper-limit = <50>;
+	qcom,override-usb-current;
+	qcom,ignore-usb-ibus-setting;
+	//qcom,not-set-usb-online;
+	qcom,charger-batt-capacity-mah = <3020000>;
+	/delete-property/ qcom,parallel-usb-min-current-ma;
+	/delete-property/ qcom,parallel-usb-9v-min-current-ma;
+	/delete-property/ qcom,parallel-allowed-lowering-ma;
+	qcom,vchg_sns-vadc = <&pmi8937_vadc>;
+	qcom,vchg-adc-channel-id = <3>;
+};
+
+&pmi8937_fg {
+	qcom,thermal-coefficients = [c5 86 bd 50 d1 37];
+	qcom,fg-cc-cv-threshold-mv = <4390>;
+	qcom,cold-bat-decidegc = <(0)>;
+	qcom,cool-bat-decidegc = <(100)>;
+	qcom,hot-bat-decidegc = <550>;
+	qcom,warm-bat-decidegc = <450>;
+	qcom,bad-battery-detection-enable;
+	qcom,hold-soc-while-full;
+	qcom,vbat-estimate-diff-mv = <100>;
+	qcom,fg-cutoff-voltage-mv = <3380>;
+	qcom,resume-soc = <99>;
+	qcom,resume-soc-raw = <253>;
+	//qcom,ext-sense-type;
+	clear_self_learn;
+	qcom,fg-memif@4400 {
+		qcom,cold-hot-jeita-hysteresis = <20 20>;
+	};
+};
+
+/{
+	huawei_fuelguage: qcom,huawei_fuelguage{
+		compatible = "huawei,fuelguage";
+		fuelguage_type = "bms";
+		status = "okay";
+	};
+};
+/{
+	huawei_charger: qcom,huawei_charger{
+		compatible = "huawei,charger";
+		status = "okay";
+	};
+};
+
+/{
+	huawei_dsm_charger: huawei_dsm_charger{
+		compatible = "huawei,dsm_charger";
+		status = "ok";
+		qcom,dsm_cold_bat_degree = <0>;
+		qcom,dsm_cool_bat_degree = <100>;
+		qcom,dsm_imaxma_cool_bat = <500000>;
+		qcom,dsm_vmaxmv_cool_bat = <4100>;
+		qcom,dsm_customize_cool_bat_degree = <50>;
+		qcom,dsm_imaxma_customize_cool_bat = <300000>;
+		qcom,dsm_warm_bat_degree = <450>;
+		qcom,dsm_imaxma_warm_bat = <500000>;
+		qcom,dsm_vmaxmv_warm_bat = <4100>;
+		qcom,dsm_hot_bat_degree = <550>;
+	};
+};

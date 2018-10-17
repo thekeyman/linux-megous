@@ -829,6 +829,7 @@ static void disk_seqf_stop(struct seq_file *seqf, void *v)
 	if (iter) {
 		class_dev_iter_exit(iter);
 		kfree(iter);
+		seqf->private = NULL;
 	}
 }
 
@@ -1116,6 +1117,22 @@ static void disk_release(struct device *dev)
 		blk_put_queue(disk->queue);
 	kfree(disk);
 }
+
+static int disk_uevent(struct device *dev, struct kobj_uevent_env *env)
+{
+	struct gendisk *disk = dev_to_disk(dev);
+	struct disk_part_iter piter;
+	struct hd_struct *part;
+	int cnt = 0;
+
+	disk_part_iter_init(&piter, disk, 0);
+	while((part = disk_part_iter_next(&piter)))
+		cnt++;
+	disk_part_iter_exit(&piter);
+	add_uevent_var(env, "NPARTS=%u", cnt);
+	return 0;
+}
+
 struct class block_class = {
 	.name		= "block",
 };
@@ -1135,6 +1152,7 @@ static struct device_type disk_type = {
 	.groups		= disk_attr_groups,
 	.release	= disk_release,
 	.devnode	= block_devnode,
+	.uevent		= disk_uevent,
 };
 
 #ifdef CONFIG_PROC_FS
@@ -1383,6 +1401,30 @@ int invalidate_partition(struct gendisk *disk, int partno)
 }
 
 EXPORT_SYMBOL(invalidate_partition);
+
+#ifdef CONFIG_HW_SD_HEALTH_DETECT
+/*===========================================================================
+ * FUNCTION: set_sd_disk_health_status
+   PARAMETER:
+ *    @disk:the disk which has been monitor
+      @status:the err code which will translate to real code
+ *
+ * Description: send uevent to vold
+ *
+ * Returns: NULL
+
+===========================================================================*/
+void set_sd_disk_health_status(struct gendisk *disk, char *status)
+{
+    char *event = status;
+    char *envp[] = { event, NULL };
+
+    event[11] = '\0';
+    kobject_uevent_env(&disk_to_dev(disk)->kobj, KOBJ_CHANGE, envp);
+    printk(KERN_ERR "SD_HEALTH_DETECT mmc1:report sd abnormal to userspace,status = %s\n",status);
+}
+EXPORT_SYMBOL(set_sd_disk_health_status);
+#endif
 
 /*
  * Disk events - monitor disk events like media change and eject request.

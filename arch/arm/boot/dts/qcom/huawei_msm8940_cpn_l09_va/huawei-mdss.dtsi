@@ -1,0 +1,3 @@
+&mdss_dsi0 {
+	/delete-property/ qcom,platform-reset-gpio;
+};

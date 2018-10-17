@@ -52,7 +52,11 @@
  * and PAGE_OFFSET - it must be within 32MB of the kernel text.
  */
 #ifndef CONFIG_THUMB2_KERNEL
+#ifndef CONFIG_FACTORY_ANDROID
 #define MODULES_VADDR		(PAGE_OFFSET - SZ_16M)
+#else
+#define MODULES_VADDR		(PAGE_OFFSET - SZ_4M - SZ_2M)
+#endif
 #else
 /* smaller range for Thumb-2 symbols relocation (2^24)*/
 #define MODULES_VADDR		(PAGE_OFFSET - SZ_8M)

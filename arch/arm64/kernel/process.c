@@ -72,6 +72,7 @@ void (*pm_power_off)(void);
 EXPORT_SYMBOL_GPL(pm_power_off);
 
 void (*arm_pm_restart)(enum reboot_mode reboot_mode, const char *cmd);
+EXPORT_SYMBOL_GPL(arm_pm_restart);
 
 /*
  * This is our default idle handler.
@@ -84,6 +85,16 @@ void arch_cpu_idle(void)
 	 */
 	cpu_do_idle();
 	local_irq_enable();
+}
+
+void arch_cpu_idle_enter(void)
+{
+	idle_notifier_call_chain(IDLE_START);
+}
+
+void arch_cpu_idle_exit(void)
+{
+	idle_notifier_call_chain(IDLE_END);
 }
 
 #ifdef CONFIG_HOTPLUG_CPU
@@ -163,11 +174,80 @@ void machine_restart(char *cmd)
 	while (1);
 }
 
+/*
+ * dump a block of kernel memory from around the given address
+ */
+static void show_data(unsigned long addr, int nbytes, const char *name)
+{
+	int	i, j;
+	int	nlines;
+	u32	*p;
+
+	/*
+	 * don't attempt to dump non-kernel addresses or
+	 * values that are probably just small negative numbers
+	 */
+	if (addr < PAGE_OFFSET || addr > -256UL)
+		return;
+
+	printk("\n%s: %#lx:\n", name, addr);
+
+	/*
+	 * round address down to a 32 bit boundary
+	 * and always dump a multiple of 32 bytes
+	 */
+	p = (u32 *)(addr & ~(sizeof(u32) - 1));
+	nbytes += (addr & (sizeof(u32) - 1));
+	nlines = (nbytes + 31) / 32;
+
+
+	for (i = 0; i < nlines; i++) {
+		/*
+		 * just display low 16 bits of address to keep
+		 * each line of the dump < 80 characters
+		 */
+		printk("%04lx ", (unsigned long)p & 0xffff);
+		for (j = 0; j < 8; j++) {
+			u32	data;
+			if (probe_kernel_address(p, data)) {
+				printk(" ********");
+			} else {
+				printk(" %08x", data);
+			}
+			++p;
+		}
+		printk("\n");
+	}
+}
+
+static void show_extra_register_data(struct pt_regs *regs, int nbytes)
+{
+    mm_segment_t fs;
+    /*AR0005AFIC yuanshuai 20160919 begin */
+    unsigned int i;
+    /*AR0005AFIC yuanshuai 20160919 end */
+    fs = get_fs();
+    set_fs(KERNEL_DS);
+    show_data(regs->pc - nbytes, nbytes * 2, "PC");
+    show_data(regs->regs[30] - nbytes, nbytes * 2, "LR");
+    show_data(regs->sp - nbytes, nbytes * 2, "SP");
+    /*AR0005AFIC yuanshuai 20160919 begin */
+    for (i = 0; i < 30; i++) {
+        char name[4];
+        snprintf(name, sizeof(name), "X%u", i);
+        show_data(regs->regs[i] - nbytes, nbytes * 2, name);
+    }
+    /*AR0005AFIC yuanshuai 20160919 end */
+    set_fs(fs);
+}
+
 void __show_regs(struct pt_regs *regs)
 {
 	int i, top_reg;
 	u64 lr, sp;
-
+	/*AR0005AFIC yuanshuai 20160919 begin */
+	mm_segment_t fs;
+	/*AR0005AFIC yuanshuai 20160919 end */
 	if (compat_user_mode(regs)) {
 		lr = regs->compat_lr;
 		sp = regs->compat_sp;
@@ -189,6 +269,15 @@ void __show_regs(struct pt_regs *regs)
 		if (i % 2 == 0)
 			printk("\n");
 	}
+	/*AR0005AFIC yuanshuai 20160919 begin */
+	fs = get_fs();
+	set_fs(KERNEL_DS);
+	/*AR0005AFIC yuanshuai 20160919 end */
+	if (!user_mode(regs))
+		show_extra_register_data(regs, 128);
+	/*AR0005AFIC yuanshuai 20160919 begin */
+	set_fs(fs);
+	/*AR0005AFIC yuanshuai 20160919 end */
 	printk("\n");
 }
 
@@ -235,7 +324,8 @@ void release_thread(struct task_struct *dead_task)
 
 int arch_dup_task_struct(struct task_struct *dst, struct task_struct *src)
 {
-	fpsimd_preserve_current_state();
+	if (current->mm)
+		fpsimd_preserve_current_state();
 	*dst = *src;
 	return 0;
 }

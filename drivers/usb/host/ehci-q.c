@@ -349,8 +349,8 @@ qh_completions (struct ehci_hcd *ehci, struct ehci_qh *qh)
 
 			/* Report Data Buffer Error: non-fatal but useful */
 			if (token & QTD_STS_DBE)
-				ehci_dbg(ehci,
-					"detected DataBufferErr for urb %p ep%d%s len %d, qtd %p [qh %p]\n",
+                ehci_err(ehci,
+                    "[USB_DEBUG] detected DataBufferErr for urb %p ep%d%s len %d, qtd %p [qh %p]\n",
 					urb,
 					usb_endpoint_num(&urb->ep->desc),
 					usb_endpoint_dir_in(&urb->ep->desc) ? "in" : "out",
@@ -389,6 +389,9 @@ qh_completions (struct ehci_hcd *ehci, struct ehci_qh *qh)
 							token);
 					goto retry_xacterr;
 				}
+                if ((token & QTD_STS_XACT) && (NULL != qh) && (qh->xacterrs == QH_XACTERR_MAX)) {
+                    ehci_err(ehci, "[USB_DEBUG] detected XactErr, retry always fail\n");
+                }
 				stopped = 1;
 
 			/* magic dummy for some short reads; qh won't advance.

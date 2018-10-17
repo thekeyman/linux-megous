@@ -1,0 +1,157 @@
+&tlmm {
+	fingerprint_moduleid_pin {
+		qcom,num-grp-pins = <1>;
+		label = "moduleid_pin";
+		goodix_spi_active: goodix_spi_active{
+			mux {
+				pins = "gpio20", "gpio21", "gpio22", "gpio23";
+				function = "blsp_spi6";
+			};
+			config {
+				pins = "gpio20", "gpio21", "gpio22", "gpio23";
+				drive-strength = <2>;
+				bias-disable = <0>;
+			};
+		};
+		goodix_reset_reset: goodix_reset_reset{
+			mux {
+				pins = "gpio8";
+				function = "gpio";
+			};
+			config {
+				pins = "gpio8";
+				drive-strength = <2>;
+				bias-disable = <0>;
+				output-low;
+			};
+		};
+		goodix_reset_active: goodix_reset_active{
+			mux {
+				pins = "gpio8";
+				function = "gpio";
+			};
+			config {
+				pins = "gpio8";
+				drive-strength = <2>;
+				bias-disable = <0>;
+				output-high;
+			};
+		};
+		goodix_irq_active: goodix_irq_active {
+			mux {
+				pins = "gpio44";
+				function = "gpio";
+			};
+			config {
+				pins = "gpio44";
+				drive-strength = <2>;
+				bias-disable = <0>;
+				input-enable;
+			};
+		};
+		fp_id_gpio: fp_id_gpio {
+			mux {
+				pins = "gpio13";
+				function = "gpio";
+			};
+			config {
+				pins = "gpio13";
+				drive-strength = <2>;
+				bias-disable = <0>;
+				input-enable;
+			};
+		};
+
+		fingerprint_irq_active: fingerprint_irq_active {
+			mux {
+				pins = "gpio44";
+				function = "gpio";
+			};
+			config {
+				pins = "gpio44";
+				drive-strength = <2>;
+				bias-disable = <0>;
+				input-enable;
+			};
+		};
+
+		fingerprint_moduleid_default: fingerprint_moduleid_default {
+			mux {
+				pins = "gpio13";
+				function = "gpio";
+			};
+			config {
+				pins = "gpio13";
+				drive-strength = <2>;
+				input-enable;
+				bias-pull-up;
+			};
+		};
+		fingerprint_moduleid_idle: fingerprint_moduleid_idle {
+			mux {
+				pins = "gpio13";
+				function = "gpio";
+			};
+			config {
+				pins = "gpio13";
+				drive-strength = <2>;
+				input-enable;
+				bias-pull-down;
+			};
+		};
+		fingerprint_reset_default: fingerprint_reset_default {
+			mux {
+				pins = "gpio8";
+				function = "gpio";
+			};
+			config {
+				pins = "gpio8";
+				drive-strength = <4>;
+				bias-pull-up;
+				output-enable;
+			};
+		};
+
+		fingerprint_ldo_default: fingerprint_ldo_default {
+			mux {
+				pins = "gpio48";
+				function = "gpio";
+			};
+			config {
+				pins = "gpio48";
+				drive-strength = <2>;
+				bias-pull-up;
+				output-high;
+			};
+		};
+	};
+};
+
+&spi_6 {
+	status = "ok";
+	fingerprint@0 {
+		compatible = "fpc,fingerprint";
+		reg = <0>;
+		interrupt-parent = <&tlmm>;
+		spi-max-frequency = <5000000>;
+
+		fingerprint,navigation_adjust1 = <0>;
+		fingerprint,navigation_adjust2 = <0>;
+
+		interrupts = <9 0x0>;
+		fingerprint,irq_gpio = <&tlmm 44 0>;
+		fingerprint,reset_gpio = <&tlmm 8 0>;
+		fingerprint,moduleid_gpio = <&tlmm 13 0>;
+		fingerprint,moduleid_high = "QT";
+		fingerprint,moduleid_low = "OF";
+		fingerprint,moduleid_float = "PR";
+		vdd-supply = <&pm8937_l5>;
+	    vdd_ana-supply  = <&pm8937_l5>;
+        vdd_io-supply   = <&pm8937_l5>;
+		fingerprint,vdd = "vdd";
+		pinctrl-names = "default", "idle";
+		pinctrl-0 = <&fingerprint_moduleid_default &fingerprint_reset_default &fingerprint_ldo_default &fingerprint_irq_active>;
+		pinctrl-1 = <&fingerprint_moduleid_idle>;
+		status = "ok";
+	};
+};

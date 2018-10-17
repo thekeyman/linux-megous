@@ -18,9 +18,21 @@
 #include <linux/mmc/card.h>
 #include <linux/mmc/mmc.h>
 
+#ifdef CONFIG_MMC_PASSWORDS
+#include "lock.h"
+#endif
+
 #include "core.h"
 #include "mmc_ops.h"
 
+#ifdef CONFIG_HUAWEI_SDCARD_DSM
+#include <linux/mmc/dsm_sdcard.h>
+#endif
+
+#ifdef CONFIG_HUAWEI_EMMC_DSM
+#include <linux/mmc/dsm_emmc.h>
+extern u64 device_index;
+#endif
 #define MMC_OPS_TIMEOUT_MS	(10 * 60 * 1000) /* 10 minute timeout */
 
 static inline int __mmc_send_status(struct mmc_card *card, u32 *status,
@@ -62,6 +74,11 @@ static int _mmc_select_card(struct mmc_host *host, struct mmc_card *card)
 	int err;
 	struct mmc_command cmd = {0};
 
+#ifdef CONFIG_HUAWEI_SDCARD_DSM
+	char *log_buff;
+	int   buff_len;
+#endif
+
 	BUG_ON(!host);
 
 	cmd.opcode = MMC_SELECT_CARD;
@@ -75,9 +92,28 @@ static int _mmc_select_card(struct mmc_host *host, struct mmc_card *card)
 	}
 
 	err = mmc_wait_for_cmd(host, &cmd, MMC_CMD_RETRIES);
+#ifdef CONFIG_HUAWEI_SDCARD_DSM
+	if(!strcmp(mmc_hostname(host), "mmc1"))
+	{
+		dsm_sdcard_cmd_logs[DSM_SDCARD_CMD7].value = cmd.resp[0];
+	}
+
+	if (err)
+	{
+		if(-ENOMEDIUM != err && -ETIMEDOUT != err
+		&& !strcmp(mmc_hostname(host), "mmc1") && !dsm_client_ocuppy(sdcard_dclient))
+		{
+			log_buff = dsm_sdcard_get_log(DSM_SDCARD_CMD7,err);
+			buff_len = strlen(log_buff);
+			dsm_client_copy(sdcard_dclient,log_buff,buff_len + 1);
+			dsm_client_notify(sdcard_dclient, DSM_SDCARD_CMD7_RESP_ERR);
+		}
+		return err;
+	}
+#else
 	if (err)
 		return err;
-
+#endif
 	return 0;
 }
 
@@ -195,6 +231,11 @@ int mmc_all_send_cid(struct mmc_host *host, u32 *cid)
 	int err;
 	struct mmc_command cmd = {0};
 
+#ifdef CONFIG_HUAWEI_SDCARD_DSM
+	char *log_buff;
+	int   buff_len;
+#endif
+
 	BUG_ON(!host);
 	BUG_ON(!cid);
 
@@ -203,8 +244,35 @@ int mmc_all_send_cid(struct mmc_host *host, u32 *cid)
 	cmd.flags = MMC_RSP_R2 | MMC_CMD_BCR;
 
 	err = mmc_wait_for_cmd(host, &cmd, MMC_CMD_RETRIES);
-	if (err)
+#ifdef CONFIG_HUAWEI_SDCARD_DSM
+	if(!strcmp(mmc_hostname(host), "mmc1"))
+	{
+		 dsm_sdcard_cmd_logs[DSM_SDCARD_CMD2_R0].value = cmd.resp[0];
+		 dsm_sdcard_cmd_logs[DSM_SDCARD_CMD2_R1].value = cmd.resp[1];
+		 dsm_sdcard_cmd_logs[DSM_SDCARD_CMD2_R2].value = cmd.resp[2];
+		 dsm_sdcard_cmd_logs[DSM_SDCARD_CMD2_R3].value = cmd.resp[3];
+	}
+#endif
+	if(err)
+	{
+#ifdef CONFIG_HUAWEI_SDCARD_DSM
+		if(-ENOMEDIUM != err && -ETIMEDOUT != err
+		&& !strcmp(mmc_hostname(host), "mmc1") && !dsm_client_ocuppy(sdcard_dclient))
+		{
+			log_buff = dsm_sdcard_get_log(DSM_SDCARD_CMD2_R3, err);
+			buff_len = strlen(log_buff);
+			dsm_client_copy(sdcard_dclient,log_buff,buff_len + 1);
+			dsm_client_notify(sdcard_dclient, DSM_SDCARD_CMD2_RESP_ERR);
+		}
+#endif
+#ifdef CONFIG_HUAWEI_KERNEL
+		if(host && !strcmp(mmc_hostname(host),"mmc1"))
+		{
+			pr_err("%s: send cmd2 fail, err=%d\n", mmc_hostname(host), err);
+		}
+#endif
 		return err;
+	}
 
 	memcpy(cid, cmd.resp, sizeof(u32) * 4);
 
@@ -316,7 +384,14 @@ mmc_send_cxd_data(struct mmc_card *card, struct mmc_host *host,
 		memcpy(buf, data_buf, len);
 		kfree(data_buf);
 	}
-
+#ifdef CONFIG_HUAWEI_EMMC_DSM
+	if(cmd.error || data.error)
+		if(host->index == device_index){
+			DSM_EMMC_LOG(card, DSM_EMMC_SEND_CXD_ERR,
+				"opcode:%d failed, cmd.error:%d, data.error:%d\n",
+				opcode, cmd.error, data.error);
+		}
+#endif
 	if (cmd.error)
 		return cmd.error;
 	if (data.error)
@@ -349,6 +424,10 @@ err:
 	kfree(csd_tmp);
 	return ret;
 }
+
+#ifdef CONFIG_HW_SYSTEM_WR_PROTECT
+EXPORT_SYMBOL(mmc_send_csd);
+#endif
 
 int mmc_send_cid(struct mmc_host *host, u32 *cid)
 {
@@ -416,6 +495,45 @@ int mmc_spi_set_crc(struct mmc_host *host, int use_crc)
 }
 
 /**
+ *	mmc_prepare_switch - helper; prepare to modify EXT_CSD register
+ *	@card: the MMC card associated with the data transfer
+ *	@set: cmd set values
+ *	@index: EXT_CSD register index
+ *	@value: value to program into EXT_CSD register
+ *	@tout_ms: timeout (ms) for operation performed by register write,
+ *                   timeout of zero implies maximum possible timeout
+ *	@use_busy_signal: use the busy signal as response type
+ *
+ *	Helper to prepare to modify EXT_CSD register for selected card.
+ */
+
+static inline void mmc_prepare_switch(struct mmc_command *cmd, u8 index,
+				      u8 value, u8 set, unsigned int tout_ms,
+				      bool use_busy_signal)
+{
+	cmd->opcode = MMC_SWITCH;
+	cmd->arg = (MMC_SWITCH_MODE_WRITE_BYTE << 24) |
+		  (index << 16) |
+		  (value << 8) |
+		  set;
+	cmd->flags = MMC_CMD_AC;
+	cmd->busy_timeout = tout_ms;
+	if (use_busy_signal)
+		cmd->flags |= MMC_RSP_SPI_R1B | MMC_RSP_R1B;
+	else
+		cmd->flags |= MMC_RSP_SPI_R1 | MMC_RSP_R1;
+}
+
+int __mmc_switch_cmdq_mode(struct mmc_command *cmd, u8 set, u8 index, u8 value,
+			   unsigned int timeout_ms, bool use_busy_signal,
+			   bool ignore_timeout)
+{
+	mmc_prepare_switch(cmd, index, value, set, timeout_ms, use_busy_signal);
+	return 0;
+}
+EXPORT_SYMBOL(__mmc_switch_cmdq_mode);
+
+/**
  *	__mmc_switch - modify EXT_CSD register
  *	@card: the MMC card associated with the data transfer
  *	@set: cmd set values
@@ -439,6 +557,7 @@ int __mmc_switch(struct mmc_card *card, u8 set, u8 index, u8 value,
 	unsigned long timeout;
 	u32 status = 0;
 	bool use_r1b_resp = use_busy_signal;
+	int retries = 5;
 
 	/*
 	 * If the cmd timeout and the max_busy_timeout of the host are both
@@ -450,12 +569,8 @@ int __mmc_switch(struct mmc_card *card, u8 set, u8 index, u8 value,
 		(timeout_ms > host->max_busy_timeout))
 		use_r1b_resp = false;
 
-	cmd.opcode = MMC_SWITCH;
-	cmd.arg = (MMC_SWITCH_MODE_WRITE_BYTE << 24) |
-		  (index << 16) |
-		  (value << 8) |
-		  set;
-	cmd.flags = MMC_CMD_AC;
+	mmc_prepare_switch(&cmd, index, value, set, timeout_ms,
+			   use_r1b_resp);
 	if (use_r1b_resp) {
 		cmd.flags |= MMC_RSP_SPI_R1B | MMC_RSP_R1B;
 		/*
@@ -469,6 +584,8 @@ int __mmc_switch(struct mmc_card *card, u8 set, u8 index, u8 value,
 
 	if (index == EXT_CSD_SANITIZE_START)
 		cmd.sanitize_busy = true;
+	else if (index == EXT_CSD_BKOPS_START)
+		cmd.bkops_busy = true;
 
 	err = mmc_wait_for_cmd(host, &cmd, MMC_CMD_RETRIES);
 	if (err)
@@ -514,9 +631,15 @@ int __mmc_switch(struct mmc_card *card, u8 set, u8 index, u8 value,
 
 		/* Timeout if the device never leaves the program state. */
 		if (time_after(jiffies, timeout)) {
-			pr_err("%s: Card stuck in programming state! %s\n",
-				mmc_hostname(host), __func__);
-			return -ETIMEDOUT;
+			pr_err("%s: Card stuck in programming state! %s, timeout:%ums, retries:%d\n",
+				mmc_hostname(host), __func__,
+				timeout_ms, retries);
+			if (retries)
+				timeout = jiffies +
+						msecs_to_jiffies(timeout_ms);
+			else
+				return -ETIMEDOUT;
+			retries--;
 		}
 	} while (R1_CURRENT_STATE(status) == R1_STATE_PRG);
 
@@ -599,7 +722,10 @@ mmc_send_bus_test(struct mmc_card *card, struct mmc_host *host, u8 opcode,
 
 	data.sg = &sg;
 	data.sg_len = 1;
+	data.timeout_ns = 1000000;
+	data.timeout_clks = 0;
 	mmc_set_data_timeout(&data, card);
+
 	sg_init_one(&sg, data_buf, len);
 	mmc_wait_for_req(host, &mrq);
 	err = 0;
@@ -648,7 +774,7 @@ int mmc_send_hpi_cmd(struct mmc_card *card, u32 *status)
 	unsigned int opcode;
 	int err;
 
-	if (!card->ext_csd.hpi) {
+	if (!card->ext_csd.hpi_en) {
 		pr_warn("%s: Card didn't support HPI command\n",
 			mmc_hostname(card->host));
 		return -EINVAL;
@@ -665,7 +791,7 @@ int mmc_send_hpi_cmd(struct mmc_card *card, u32 *status)
 
 	err = mmc_wait_for_cmd(card->host, &cmd, 0);
 	if (err) {
-		pr_warn("%s: error %d interrupting operation. "
+		pr_debug("%s: error %d interrupting operation. "
 			"HPI command response %#x\n", mmc_hostname(card->host),
 			err, cmd.resp[0]);
 		return err;
@@ -675,3 +801,265 @@ int mmc_send_hpi_cmd(struct mmc_card *card, u32 *status)
 
 	return 0;
 }
+
+int mmc_can_ext_csd(struct mmc_card *card)
+{
+	return (card && card->csd.mmca_vsn > CSD_SPEC_VER_3);
+}
+
+int mmc_discard_queue(struct mmc_host *host, u32 tasks)
+{
+	struct mmc_command cmd = {0};
+
+	cmd.opcode = MMC_CMDQ_TASK_MGMT;
+	if (tasks) {
+		cmd.arg = DISCARD_TASK;
+		cmd.arg |= (tasks << 16);
+	} else {
+		cmd.arg = DISCARD_QUEUE;
+	}
+
+	cmd.flags = MMC_RSP_R1B | MMC_CMD_AC;
+
+	return mmc_wait_for_cmd(host, &cmd, 0);
+}
+EXPORT_SYMBOL(mmc_discard_queue);
+
+#ifdef CONFIG_MMC_PASSWORDS
+int sd_send_status(struct mmc_card *card)
+{
+	int err;
+	u32 status;
+	do {
+		err = mmc_send_status(card, &status);
+		if (err)
+		{
+			break;
+		}
+		if (card->host->caps & MMC_CAP_WAIT_WHILE_BUSY)
+			break;
+		if (mmc_host_is_spi(card->host))
+			break;
+	} while (R1_CURRENT_STATE(status) == 7);
+
+	return err;
+}
+
+int sd_send_blocklen(struct mmc_card *card,unsigned int blocklen)
+{
+	int err;
+	struct mmc_command cmd = {0};
+
+	cmd.opcode = MMC_SET_BLOCKLEN;
+	cmd.arg = blocklen;
+	cmd.flags = MMC_RSP_R1 | MMC_CMD_AC;
+	err = mmc_wait_for_cmd(card->host, &cmd, MMC_CMD_RETRIES);
+	if (err)
+	{
+		printk("%s failed blocklen=%d \n",__func__,blocklen);
+	}
+	return err;
+}
+
+int sd_send_lock_unlock_cmd(struct mmc_card *card,u8* data_buf,int data_size,int max_buf_size)
+{
+	int err;
+	struct mmc_request mrq = {0};
+	struct mmc_command cmd = {0};
+	struct mmc_data data = {0};
+	struct scatterlist sg;
+
+	cmd.opcode = MMC_LOCK_UNLOCK;
+	cmd.arg = 0;
+	cmd.flags = MMC_RSP_R1 | MMC_CMD_ADTC;
+
+	data.blksz = data_size;
+	data.blocks = 1;
+	data.flags = MMC_DATA_WRITE;
+	data.sg = &sg;
+	data.sg_len = 1;
+	mmc_set_data_timeout(&data, card);
+	data.timeout_ns = (4*1000*1000*1000u);
+
+	mrq.cmd = &cmd;
+	mrq.data = &data;
+
+	sg_init_one(&sg, data_buf, max_buf_size);
+	mmc_wait_for_req(card->host, &mrq);
+	err = cmd.error;
+	if (err) {
+		printk("%s: lock unlock cmd error %d\n", __func__, cmd.error);
+		return err;
+	}
+
+	err = data.error;
+	if (err) {
+		dev_err(mmc_dev(card->host), "%s: data error %d\n",__func__, data.error);
+	}
+	return err;
+}
+
+int sd_wait_lock_unlock_cmd(struct mmc_card *card,int mode)
+{
+	int err;
+	struct mmc_command cmd = {0};
+	unsigned long erase_timeout;
+	unsigned long normal_timeout;
+
+
+	cmd.opcode = MMC_SEND_STATUS;
+	cmd.arg = card->rca << 16;
+	cmd.flags = MMC_RSP_R1 | MMC_CMD_AC;
+
+	/* set timeout for forced erase operation to 3 min. (see MMC spec) */
+	erase_timeout = jiffies + 180 * HZ;
+	normal_timeout = jiffies + 10 * HZ;
+	if(mode & MMC_LOCK_MODE_ERASE) {
+		do {
+			/* we cannot use "retries" here because the
+			 * R1_LOCK_UNLOCK_FAILED bit is cleared by subsequent reads to
+			 * the status register, hiding the error condition */
+			err = mmc_wait_for_cmd(card->host, &cmd, 0);
+			if (err) {
+				printk("[SDLOCK] %s mmc_wait_for_cmd err=%d resp[0] =%x \n",__func__,err,cmd.resp[0]);
+				break;
+			}
+
+			/* the other modes don't need timeout checking */
+			if (!(mode & MMC_LOCK_MODE_ERASE))
+				continue;
+			if (time_after(jiffies, erase_timeout)) {
+				dev_dbg(&card->dev, "forced erase timed out\n");
+				err = -ETIMEDOUT;
+				break;
+			}
+		} while (!(cmd.resp[0] & R1_READY_FOR_DATA) || (cmd.resp[0] & R1_CARD_IS_LOCKED));
+	} else {
+		do {
+			/* we cannot use "retries" here because the
+			 * R1_LOCK_UNLOCK_FAILED bit is cleared by subsequent reads to
+			 * the status register, hiding the error condition */
+			err = mmc_wait_for_cmd(card->host, &cmd, 0);
+			if (err) {
+				printk("[SDLOCK] %s mmc_wait_for_cmd err=%d resp[0] =%x \n",__func__,err,cmd.resp[0]);
+				break;
+			}
+
+			if (time_after(jiffies, normal_timeout)) {
+				dev_dbg(&card->dev, "normal timed out\n");
+				err = -ETIMEDOUT;
+				printk("[SDLOCK] %s normal timed out err=%d resp[0] =%x \n",__func__,err,cmd.resp[0]);
+				break;
+			}
+		} while (!(cmd.resp[0] & R1_READY_FOR_DATA));
+	}
+
+	printk("[SDLOCK] %s MMC_SEND_STATUS and cmd.resp[0] = 0x%x. \r\n",__func__, cmd.resp[0]);
+
+	if (cmd.resp[0] & R1_LOCK_UNLOCK_FAILED) {
+		printk("%s: LOCK_UNLOCK operation failed\n", __func__);
+		err = -EIO;
+		return err;
+	}
+
+	if (cmd.resp[0] & R1_CARD_IS_LOCKED)
+	{
+		printk("%s: R1_CARD_IS_LOCKED\n", __func__);
+		mmc_card_set_locked(card);
+	}
+	else
+	{
+		printk("%s: R1_CARD_IS_UNLOCKED\n", __func__);
+		card->state &= ~MMC_STATE_LOCKED;
+	}
+
+	return err;
+}
+
+int mmc_lock_unlock_by_buf(struct mmc_card *card, u8* key_buf,int key_len, int mode)
+{
+
+	int err, data_size;
+	int max_buf_size ;
+	u8 *data_buf;
+	max_buf_size = 32;
+	data_size = 1;
+	//max password(16byte) max_key = max_password(old) + max_password(new) + 0xFF + 0xFF = 34
+	if(key_len > 30)
+	{
+		return -EINVAL;
+	}
+	if (!(mode & MMC_LOCK_MODE_ERASE)) {
+//		data_size =  key_len ;
+		data_size = max_buf_size;
+	}
+
+	data_buf = kzalloc(max_buf_size, GFP_KERNEL);
+	if (!data_buf)
+	{
+		printk("%s kzalloc failed\n",__func__);
+		return -ENOMEM;
+	}
+	memset(data_buf, 0, max_buf_size);
+	data_buf[0] |= mode;
+	if (mode & MMC_LOCK_MODE_UNLOCK)
+		data_buf[0] &= ~MMC_LOCK_MODE_UNLOCK;
+
+	if (!(mode & MMC_LOCK_MODE_ERASE)) {
+		data_buf[1] = key_len-2; //exclude end 2 chars (0xFF 0xFF)
+		memcpy(data_buf + 2, key_buf, key_len);
+	} else {
+		data_buf[1] =0xff;
+		data_buf[2] = 0xff;
+	}
+
+	//mmc_rpm_hold(card->host, &card->dev);
+#ifdef CONFIG_MMC_BLOCK_DEFERRED_RESUME
+	if (mmc_bus_needs_resume(card->host)) {
+		mmc_resume_bus(card->host);
+	}
+#endif
+	//mmc_rpm_release(card->host, &card->dev);
+
+	/*-----------Set mmc Status Command-----------------------------*/
+	err = sd_send_status(card);
+	if (err) {
+		goto out;
+	}
+	printk("[SDLOCK] %s STATUS data_size=%d\r\n",__func__,data_size);
+
+	/*------------Set Block Length Command--------------------------*/
+	err = sd_send_blocklen(card,data_size);
+	if (err) {
+		goto out;
+	}
+	printk("[SDLOCK] %s MMC_SET_BLOCKLEN \r\n",__func__);
+
+	/*-----------Set Lock/Unlock Command---------------------------*/
+	err = sd_send_lock_unlock_cmd(card,data_buf,data_size,max_buf_size);
+	 if(err != 0) {
+             if (err==(-ETIMEDOUT)&&(mode==MMC_LOCK_MODE_ERASE)) {
+                   printk("[SDLOCK] %s :data timeout error[%d] \r\n",__func__,err);
+             }
+             else {
+                  goto out;
+             }
+          }
+	printk("[SDLOCK] %s MMC_LOCK_UNLOCK \r\n",__func__);
+
+	/*-------------Set mmc Status Command--------------------*/
+	err = sd_wait_lock_unlock_cmd(card,mode);
+	if (err) {
+		mmc_set_blocklen(card, 512);
+		goto out;
+	}
+
+	err = mmc_set_blocklen(card, 512);
+
+out:
+	kfree(data_buf);
+
+	return err;
+}
+
+#endif /* CONFIG_MMC_PASSWORDS */

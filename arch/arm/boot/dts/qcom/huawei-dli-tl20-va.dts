@@ -1,0 +1,11 @@
+/dts-v1/;
+#include "huawei_msm8937_base.dtsi"
+#include "huawei-dli-tl20-va/huawei.dtsi"
+#include "lcdkit/default/default_auo_otm1901a_5p2_1080p_video_default.dtsi"
+/ {
+       model = "Huawei Technologies, Inc. Delhi-TL20";
+       compatible = "qcom,msm8937-pmi8937-qrd-sku2",
+                   "qcom,msm8937-qrd", "qcom,msm8937", "qcom,qrd";
+        qcom,board-id= <9012 0>;
+       /* huawei,modem_id = <0xF8F00080 0x0>;*/
+};
