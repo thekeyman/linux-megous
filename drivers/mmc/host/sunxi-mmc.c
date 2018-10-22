@@ -35,7 +35,6 @@
 #include <linux/of_gpio.h>
 #include <linux/of_platform.h>
 #include <linux/platform_device.h>
-#include <linux/pm_runtime.h>
 #include <linux/regulator/consumer.h>
 #include <linux/reset.h>
 #include <linux/scatterlist.h>
@@ -939,7 +938,14 @@ static void sunxi_mmc_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 {
 	struct sunxi_mmc_host *host = mmc_priv(mmc);
 
+	if (ios->power_mode == MMC_POWER_OFF)
+		sunxi_mmc_reset_host(host);
+
 	sunxi_mmc_card_power(host, ios);
+
+	if (ios->power_mode == MMC_POWER_UP)
+		sunxi_mmc_init_host(host);
+
 	sunxi_mmc_set_bus_width(host, ios->bus_width);
 	sunxi_mmc_set_clk(host, ios);
 }
@@ -963,9 +969,6 @@ static void sunxi_mmc_enable_sdio_irq(struct mmc_host *mmc, int enable)
 	unsigned long flags;
 	u32 imask;
 
-	if (enable)
-		pm_runtime_get_noresume(host->dev);
-
 	spin_lock_irqsave(&host->lock, flags);
 
 	imask = mmc_readl(host, REG_IMASK);
@@ -978,9 +981,6 @@ static void sunxi_mmc_enable_sdio_irq(struct mmc_host *mmc, int enable)
 	}
 	mmc_writel(host, REG_IMASK, imask);
 	spin_unlock_irqrestore(&host->lock, flags);
-
-	if (!enable)
-		pm_runtime_put_noidle(host->mmc->parent);
 }
 
 static void sunxi_mmc_hw_reset(struct mmc_host *mmc)
@@ -1394,15 +1394,6 @@ static int sunxi_mmc_probe(struct platform_device *pdev)
 	if (ret)
 		goto error_free_dma;
 
-	ret = sunxi_mmc_init_host(host);
-	if (ret)
-		goto error_free_dma;
-
-	pm_runtime_set_active(&pdev->dev);
-	pm_runtime_set_autosuspend_delay(&pdev->dev, 50);
-	pm_runtime_use_autosuspend(&pdev->dev);
-	pm_runtime_enable(&pdev->dev);
-
 	ret = mmc_add_host(mmc);
 	if (ret)
 		goto error_free_dma;
@@ -1426,7 +1417,6 @@ static int sunxi_mmc_remove(struct platform_device *pdev)
 	struct sunxi_mmc_host *host = mmc_priv(mmc);
 
 	mmc_remove_host(mmc);
-	pm_runtime_force_suspend(&pdev->dev);
 	disable_irq(host->irq);
 	sunxi_mmc_disable(host);
 	dma_free_coherent(&pdev->dev, PAGE_SIZE, host->sg_cpu, host->sg_dma);
@@ -1435,54 +1425,11 @@ static int sunxi_mmc_remove(struct platform_device *pdev)
 	return 0;
 }
 
-#ifdef CONFIG_PM
-static int sunxi_mmc_runtime_resume(struct device *dev)
-{
-	struct mmc_host	*mmc = dev_get_drvdata(dev);
-	struct sunxi_mmc_host *host = mmc_priv(mmc);
-	int ret;
-
-	ret = sunxi_mmc_enable(host);
-	if (ret)
-		return ret;
-
-	sunxi_mmc_init_host(host);
-	sunxi_mmc_set_bus_width(host, mmc->ios.bus_width);
-	sunxi_mmc_set_clk(host, &mmc->ios);
-	enable_irq(host->irq);
-
-	return 0;
-}
-
-static int sunxi_mmc_runtime_suspend(struct device *dev)
-{
-	struct mmc_host	*mmc = dev_get_drvdata(dev);
-	struct sunxi_mmc_host *host = mmc_priv(mmc);
-
-	/*
-	 * When clocks are off, it's possible receiving
-	 * fake interrupts, which will stall the system.
-	 * Disabling the irq  will prevent this.
-	 */
-	disable_irq(host->irq);
-	sunxi_mmc_reset_host(host);
-	sunxi_mmc_disable(host);
-
-	return 0;
-}
-#endif
-
-static const struct dev_pm_ops sunxi_mmc_pm_ops = {
-	SET_RUNTIME_PM_OPS(sunxi_mmc_runtime_suspend,
-			   sunxi_mmc_runtime_resume,
-			   NULL)
-};
-
 static struct platform_driver sunxi_mmc_driver = {
 	.driver = {
 		.name	= "sunxi-mmc",
 		.of_match_table = of_match_ptr(sunxi_mmc_of_match),
-		.pm = &sunxi_mmc_pm_ops,
+		.probe_type = PROBE_PREFER_ASYNCHRONOUS,
 	},
 	.probe		= sunxi_mmc_probe,
 	.remove		= sunxi_mmc_remove,
