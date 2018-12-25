@@ -103,6 +103,8 @@
 		pinctrl-names = "default";
 		pinctrl-0 = <&mmc3_pwrseq_pin_cubietruck>;
 		reset-gpios = <&pio 7 9 GPIO_ACTIVE_LOW>; /* PH9 WIFI_EN */
+		clocks = <&ccu CLK_OUT_A>;
+		clock-names = "ext_clock";
 	};
 
 	sound {
@@ -246,6 +248,10 @@
 };
 
 &pio {
+	/* Pin outputs low power clock for WiFi and BT */
+	pinctrl-0 = <&clk_out_a_pins_a>;
+	pinctrl-names = "default";
+
 	ahci_pwr_pin_cubietruck: ahci_pwr_pin@1 {
 		pins = "PH12";
 		function = "gpio_out";
@@ -348,6 +354,23 @@
 	pinctrl-names = "default";
 	pinctrl-0 = <&uart0_pins_a>;
 	status = "okay";
+};
+
+&uart2 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&uart2_pins_a>;
+	uart-has-rtscts;
+	status = "okay";
+
+	bluetooth {
+		compatible = "brcm,bcm20702a1";
+		clocks = <&ccu CLK_OUT_A>;
+		clock-names = "lpo";
+		device-wakeup-gpios = <&pio 7 24 GPIO_ACTIVE_LOW>; /* PH24 */
+		host-wakeup-gpios = <&pio 7 25 GPIO_ACTIVE_LOW>; /* PH25 */
+		shutdown-gpios = <&pio 7 18 GPIO_ACTIVE_HIGH>; /* PH18 */
+		max-speed = <1500000>;
+	};
 };
 
 &usb_otg {
