@@ -584,6 +584,10 @@ core-$(CONFIG_MIKROTIK_RB532)	+= arch/mips/rb532/
 cflags-$(CONFIG_MIKROTIK_RB532) += -I$(srctree)/arch/mips/include/asm/mach-rc32434
 load-$(CONFIG_MIKROTIK_RB532)	+= 0xffffffff80101000
 
+core-$(CONFIG_MIPS_CSIP)	+= arch/mips/rb532/
+cflags-$(CONFIG_MIPS_CSIP) += -I$(srctree)/arch/mips/include/asm/mach-rc32434
+load-$(CONFIG_MIPS_CSIP)	+= 0xffffffff80101000
+
 #
 # Toshiba RBTX49XX boards
 #
