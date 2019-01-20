@@ -30,7 +30,7 @@ Type the following commands (adjusting paths to match your setup):
     export CROSS_COMPILE="aarch64-linux-gnu-"
     export PATH=/home/thekeyman/toolchains/gcc-linaro-7.3.1-2018.05-x86_64_aarch64-linux-gnu/bin:$PATH
     cp linux-4.14-64 .config
-    export INSTALL_MOD_PATH=/home/thekeyman/orange_pi_pc2/modules
+    export INSTALL_MOD_PATH=/home/thekeyman/orange_pi_pc2
     mkdir -p $INSTALL_MOD_PATH
     make -j4 Image dtbs modules
     make modules_install
@@ -38,10 +38,16 @@ Type the following commands (adjusting paths to match your setup):
 Booting the kernel
 --------------------
 
-Copy the following files to your SD card's boot directory:
+Copy the following files to your SD card's /boot directory:
 
 arch/arm64/boot/Image
 
-arch/arm64/boot/dts/allwinner/sun50i-h5-orangepi-pc2.dts
+arch/arm64/boot/dts/allwinner/sun50i-h5-orangepi-pc2.dtb
+
+Copy the following directory to your SD card's /lib/modules directory:
+
+/home/thekeyman/orange_pi_pc2/lib/modules/4.14.24-122096-g9325f4b6cfef
+
+and rename it to 4.14.24-122094-gde9fae3ac976-dirty
 
 Adjust your u-boot boot script to use them. Recent mainline u-boots seem to properly support the Orange Pi PC2.
