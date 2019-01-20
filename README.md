@@ -22,7 +22,7 @@ How to Compile for Orange Pi PC2
 --------------------------------
 
 A standard Linux desktop environment is needed with a recent aarch64 linaro toolchain is setup for cross-compiling.
-I have succesfully compiled and boot this kernel using the gcc-linaro-7.3.1-2018.05-x86_64_aarch64-linux-gnu toolchain.
+I have succesfully compiled and booted this kernel using the gcc-linaro-7.3.1-2018.05-x86_64_aarch64-linux-gnu toolchain.
 
 Type the following commands (adjusting paths to match your setup):
 
