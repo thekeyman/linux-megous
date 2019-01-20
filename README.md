@@ -39,7 +39,9 @@ Booting the kernel
 --------------------
 
 Copy the following files to your SD card's boot directory:
+
 arch/arm64/boot/Image
+
 arch/arm64/boot/dts/allwinner/sun50i-h5-orangepi-pc2.dts
 
 Adjust your u-boot boot script to use them. Recent mainline u-boots seem to properly support the Orange Pi PC2.
