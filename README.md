@@ -50,4 +50,12 @@ Copy the following directory to your SD card's /lib/modules directory:
 
 and rename it to 4.14.24-122094-gde9fae3ac976-dirty
 
-Adjust your u-boot boot script to use them. Recent mainline u-boots seem to properly support the Orange Pi PC2.
+Adjust your u-boot boot script to use them. e.g.:
+
+load ${devtype} ${devnum} ${fdt_addr_r} /boot/sun50i-h5-orangepi-pc2.dtb
+load ${devtype} ${devnum} ${ramdisk_addr_r} /boot/uInitrd
+load ${devtype} ${devnum} ${kernel_addr_r} /boot/Image
+booti ${kernel_addr_r} ${ramdisk_addr_r} ${fdt_addr_r}
+
+Recent mainline u-boots seem to properly support the Orange Pi PC2.
+
