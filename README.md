@@ -24,14 +24,14 @@ How to Compile for Orange Pi PC2
 A standard Linux desktop environment is needed with a recent aarch64 linaro toolchain is setup for cross-compiling.
 I have succesfully compiled and booted this kernel using the gcc-linaro-7.3.1-2018.05-x86_64_aarch64-linux-gnu toolchain.
 
-Type the following commands (adjusting paths to match your setup):
+Assuming Orange Pi's SD card is mounted to /media/thekeyman/target_sd_card, type the following commands 
+(adjusting paths to match your setup):
 
     export ARCH="arm64"
     export CROSS_COMPILE="aarch64-linux-gnu-"
     export PATH=/home/thekeyman/toolchains/gcc-linaro-7.3.1-2018.05-x86_64_aarch64-linux-gnu/bin:$PATH
     cp linux-4.14-64 .config
-    export INSTALL_MOD_PATH=/home/thekeyman/orange_pi_pc2
-    mkdir -p $INSTALL_MOD_PATH
+    export INSTALL_MOD_PATH=/media/thekeyman/target_sd_card
     make -j4 Image dtbs modules
     make modules_install
 
@@ -44,18 +44,11 @@ arch/arm64/boot/Image
 
 arch/arm64/boot/dts/allwinner/sun50i-h5-orangepi-pc2.dtb
 
-Copy the following directory to your SD card's /lib/modules directory:
-
-/home/thekeyman/orange_pi_pc2/lib/modules/4.14.24-122096-g9325f4b6cfef
-
-and rename it to 4.14.24-122094-gde9fae3ac976-dirty
-
 Adjust your u-boot boot script to use them. e.g.:
 
-load ${devtype} ${devnum} ${fdt_addr_r} /boot/sun50i-h5-orangepi-pc2.dtb
-load ${devtype} ${devnum} ${ramdisk_addr_r} /boot/uInitrd
-load ${devtype} ${devnum} ${kernel_addr_r} /boot/Image
-booti ${kernel_addr_r} ${ramdisk_addr_r} ${fdt_addr_r}
+    load ${devtype} ${devnum} ${fdt_addr_r} /boot/sun50i-h5-orangepi-pc2.dtb
+    load ${devtype} ${devnum} ${ramdisk_addr_r} /boot/uInitrd
+    load ${devtype} ${devnum} ${kernel_addr_r} /boot/Image
+    booti ${kernel_addr_r} ${ramdisk_addr_r} ${fdt_addr_r}
 
 Recent mainline u-boots seem to properly support the Orange Pi PC2.
-
