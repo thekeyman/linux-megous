@@ -2,7 +2,8 @@ Mainline linux kernel for Orange Pi PC2
 ---------------------------------------------------
 
 Megous' fork of the Linux kernel was meant for the Orange Pi PC2 among others. This fork of Megous'
-fork is mainly out of my interest in running it on the Orange Pi PC2.
+fork is mainly out of my interest in running it on the Orange Pi PC2.  For other
+Orange Pi boards, refer to [the uptream project](https://github.com/megous/linux).
 
 Features in addition to mainline added by Megous:
 
